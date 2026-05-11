@@ -1,0 +1,173 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+  user              User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+model User {
+  id            String    @id @default(cuid())
+  name          String?
+  email         String    @unique
+  emailVerified DateTime?
+  image         String?
+  role          UserRole  @default(VISITANTE)
+  accounts      Account[]
+  sessions      Session[]
+  editais       Edital[]
+  posts         Post[]
+  eventos       Evento[]
+  createdAt     DateTime  @default(now())
+}
+
+enum UserRole {
+  VISITANTE
+  EDITOR_IFIZINHA
+  EQUIPE_PROJETO
+  ADMINISTRADOR
+}
+
+model Edital {
+  id               String          @id @default(cuid())
+  titulo           String
+  slug             String          @unique
+  categoria        CategoriaEdital
+  resumo           String          @db.Text
+  dataEncerramento DateTime
+  status           StatusEdital
+  traducaoIFizinha Json
+  arquivoPdfUrl    String?
+  linkOficial      String
+  visualizacoes    Int             @default(0)
+  destaque         Boolean         @default(false)
+  authorId         String
+  author           User            @relation(fields: [authorId], references: [id])
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
+}
+
+enum CategoriaEdital {
+  BOLSAS
+  AUXILIOS
+  EXTENSAO
+  PESQUISA
+  ENSINO
+  EVENTOS
+  ESTAGIOS
+  RESULTADOS
+}
+
+enum StatusEdital {
+  ATIVO
+  ENCERRA_BREVE
+  ENCERRADO
+  RESULTADO_PUBLICADO
+}
+
+model Projeto {
+  id            String        @id @default(cuid())
+  nome          String
+  slug          String        @unique
+  coordenador   String
+  area          String
+  descricao     String?       @db.Text
+  status        StatusProjeto
+  logoUrl       String?
+  corPrimaria   String        @default("#2F52D3")
+  email         String?
+  instagram     String?
+  site          String?
+  visualizacoes Int           @default(0)
+  destaque      Boolean       @default(false)
+  posts         Post[]
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+}
+
+enum StatusProjeto {
+  EM_EXECUCAO
+  ENVIADO_2026
+  CONCLUIDO
+  INATIVADO
+}
+
+model Post {
+  id        String     @id @default(cuid())
+  titulo    String
+  slug      String     @unique
+  conteudo  String     @db.Text
+  resumo    String?
+  imagemUrl String?
+  status    StatusPost
+  projetoId String
+  projeto   Projeto    @relation(fields: [projetoId], references: [id])
+  authorId  String
+  author    User       @relation(fields: [authorId], references: [id])
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+}
+
+enum StatusPost {
+  RASCUNHO
+  PUBLICADO
+}
+
+model Evento {
+  id          String     @id @default(cuid())
+  titulo      String
+  descricao   String?
+  data        DateTime
+  dataFim     DateTime?
+  tipo        TipoEvento
+  local       String?
+  linkInscr   String?
+  editalSlug  String?
+  authorId    String
+  author      User       @relation(fields: [authorId], references: [id])
+  createdAt   DateTime   @default(now())
+}
+
+enum TipoEvento {
+  PRAZO_EDITAL
+  EVENTO_CAMPUS
+  EVENTO_PROJETO
+  REUNIAO
+  PALESTRA
+}
