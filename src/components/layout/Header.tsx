@@ -3,9 +3,9 @@
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Menu, X, Sparkles, BookOpen, FolderOpen, Calendar, ChevronRight } from 'lucide-react';
-import { Button } from '@/components/ui/button';
+import { Menu, X, Sparkles, BookOpen, FolderOpen, Calendar, ChevronRight, LayoutDashboard, LogIn } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { useAuth } from '@/contexts/AuthContext';
 
 const navItems = [
   { href: '/editais', label: 'Editais', icon: BookOpen, description: 'Oportunidades traduzidas pela IFizinha' },
@@ -17,6 +17,7 @@ export function Header() {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isScrolled, setIsScrolled] = useState(false);
   const pathname = usePathname();
+  const { user, loading } = useAuth();
 
   useEffect(() => {
     const handleScroll = () => setIsScrolled(window.scrollY > 20);
@@ -90,8 +91,8 @@ export function Header() {
             })}
           </nav>
 
-          {/* CTA + Mobile Toggle */}
-          <div className="flex items-center gap-3">
+          {/* CTA + Admin + Mobile Toggle */}
+          <div className="flex items-center gap-2">
             <Link
               href="/editais"
               className={cn(
@@ -102,6 +103,38 @@ export function Header() {
               <Sparkles className="w-4 h-4" />
               Ver Editais
             </Link>
+
+            {/* Admin / Login button */}
+            {!loading && (
+              user ? (
+                <Link
+                  href="/admin"
+                  title="Painel Admin"
+                  className={cn(
+                    'flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-semibold transition-all',
+                    isScrolled || !isHome
+                      ? 'text-gray-600 hover:text-azul-eletrico hover:bg-gray-100'
+                      : 'text-white/80 hover:text-white hover:bg-white/10'
+                  )}
+                >
+                  <LayoutDashboard className="w-4 h-4" />
+                  <span className="hidden md:inline">Admin</span>
+                </Link>
+              ) : (
+                <Link
+                  href="/admin/login"
+                  title="Entrar"
+                  className={cn(
+                    'flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium transition-all',
+                    isScrolled || !isHome
+                      ? 'text-gray-500 hover:text-azul-eletrico hover:bg-gray-100'
+                      : 'text-white/60 hover:text-white hover:bg-white/10'
+                  )}
+                >
+                  <LogIn className="w-4 h-4" />
+                </Link>
+              )
+            )}
 
             <button
               onClick={() => setIsMenuOpen(!isMenuOpen)}

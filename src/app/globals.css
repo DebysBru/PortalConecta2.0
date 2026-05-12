@@ -112,3 +112,14 @@
   background: rgba(255, 255, 255, 0.1);
   border: 1px solid rgba(255, 255, 255, 0.2);
 }
+
+/* Admin form utilities */
+.input-field {
+  @apply w-full border border-gray-200 rounded-xl px-3.5 py-2.5 text-sm text-gray-900 bg-white
+         focus:outline-none focus:ring-2 focus:ring-azul-eletrico/25 focus:border-azul-eletrico/50
+         placeholder:text-gray-400 transition-all;
+}
+
+.label-field {
+  @apply block text-xs font-semibold text-gray-600 mb-1.5;
+}

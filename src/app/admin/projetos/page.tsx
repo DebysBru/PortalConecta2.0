@@ -1,0 +1,266 @@
+'use client';
+
+import React, { useEffect, useState, useTransition } from 'react';
+import { Plus, Pencil, Trash2, X, FolderOpen, AlertCircle } from 'lucide-react';
+import { listProjetos, createProjeto, updateProjeto, deleteProjeto, type ProjetoFormData } from '@/actions/admin';
+import { getStatusLabel, getStatusColor } from '@/lib/utils';
+
+type Projeto = Awaited<ReturnType<typeof listProjetos>>[number];
+
+const STATUS_LIST = ['EM_EXECUCAO','ENVIADO_2026','CONCLUIDO','INATIVADO'];
+
+const EMPTY_FORM: ProjetoFormData = {
+  nome: '', coordenador: '', area: '', descricao: '',
+  status: 'EM_EXECUCAO', logoUrl: '', corPrimaria: '#2F52D3',
+  email: '', instagram: '', site: '', destaque: false,
+};
+
+export default function AdminProjetosPage() {
+  const [projetos, setProjetos] = useState<Projeto[]>([]);
+  const [panelOpen, setPanelOpen] = useState(false);
+  const [editing, setEditing] = useState<Projeto | null>(null);
+  const [form, setForm] = useState<ProjetoFormData>(EMPTY_FORM);
+  const [error, setError] = useState('');
+  const [isPending, startTransition] = useTransition();
+
+  const load = () => listProjetos().then(setProjetos).catch(console.error);
+  useEffect(() => { load(); }, []);
+
+  const openNew = () => {
+    setEditing(null);
+    setForm(EMPTY_FORM);
+    setError('');
+    setPanelOpen(true);
+  };
+
+  const openEdit = (projeto: Projeto) => {
+    setEditing(projeto);
+    setForm({
+      nome: projeto.nome,
+      coordenador: projeto.coordenador,
+      area: projeto.area,
+      descricao: projeto.descricao ?? '',
+      status: projeto.status,
+      logoUrl: projeto.logoUrl ?? '',
+      corPrimaria: projeto.corPrimaria,
+      email: projeto.email ?? '',
+      instagram: projeto.instagram ?? '',
+      site: projeto.site ?? '',
+      destaque: projeto.destaque,
+    });
+    setError('');
+    setPanelOpen(true);
+  };
+
+  const handleDelete = (id: string) => {
+    if (!confirm('Excluir este projeto permanentemente?')) return;
+    startTransition(async () => {
+      const result = await deleteProjeto(id);
+      if (result.ok) load();
+      else setError(result.error);
+    });
+  };
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    setError('');
+    startTransition(async () => {
+      const result = editing ? await updateProjeto(editing.id, form) : await createProjeto(form);
+      if (result.ok) { setPanelOpen(false); load(); }
+      else setError(result.error);
+    });
+  };
+
+  const set = (field: keyof ProjetoFormData, value: unknown) =>
+    setForm((f) => ({ ...f, [field]: value }));
+
+  return (
+    <div className="max-w-5xl mx-auto">
+      <div className="flex flex-wrap items-center justify-between gap-4 mb-6">
+        <div>
+          <h1 className="text-2xl font-black text-gray-900">Projetos</h1>
+          <p className="text-gray-500 text-sm">{projetos.length} projeto(s) cadastrado(s)</p>
+        </div>
+        <button onClick={openNew} className="flex items-center gap-2 bg-roxo-luminoso text-white font-semibold px-4 py-2.5 rounded-xl hover:bg-roxo-luminoso/90 transition-all text-sm shadow-sm">
+          <Plus className="w-4 h-4" /> Novo Projeto
+        </button>
+      </div>
+
+      <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
+        {projetos.length === 0 ? (
+          <div className="text-center py-16 text-gray-400">
+            <FolderOpen className="w-10 h-10 mx-auto mb-3 opacity-40" />
+            <p className="font-medium">Nenhum projeto cadastrado ainda</p>
+          </div>
+        ) : (
+          <>
+            {/* Mobile card list */}
+            <div className="md:hidden divide-y divide-gray-50">
+              {projetos.map((p) => (
+                <div key={p.id} className="p-4 flex items-center gap-3">
+                  <div className="w-9 h-9 rounded-xl flex items-center justify-center text-white font-bold text-sm flex-shrink-0" style={{ backgroundColor: p.corPrimaria }}>
+                    {p.nome.charAt(0)}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="font-semibold text-gray-900 text-sm truncate">{p.nome}</p>
+                    <div className="flex flex-wrap items-center gap-1.5 mt-1">
+                      <span className="text-xs text-gray-500 truncate max-w-[120px]">{p.area}</span>
+                      <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-semibold border ${getStatusColor(p.status)}`}>
+                        {getStatusLabel(p.status)}
+                      </span>
+                      {p.destaque && <span className="text-xs bg-dourado-500/20 text-dourado-700 px-2 py-0.5 rounded-full font-semibold">Destaque</span>}
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-1 flex-shrink-0">
+                    <button onClick={() => openEdit(p)} className="p-2 rounded-lg hover:bg-gray-100 text-gray-400 hover:text-azul-eletrico transition-colors">
+                      <Pencil className="w-4 h-4" />
+                    </button>
+                    <button onClick={() => handleDelete(p.id)} className="p-2 rounded-lg hover:bg-red-50 text-gray-400 hover:text-red-500 transition-colors">
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {/* Desktop table */}
+            <div className="hidden md:block overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="bg-gray-50 border-b border-gray-100">
+                    <th className="text-left px-4 py-3 font-semibold text-gray-600">Projeto</th>
+                    <th className="text-left px-4 py-3 font-semibold text-gray-600">Área</th>
+                    <th className="text-left px-4 py-3 font-semibold text-gray-600">Status</th>
+                    <th className="text-left px-4 py-3 font-semibold text-gray-600">Destaque</th>
+                    <th className="px-4 py-3" />
+                  </tr>
+                </thead>
+                <tbody>
+                  {projetos.map((p) => (
+                    <tr key={p.id} className="border-b border-gray-50 hover:bg-gray-50/50 transition-colors">
+                      <td className="px-4 py-3">
+                        <div className="flex items-center gap-3">
+                          <div className="w-7 h-7 rounded-lg flex items-center justify-center text-white text-xs font-bold flex-shrink-0" style={{ backgroundColor: p.corPrimaria }}>
+                            {p.nome.charAt(0)}
+                          </div>
+                          <div>
+                            <p className="font-semibold text-gray-900 truncate max-w-[200px]">{p.nome}</p>
+                            <p className="text-xs text-gray-400 truncate max-w-[200px]">{p.coordenador}</p>
+                          </div>
+                        </div>
+                      </td>
+                      <td className="px-4 py-3 text-gray-500">{p.area}</td>
+                      <td className="px-4 py-3">
+                        <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-semibold border ${getStatusColor(p.status)}`}>
+                          {getStatusLabel(p.status)}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3">
+                        {p.destaque && <span className="text-xs bg-dourado-500/20 text-dourado-700 px-2 py-0.5 rounded-full font-semibold">Destaque</span>}
+                      </td>
+                      <td className="px-4 py-3">
+                        <div className="flex items-center gap-1 justify-end">
+                          <button onClick={() => openEdit(p)} className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-400 hover:text-azul-eletrico transition-colors">
+                            <Pencil className="w-3.5 h-3.5" />
+                          </button>
+                          <button onClick={() => handleDelete(p.id)} className="p-1.5 rounded-lg hover:bg-red-50 text-gray-400 hover:text-red-500 transition-colors">
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </>
+        )}
+      </div>
+
+      {panelOpen && (
+        <>
+          <div className="fixed inset-0 bg-black/40 z-40" onClick={() => setPanelOpen(false)} />
+          <div className="fixed top-0 right-0 h-full w-full max-w-lg bg-white z-50 shadow-2xl flex flex-col overflow-hidden">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
+              <h2 className="font-bold text-gray-900">{editing ? 'Editar Projeto' : 'Novo Projeto'}</h2>
+              <button onClick={() => setPanelOpen(false)} className="p-1.5 rounded-lg hover:bg-gray-100 transition-colors">
+                <X className="w-5 h-5 text-gray-500" />
+              </button>
+            </div>
+            <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto">
+              <div className="p-6 space-y-4">
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="col-span-2">
+                    <label className="label-field">Nome <span className="text-red-500">*</span></label>
+                    <input className="input-field" value={form.nome} onChange={(e) => set('nome', e.target.value)} required />
+                  </div>
+                  <div className="col-span-2">
+                    <label className="label-field">Coordenador <span className="text-red-500">*</span></label>
+                    <input className="input-field" value={form.coordenador} onChange={(e) => set('coordenador', e.target.value)} required />
+                  </div>
+                  <div>
+                    <label className="label-field">Área <span className="text-red-500">*</span></label>
+                    <input className="input-field" value={form.area} onChange={(e) => set('area', e.target.value)} required />
+                  </div>
+                  <div>
+                    <label className="label-field">Status <span className="text-red-500">*</span></label>
+                    <select className="input-field" value={form.status} onChange={(e) => set('status', e.target.value as ProjetoFormData['status'])}>
+                      {STATUS_LIST.map((s) => <option key={s} value={s}>{getStatusLabel(s)}</option>)}
+                    </select>
+                  </div>
+                  <div className="col-span-2">
+                    <label className="label-field">Descrição</label>
+                    <textarea className="input-field min-h-[80px] resize-none" value={form.descricao ?? ''} onChange={(e) => set('descricao', e.target.value)} />
+                  </div>
+                  <div>
+                    <label className="label-field">Cor primária</label>
+                    <div className="flex items-center gap-2">
+                      <input type="color" value={form.corPrimaria ?? '#2F52D3'} onChange={(e) => set('corPrimaria', e.target.value)} className="w-10 h-10 rounded-lg border border-gray-200 cursor-pointer p-0.5" />
+                      <input className="input-field flex-1" value={form.corPrimaria ?? ''} onChange={(e) => set('corPrimaria', e.target.value)} />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="label-field">Logo URL</label>
+                    <input type="url" className="input-field" value={form.logoUrl ?? ''} onChange={(e) => set('logoUrl', e.target.value)} />
+                  </div>
+                  <div>
+                    <label className="label-field">E-mail</label>
+                    <input type="email" className="input-field" value={form.email ?? ''} onChange={(e) => set('email', e.target.value)} />
+                  </div>
+                  <div>
+                    <label className="label-field">Instagram</label>
+                    <input className="input-field" placeholder="@usuario" value={form.instagram ?? ''} onChange={(e) => set('instagram', e.target.value)} />
+                  </div>
+                  <div className="col-span-2">
+                    <label className="label-field">Site</label>
+                    <input type="url" className="input-field" value={form.site ?? ''} onChange={(e) => set('site', e.target.value)} />
+                  </div>
+                  <div className="col-span-2">
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input type="checkbox" checked={form.destaque ?? false} onChange={(e) => set('destaque', e.target.checked)} className="w-4 h-4 accent-roxo-luminoso" />
+                      <span className="text-sm font-medium text-gray-700">Destacar na homepage</span>
+                    </label>
+                  </div>
+                </div>
+                {error && (
+                  <div className="flex items-start gap-2 bg-red-50 border border-red-200 rounded-xl p-3 text-red-700 text-xs">
+                    <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5" />
+                    {error}
+                  </div>
+                )}
+              </div>
+              <div className="sticky bottom-0 bg-white border-t border-gray-100 p-4 flex gap-3">
+                <button type="button" onClick={() => setPanelOpen(false)} className="flex-1 py-2.5 rounded-xl border border-gray-200 text-gray-600 font-semibold text-sm hover:bg-gray-50 transition-all">
+                  Cancelar
+                </button>
+                <button type="submit" disabled={isPending} className="flex-1 py-2.5 rounded-xl bg-roxo-luminoso text-white font-semibold text-sm hover:bg-roxo-luminoso/90 transition-all disabled:opacity-60">
+                  {isPending ? 'Salvando...' : 'Salvar'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
