@@ -1,0 +1,15 @@
+{
+  "permissions": {
+    "allow": [
+      "WebFetch(domain:suap.ifpr.edu.br)",
+      "Bash(New-Item -ItemType Directory -Force \"C:\\\\Users\\\\Debys\\\\Documents\\\\1\\) Portal Conecta 2.0\\\\SITE CONECTA\\\\src\\\\app\\\\admin\")",
+      "Bash(Out-Null)",
+      "Bash(Write-Host \"ok\")",
+      "PowerShell(New-Item -ItemType Directory -Force \"C:\\\\Users\\\\Debys\\\\Documents\\\\1\\) Portal Conecta 2.0\\\\SITE CONECTA\\\\src\\\\app\\\\admin\")",
+      "PowerShell(New-Item -ItemType Directory -Force \"C:\\\\Users\\\\Debys\\\\Documents\\\\1\\) Portal Conecta 2.0\\\\SITE CONECTA\\\\src\\\\components\\\\admin\")",
+      "Bash(npx next *)",
+      "Bash(curl -s -X 'GET' 'https://suap.ifpr.edu.br/api/pesquisa/projetos/?page=1' -H 'accept: application/json' -H 'Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ0b2tlbl90eXBlIjoiYWNjZXNzIiwiZXhwIjoxNzc5NTYxMTIwLCJpYXQiOjE3Nzk0NzQ3MjAsImp0aSI6Ijc1ZTE2YjIxMzE2MTRkYWNhZGRkYmU0ZjMxMjEwZDcyIiwidXNlcl9pZCI6MTAzMjIzfQ.eg2dxDwrhhtCDHORfuOHfL_Apsukv0SVMHb-t3JeBQA')",
+      "Bash(node -e ' *)"
+    ]
+  }
+}

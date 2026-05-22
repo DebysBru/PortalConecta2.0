@@ -54,6 +54,7 @@ model User {
   editais       Edital[]
   posts         Post[]
   eventos       Evento[]
+  projetosAdmin Projeto[] @relation("ProjectAdmins")
   createdAt     DateTime  @default(now())
 }
 
@@ -66,11 +67,16 @@ enum UserRole {
 
 model Edital {
   id               String          @id @default(cuid())
+  suapId           Int?            @unique           // ID do edital no SUAP
+  suapSyncedAt     DateTime?                         // Última sincronização com SUAP
   titulo           String
   slug             String          @unique
+  numero           String?                           // Ex: "01/2025"
   categoria        CategoriaEdital
   resumo           String          @db.Text
+  dataInicio       DateTime?                         // Data de início das inscrições
   dataEncerramento DateTime
+  dataResultado    DateTime?                         // Data de divulgação do resultado
   status           StatusEdital
   traducaoIFizinha Json
   arquivoPdfUrl    String?
@@ -81,6 +87,18 @@ model Edital {
   author           User            @relation(fields: [authorId], references: [id])
   createdAt        DateTime        @default(now())
   updatedAt        DateTime        @updatedAt
+}
+
+// Registro de sincronizações com o SUAP
+model SyncLog {
+  id          String   @id @default(cuid())
+  tipo        String   // "projetos" | "editais" | "full"
+  status      String   // "success" | "error" | "partial"
+  totalSuap   Int      @default(0)  // Total de registros na API
+  sincronizados Int    @default(0)  // Registros criados/atualizados
+  erros       Int      @default(0)
+  mensagem    String?  @db.Text
+  createdAt   DateTime @default(now())
 }
 
 enum CategoriaEdital {
@@ -103,11 +121,23 @@ enum StatusEdital {
 
 model Projeto {
   id            String        @id @default(cuid())
+  suapId        Int?          @unique           // ID do projeto no SUAP
+  suapSyncedAt  DateTime?                       // Última sincronização com SUAP
   nome          String
   slug          String        @unique
   coordenador   String
+  coordenadorEmail String?
+  coordenadorMatricula String?
   area          String
   descricao     String?       @db.Text
+  objetivo      String?       @db.Text
+  metodologia   String?       @db.Text
+  resultadoEsperado String?   @db.Text
+  dataInicio    DateTime?
+  dataConclusao DateTime?
+  servidores    String?       @db.Text
+  alunos        String?       @db.Text
+  observacao    String?       @db.Text
   status        StatusProjeto
   logoUrl       String?
   corPrimaria   String        @default("#2F52D3")
@@ -117,6 +147,7 @@ model Projeto {
   visualizacoes Int           @default(0)
   destaque      Boolean       @default(false)
   posts         Post[]
+  admins        User[]        @relation("ProjectAdmins")
   createdAt     DateTime      @default(now())
   updatedAt     DateTime      @updatedAt
 }
@@ -129,19 +160,22 @@ enum StatusProjeto {
 }
 
 model Post {
-  id        String     @id @default(cuid())
-  titulo    String
-  slug      String     @unique
-  conteudo  String     @db.Text
-  resumo    String?
-  imagemUrl String?
-  status    StatusPost
-  projetoId String
-  projeto   Projeto    @relation(fields: [projetoId], references: [id])
-  authorId  String
-  author    User       @relation(fields: [authorId], references: [id])
-  createdAt DateTime   @default(now())
-  updatedAt DateTime   @updatedAt
+  id              String     @id @default(cuid())
+  titulo          String
+  slug            String     @unique
+  conteudo        String     @db.Text
+  resumo          String?
+  imagemUrl       String?
+  videoUrl        String?
+  arquivoPdfUrl   String?
+  linkExterno     String?
+  status          StatusPost
+  projetoId       String
+  projeto         Projeto    @relation(fields: [projetoId], references: [id])
+  authorId        String
+  author          User       @relation(fields: [authorId], references: [id])
+  createdAt       DateTime   @default(now())
+  updatedAt       DateTime   @updatedAt
 }
 
 enum StatusPost {

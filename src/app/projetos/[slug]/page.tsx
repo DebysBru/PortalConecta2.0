@@ -1,50 +1,28 @@
 import React from 'react';
 import Link from 'next/link';
-import { ChevronRight, Users, Mail, Instagram, Globe, ArrowLeft, BookOpen, Calendar, ArrowRight } from 'lucide-react';
+import { ChevronRight, Users, Mail, Instagram, Globe, ArrowLeft, BookOpen, Calendar, ArrowRight, Image as ImageIcon } from 'lucide-react';
 import { getStatusLabel, getStatusColor } from '@/lib/utils';
 import type { Metadata } from 'next';
-
-const projetos: Record<string, {
-  id: string; nome: string; coordenador: string; area: string;
-  corPrimaria: string; status: string; slug: string; descricao: string;
-  email?: string; instagram?: string; site?: string;
-}> = {
-  'marketing-digital-solidario': {
-    id: '1', nome: 'Marketing Digital Solidário', coordenador: 'Onivaldo Flores Junior',
-    area: 'Marketing Digital', corPrimaria: '#2F52D3', status: 'EM_EXECUCAO',
-    slug: 'marketing-digital-solidario', instagram: '@mktdigitalsolidario',
-    descricao: 'O Marketing Digital Solidário é um projeto de extensão do IFPR Campus Ivaiporã que capacita estudantes em marketing digital e comunicação, promovendo o desenvolvimento de habilidades práticas e apoio a organizações sociais da região do Vale do Ivaí.\n\nO projeto atua em duas frentes principais: a capacitação interna dos estudantes (com formações em design, redes sociais, produção de conteúdo e gestão de campanhas) e a prestação de serviços gratuitos de marketing digital para ONGs, associações e pequenos empreendedores locais.\n\nAtualmente, o projeto é responsável pelo Portal Conecta IFPR e pela persona IFizinha, iniciativas que democratizam o acesso à informação institucional para estudantes.',
-  },
-  'mais-empatia': {
-    id: '2', nome: 'Mais Empatia', coordenador: 'Aline Spaciari Matioli',
-    area: 'Psicologia e Saúde Mental', corPrimaria: '#E83D89', status: 'EM_EXECUCAO',
-    slug: 'mais-empatia',
-    descricao: 'O Mais Empatia é um projeto voltado ao desenvolvimento da empatia e habilidades socioemocionais na comunidade escolar. Por meio de rodas de conversa, dinâmicas e intervenções artísticas, o projeto promove saúde mental e bem-estar entre estudantes do IFPR e das escolas parceiras.\n\nO projeto trabalha com temáticas como escuta ativa, resolução de conflitos, diversidade e inclusão, contribuindo para um ambiente escolar mais acolhedor e saudável para todos.',
-  },
-  'ao-infinito-e-alem-astronomia-para-todos': {
-    id: '3', nome: 'Ao Infinito e Além: Astronomia para Todos', coordenador: 'Adriano Jose Ortiz',
-    area: 'Ciências e Astronomia', corPrimaria: '#7B24C7', status: 'EM_EXECUCAO',
-    slug: 'ao-infinito-e-alem-astronomia-para-todos',
-    descricao: 'Democratizando o acesso à astronomia por meio de atividades práticas, observações noturnas e oficinas educativas para a comunidade do Vale do Ivaí.\n\nO projeto realiza sessões de observação do céu com telescópios, palestras sobre astronomia básica, astrofísica e exploração espacial, além de visitas às escolas da região. Todas as atividades são abertas à comunidade, sem custo, buscando despertar o interesse pela ciência e pela astronomia em pessoas de todas as idades.',
-  },
-  'nea-vale-do-ivai': {
-    id: '4', nome: 'NEA Vale do Ivaí', coordenador: 'Gisele Fernanda Mouro',
-    area: 'Agroecologia', corPrimaria: '#2E7D32', status: 'EM_EXECUCAO',
-    slug: 'nea-vale-do-ivai',
-    descricao: 'O Núcleo de Estudos em Agroecologia (NEA) Vale do Ivaí promove práticas sustentáveis de produção agrícola, conectando saberes tradicionais e científicos na região.\n\nO projeto desenvolve pesquisas em agroecologia, realiza oficinas com agricultores familiares e produz materiais educativos sobre produção orgânica, permacultura e segurança alimentar. Também mantém um espaço demonstrativo de agroecologia no campus.',
-  },
-};
+import { prisma } from '@/lib/prisma';
 
 type Params = { slug: string };
 
 export async function generateMetadata({ params }: { params: Params }): Promise<Metadata> {
-  const projeto = projetos[params.slug];
+  const projeto = await prisma.projeto.findUnique({ where: { slug: params.slug } });
   if (!projeto) return { title: 'Projeto não encontrado' };
-  return { title: projeto.nome, description: projeto.descricao.slice(0, 160) };
+  return { title: projeto.nome, description: projeto.descricao?.slice(0, 160) || '' };
 }
 
-export default function ProjetoPage({ params }: { params: Params }) {
-  const projeto = projetos[params.slug];
+export default async function ProjetoPage({ params }: { params: Params }) {
+  const projeto = await prisma.projeto.findUnique({ 
+    where: { slug: params.slug },
+    include: {
+      posts: {
+        where: { status: 'PUBLICADO' },
+        orderBy: { createdAt: 'desc' }
+      }
+    }
+  });
 
   if (!projeto) {
     return (
@@ -63,7 +41,7 @@ export default function ProjetoPage({ params }: { params: Params }) {
     );
   }
 
-  const paragrafos = projeto.descricao.split('\n\n');
+  const paragrafos = projeto.descricao ? projeto.descricao.split('\n\n') : [];
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -79,8 +57,13 @@ export default function ProjetoPage({ params }: { params: Params }) {
           </div>
 
           <div className="flex items-start gap-5">
-            <div className="w-16 h-16 md:w-20 md:h-20 bg-white/20 rounded-2xl flex items-center justify-center text-white font-black text-3xl border border-white/30 flex-shrink-0">
-              {projeto.nome.charAt(0)}
+            <div className="w-16 h-16 md:w-20 md:h-20 bg-white/20 rounded-2xl flex items-center justify-center text-white font-black text-3xl border border-white/30 flex-shrink-0 overflow-hidden">
+              {projeto.logoUrl ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={projeto.logoUrl} alt={`Logo ${projeto.nome}`} className="w-full h-full object-cover" />
+              ) : (
+                projeto.nome.charAt(0)
+              )}
             </div>
             <div>
               <div className="flex flex-wrap gap-2 mb-3">
@@ -113,12 +96,54 @@ export default function ProjetoPage({ params }: { params: Params }) {
           <div className="lg:col-span-2 space-y-6">
             <div className="bg-white rounded-2xl border border-gray-100 p-6">
               <h2 className="font-bold text-gray-900 text-lg mb-4">Sobre o Projeto</h2>
-              <div className="space-y-4">
-                {paragrafos.map((p, i) => (
-                  <p key={i} className="text-gray-700 leading-relaxed">{p}</p>
-                ))}
-              </div>
+              {paragrafos.length > 0 ? (
+                <div className="space-y-4">
+                  {paragrafos.map((p, i) => (
+                    <p key={i} className="text-gray-700 leading-relaxed">{p}</p>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-gray-500 italic">Nenhuma descrição informada para este projeto.</p>
+              )}
             </div>
+
+            {/* Posts Section */}
+            {projeto.posts.length > 0 && (
+              <div className="mt-8">
+                <h2 className="font-bold text-gray-900 text-2xl mb-6">Últimas Atualizações</h2>
+                <div className="space-y-4">
+                  {projeto.posts.map((post) => (
+                    <div key={post.id} className="bg-white rounded-2xl border border-gray-100 p-5 hover:border-gray-200 transition-all flex flex-col sm:flex-row gap-5">
+                      {post.imagemUrl ? (
+                        <div className="w-full sm:w-48 h-32 flex-shrink-0 rounded-xl overflow-hidden bg-gray-100">
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img src={post.imagemUrl} alt={post.titulo} className="w-full h-full object-cover" />
+                        </div>
+                      ) : (
+                        <div className="w-full sm:w-48 h-32 flex-shrink-0 rounded-xl bg-gray-50 border border-gray-100 flex items-center justify-center">
+                          <ImageIcon className="w-8 h-8 text-gray-300" />
+                        </div>
+                      )}
+                      <div className="flex-1 min-w-0 flex flex-col justify-center">
+                        <div className="text-xs text-gray-400 font-medium mb-1 flex items-center gap-2">
+                          <Calendar className="w-3.5 h-3.5" />
+                          {new Date(post.createdAt).toLocaleDateString('pt-BR')}
+                        </div>
+                        <h3 className="font-bold text-gray-900 text-lg mb-2 leading-tight">{post.titulo}</h3>
+                        {post.resumo && <p className="text-sm text-gray-500 line-clamp-2 mb-3">{post.resumo}</p>}
+                        
+                        <div className="mt-auto flex items-center gap-3">
+                          <Link href={`/posts/${post.slug}`} className="inline-flex items-center gap-1.5 text-sm font-semibold text-azul-eletrico hover:text-azul-eletrico/80 transition-colors">
+                            Ler mais
+                            <ArrowRight className="w-4 h-4" />
+                          </Link>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Sidebar */}

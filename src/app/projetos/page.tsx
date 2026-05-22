@@ -9,41 +9,16 @@ export const metadata: Metadata = {
   description: 'Diretório completo dos projetos de extensão, pesquisa e ensino do IFPR Campus Ivaiporã.',
 };
 
-const projetos = [
-  { id: '1', nome: 'Marketing Digital Solidário', coordenador: 'Onivaldo Flores Junior', area: 'Marketing Digital', corPrimaria: '#2F52D3', status: 'EM_EXECUCAO', slug: 'marketing-digital-solidario', destaque: true, descricao: 'Capacitação em marketing digital e comunicação, promovendo habilidades práticas e apoio a organizações sociais.' },
-  { id: '2', nome: 'Mais Empatia', coordenador: 'Aline Spaciari Matioli', area: 'Psicologia', corPrimaria: '#E83D89', status: 'EM_EXECUCAO', slug: 'mais-empatia', destaque: true, descricao: 'Desenvolvimento de empatia e habilidades socioemocionais na comunidade escolar.' },
-  { id: '3', nome: 'Ao Infinito e Além: Astronomia para Todos', coordenador: 'Adriano Jose Ortiz', area: 'Astronomia', corPrimaria: '#7B24C7', status: 'EM_EXECUCAO', slug: 'ao-infinito-e-alem-astronomia-para-todos', destaque: true, descricao: 'Democratizando o acesso à astronomia com observações noturnas e oficinas educativas.' },
-  { id: '4', nome: 'NEA Vale do Ivaí', coordenador: 'Gisele Fernanda Mouro', area: 'Agroecologia', corPrimaria: '#2E7D32', status: 'EM_EXECUCAO', slug: 'nea-vale-do-ivai', destaque: false, descricao: 'Práticas sustentáveis de produção agrícola conectando saberes tradicionais e científicos.' },
-  { id: '5', nome: 'Biologia Ilustrada', coordenador: 'Andrea Martini Ribeiro Gonçalves', area: 'Biologia', corPrimaria: '#00897B', status: 'EM_EXECUCAO', slug: 'biologia-ilustrada', destaque: false, descricao: 'Aproximando a biologia da comunidade através da ilustração científica.' },
-  { id: '6', nome: 'Química na Cozinha', coordenador: 'Carlos Eduardo Martins', area: 'Química', corPrimaria: '#F57C00', status: 'EM_EXECUCAO', slug: 'quimica-na-cozinha', destaque: false, descricao: 'Experimentos culinários para ensinar química de forma prática e divertida.' },
-  { id: '7', nome: 'Robótica Educacional IFPR', coordenador: 'João Paulo Ferreira', area: 'Tecnologia', corPrimaria: '#1565C0', status: 'EM_EXECUCAO', slug: 'robotica-educacional-ifpr', destaque: false, descricao: 'Introdução à robótica e programação para jovens da comunidade.' },
-  { id: '8', nome: 'Horta Comunitária', coordenador: 'Mariana Costa Silva', area: 'Agricultura', corPrimaria: '#388E3C', status: 'EM_EXECUCAO', slug: 'horta-comunitaria', destaque: false, descricao: 'Hortas comunitárias em escolas e espaços públicos para educação ambiental.' },
-  { id: '9', nome: 'Letramento Digital para Terceira Idade', coordenador: 'Fernanda Lima Rodrigues', area: 'Inclusão Digital', corPrimaria: '#6A1B9A', status: 'EM_EXECUCAO', slug: 'letramento-digital-terceira-idade', destaque: false, descricao: 'Capacitação digital para pessoas com 60 anos ou mais.' },
-  { id: '10', nome: 'Teatro na Escola', coordenador: 'Patricia Alves Mendonça', area: 'Artes', corPrimaria: '#C62828', status: 'EM_EXECUCAO', slug: 'teatro-na-escola', destaque: false, descricao: 'Teatro educativo que desenvolve expressão artística e trabalho em equipe.' },
-  { id: '11', nome: 'Cidadania e Direitos', coordenador: 'Roberto Santos Oliveira', area: 'Direito', corPrimaria: '#0277BD', status: 'EM_EXECUCAO', slug: 'cidadania-e-direitos', destaque: false, descricao: 'Orientação jurídica gratuita e educação em direitos fundamentais.' },
-  { id: '12', nome: 'Matemática Descomplicada', coordenador: 'Ana Beatriz Torres', area: 'Matemática', corPrimaria: '#283593', status: 'EM_EXECUCAO', slug: 'matematica-descomplicada', destaque: false, descricao: 'Reforço escolar em matemática com metodologias lúdicas e interativas.' },
-  { id: '13', nome: 'Biblioteca Viva', coordenador: 'Luciana Freitas Campos', area: 'Literatura', corPrimaria: '#4E342E', status: 'EM_EXECUCAO', slug: 'biblioteca-viva', destaque: false, descricao: 'Promoção da leitura e formação de leitores críticos.' },
-  { id: '14', nome: 'Empreendedorismo Jovem', coordenador: 'Marcos Antonio Ramos', area: 'Empreendedorismo', corPrimaria: '#FF6F00', status: 'EM_EXECUCAO', slug: 'empreendedorismo-jovem', destaque: false, descricao: 'Capacitação em empreendedorismo e economia criativa para jovens.' },
-  { id: '15', nome: 'Saúde Bucal na Comunidade', coordenador: 'Dra. Silvia Moreira', area: 'Saúde', corPrimaria: '#00838F', status: 'EM_EXECUCAO', slug: 'saude-bucal-na-comunidade', destaque: false, descricao: 'Ações de saúde bucal preventiva em escolas públicas.' },
-  { id: '16', nome: 'Física em Experimentos', coordenador: 'Prof. Eduardo Almeida', area: 'Física', corPrimaria: '#37474F', status: 'EM_EXECUCAO', slug: 'fisica-em-experimentos', destaque: false, descricao: 'Laboratório itinerante de física experimental para escolas da região.' },
-  { id: '17', nome: 'Línguas sem Fronteiras', coordenador: 'Profa. Carla Werneck', area: 'Idiomas', corPrimaria: '#1A237E', status: 'EM_EXECUCAO', slug: 'linguas-sem-fronteiras', destaque: false, descricao: 'Cursos gratuitos de inglês e espanhol para a comunidade.' },
-  { id: '18', nome: 'Arte e Sustentabilidade', coordenador: 'Beatriz Cunha Lima', area: 'Arte', corPrimaria: '#558B2F', status: 'EM_EXECUCAO', slug: 'arte-e-sustentabilidade', destaque: false, descricao: 'Criação artística com materiais recicláveis e consciência ambiental.' },
-  { id: '19', nome: 'Podcast IFPR', coordenador: 'Diego Carvalho Neto', area: 'Comunicação', corPrimaria: '#4527A0', status: 'EM_EXECUCAO', slug: 'podcast-ifpr', destaque: false, descricao: 'Produção de conteúdo em áudio sobre ciência, tecnologia e cultura.' },
-  { id: '20', nome: 'Xadrez Escola', coordenador: 'Prof. Alexandre Dias', area: 'Esporte', corPrimaria: '#BF360C', status: 'EM_EXECUCAO', slug: 'xadrez-escola', destaque: false, descricao: 'Ensino do xadrez como ferramenta pedagógica para raciocínio lógico.' },
-  { id: '21', nome: 'Nutrição e Bem-Estar', coordenador: 'Nutricionista Helena Prado', area: 'Nutrição', corPrimaria: '#2E7D32', status: 'EM_EXECUCAO', slug: 'nutricao-e-bem-estar', destaque: false, descricao: 'Educação nutricional e alimentação saudável para famílias.' },
-  { id: '22', nome: 'Programação para Iniciantes', coordenador: 'Gustavo Henrique Souza', area: 'Tecnologia', corPrimaria: '#0D47A1', status: 'EM_EXECUCAO', slug: 'programacao-para-iniciantes', destaque: false, descricao: 'Introdução à programação com Python e desenvolvimento web.' },
-  { id: '23', nome: 'História e Memória Local', coordenador: 'Prof. Renato Vieira Cruz', area: 'História', corPrimaria: '#6D4C41', status: 'EM_EXECUCAO', slug: 'historia-e-memoria-local', destaque: false, descricao: 'Pesquisa e preservação da memória histórica do Vale do Ivaí.' },
-  { id: '24', nome: 'Jogos Matemáticos', coordenador: 'Profa. Vanessa Cardoso', area: 'Matemática', corPrimaria: '#AD1457', status: 'EM_EXECUCAO', slug: 'jogos-matematicos', destaque: false, descricao: 'Jogos educativos para o ensino de matemática de forma lúdica.' },
-  { id: '25', nome: 'Veterinária Comunitária', coordenador: 'Dr. Paulo Mendes', area: 'Veterinária', corPrimaria: '#1B5E20', status: 'EM_EXECUCAO', slug: 'veterinaria-comunitaria', destaque: false, descricao: 'Atenção veterinária gratuita para famílias de baixa renda.' },
-  { id: '26', nome: 'Inclusão e Acessibilidade', coordenador: 'Profa. Juliana Nunes', area: 'Educação Especial', corPrimaria: '#7B24C7', status: 'EM_EXECUCAO', slug: 'inclusao-e-acessibilidade', destaque: false, descricao: 'Promoção da acessibilidade e inclusão de pessoas com deficiência.' },
-  { id: '27', nome: 'Fotografia Social', coordenador: 'Camila Ramos Ferreira', area: 'Arte', corPrimaria: '#4A148C', status: 'ENVIADO_2026', slug: 'fotografia-social', destaque: false, descricao: 'Oficinas de fotografia documental para jovens em vulnerabilidade social.' },
-  { id: '28', nome: 'Cooperativismo Solidário', coordenador: 'Prof. Marcio Barbosa', area: 'Economia', corPrimaria: '#E65100', status: 'ENVIADO_2026', slug: 'cooperativismo-solidario', destaque: false, descricao: 'Formação em cooperativismo e economia solidária para trabalhadores informais.' },
-];
+import { prisma } from '@/lib/prisma';
 
-const areas = ['Todas', ...Array.from(new Set(projetos.map((p) => p.area))).sort()];
-const statusOptions = ['Todos', 'EM_EXECUCAO', 'ENVIADO_2026', 'CONCLUIDO'];
+export default async function ProjetosPage() {
+  const projetos = await prisma.projeto.findMany({
+    orderBy: { nome: 'asc' }
+  });
 
-export default function ProjetosPage() {
+  const areas = ['Todas', ...Array.from(new Set(projetos.map((p) => p.area))).sort()];
+  const statusOptions = ['Todos', 'EM_EXECUCAO', 'ENVIADO_2026', 'CONCLUIDO', 'INATIVADO'];
+
   const emExecucao = projetos.filter((p) => p.status === 'EM_EXECUCAO').length;
   const enviado2026 = projetos.filter((p) => p.status === 'ENVIADO_2026').length;
 

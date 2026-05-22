@@ -1,17 +1,20 @@
 'use client';
 
-import React, { useEffect, useState, useTransition } from 'react';
-import { Plus, Pencil, Trash2, X, Newspaper, AlertCircle } from 'lucide-react';
+import React, { useEffect, useState, useTransition, Suspense } from 'react';
+import { Plus, Pencil, Trash2, X, Newspaper, AlertCircle, Filter } from 'lucide-react';
 import { listPosts, createPost, updatePost, deletePost, listProjetos, type PostFormData } from '@/actions/admin';
 import { useAuth } from '@/contexts/AuthContext';
+import { useSearchParams, useRouter } from 'next/navigation';
 
 type Post = Awaited<ReturnType<typeof listPosts>>[number];
 type Projeto = Awaited<ReturnType<typeof listProjetos>>[number];
 
-const EMPTY: PostFormData = { titulo: '', conteudo: '', resumo: '', imagemUrl: '', status: 'RASCUNHO', projetoId: '' };
+const EMPTY: PostFormData = { titulo: '', conteudo: '', resumo: '', imagemUrl: '', videoUrl: '', arquivoPdfUrl: '', linkExterno: '', status: 'RASCUNHO', projetoId: '' };
 
-export default function AdminPostsPage() {
-  const { user } = useAuth();
+function AdminPostsContent() {
+  const { user, userRole } = useAuth();
+  const searchParams = useSearchParams();
+  const router = useRouter();
   const [posts, setPosts] = useState<Post[]>([]);
   const [projetos, setProjetos] = useState<Projeto[]>([]);
   const [panelOpen, setPanelOpen] = useState(false);
@@ -20,21 +23,26 @@ export default function AdminPostsPage() {
   const [error, setError] = useState('');
   const [isPending, startTransition] = useTransition();
 
+  const queryProjetoId = searchParams.get('projetoId') || '';
+  const [filterProjetoId, setFilterProjetoId] = useState(queryProjetoId);
+
   const load = () => {
-    listPosts().then(setPosts).catch(console.error);
-    listProjetos().then(setProjetos).catch(console.error);
+    if (user?.email && userRole) {
+      listPosts(user.email, userRole).then(setPosts).catch(console.error);
+      listProjetos(user.email, userRole).then(setProjetos).catch(console.error);
+    }
   };
-  useEffect(() => { load(); }, []);
+  useEffect(() => { load(); }, [user, userRole]);
 
   const openNew = () => {
     setEditing(null);
-    setForm({ ...EMPTY, projetoId: projetos[0]?.id ?? '' });
+    setForm({ ...EMPTY, projetoId: filterProjetoId || (projetos[0]?.id ?? '') });
     setError(''); setPanelOpen(true);
   };
 
   const openEdit = (post: Post) => {
     setEditing(post);
-    setForm({ titulo: post.titulo, conteudo: post.conteudo, resumo: post.resumo ?? '', imagemUrl: post.imagemUrl ?? '', status: post.status, projetoId: post.projetoId });
+    setForm({ titulo: post.titulo, conteudo: post.conteudo, resumo: post.resumo ?? '', imagemUrl: post.imagemUrl ?? '', videoUrl: post.videoUrl ?? '', arquivoPdfUrl: post.arquivoPdfUrl ?? '', linkExterno: post.linkExterno ?? '', status: post.status, projetoId: post.projetoId });
     setError(''); setPanelOpen(true);
   };
 
@@ -57,29 +65,51 @@ export default function AdminPostsPage() {
   const set = (field: keyof PostFormData, value: string) =>
     setForm((f) => ({ ...f, [field]: value }));
 
+  const handleFilterChange = (val: string) => {
+    setFilterProjetoId(val);
+    router.replace(val ? `/admin/posts?projetoId=${val}` : '/admin/posts');
+  };
+
+  const filteredPosts = posts.filter(p => filterProjetoId ? p.projetoId === filterProjetoId : true);
+
   return (
     <div className="max-w-5xl mx-auto">
       <div className="flex flex-wrap items-center justify-between gap-4 mb-6">
         <div>
           <h1 className="text-2xl font-black text-gray-900">Posts</h1>
-          <p className="text-gray-500 text-sm">{posts.length} post(s) cadastrado(s)</p>
+          <p className="text-gray-500 text-sm">{filteredPosts.length} post(s) {filterProjetoId ? 'neste projeto' : 'cadastrado(s)'}</p>
         </div>
-        <button onClick={openNew} className="flex items-center gap-2 bg-ciano-claro text-white font-semibold px-4 py-2.5 rounded-xl hover:bg-ciano-claro/90 transition-all text-sm shadow-sm">
-          <Plus className="w-4 h-4" /> Novo Post
-        </button>
+        <div className="flex items-center gap-3 w-full sm:w-auto">
+          {projetos.length > 0 && (
+            <div className="flex items-center gap-2 bg-white border border-gray-200 px-3 py-2 rounded-xl text-sm w-full sm:w-auto">
+              <Filter className="w-4 h-4 text-gray-400" />
+              <select 
+                className="bg-transparent border-none outline-none text-gray-700 w-full"
+                value={filterProjetoId}
+                onChange={(e) => handleFilterChange(e.target.value)}
+              >
+                <option value="">Todos os projetos</option>
+                {projetos.map(p => <option key={p.id} value={p.id}>{p.nome}</option>)}
+              </select>
+            </div>
+          )}
+          <button onClick={openNew} className="flex-shrink-0 flex items-center gap-2 bg-ciano-claro text-white font-semibold px-4 py-2.5 rounded-xl hover:bg-ciano-claro/90 transition-all text-sm shadow-sm">
+            <Plus className="w-4 h-4" /> Novo Post
+          </button>
+        </div>
       </div>
 
       <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
-        {posts.length === 0 ? (
+        {filteredPosts.length === 0 ? (
           <div className="text-center py-16 text-gray-400">
             <Newspaper className="w-10 h-10 mx-auto mb-3 opacity-40" />
-            <p className="font-medium">Nenhum post cadastrado ainda</p>
+            <p className="font-medium">Nenhum post encontrado</p>
           </div>
         ) : (
           <>
             {/* Mobile card list */}
             <div className="md:hidden divide-y divide-gray-50">
-              {posts.map((p) => (
+              {filteredPosts.map((p) => (
                 <div key={p.id} className="p-4 flex items-start gap-3">
                   <div className="flex-1 min-w-0">
                     <p className="font-semibold text-gray-900 text-sm leading-snug line-clamp-2">{p.titulo}</p>
@@ -114,7 +144,7 @@ export default function AdminPostsPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {posts.map((p) => (
+                  {filteredPosts.map((p) => (
                     <tr key={p.id} className="border-b border-gray-50 hover:bg-gray-50/50 transition-colors">
                       <td className="px-4 py-3 font-medium text-gray-900 max-w-xs truncate">{p.titulo}</td>
                       <td className="px-4 py-3 text-gray-500">{p.projeto.nome}</td>
@@ -154,35 +184,86 @@ export default function AdminPostsPage() {
             </div>
             <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto">
               <div className="p-6 space-y-4">
-                <div>
-                  <label className="label-field">Título <span className="text-red-500">*</span></label>
-                  <input className="input-field" value={form.titulo} onChange={(e) => set('titulo', e.target.value)} required />
+                {/* Informações Básicas */}
+                <div className="space-y-4">
+                  <h3 className="text-sm font-bold text-gray-900 border-b pb-2">Informações Básicas</h3>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="col-span-2 md:col-span-1">
+                      <label className="label-field">Título <span className="text-red-500">*</span></label>
+                      <input className="input-field" value={form.titulo} onChange={(e) => set('titulo', e.target.value)} required />
+                    </div>
+                    <div className="col-span-2 md:col-span-1">
+                      <label className="label-field">Projeto <span className="text-red-500">*</span></label>
+                      <select className="input-field" value={form.projetoId} onChange={(e) => set('projetoId', e.target.value)} required>
+                        <option value="">Selecione um projeto</option>
+                        {projetos.map((p) => <option key={p.id} value={p.id}>{p.nome}</option>)}
+                      </select>
+                    </div>
+                    <div className="col-span-2 md:col-span-1">
+                      <label className="label-field">Status</label>
+                      <select className="input-field" value={form.status} onChange={(e) => set('status', e.target.value as PostFormData['status'])}>
+                        <option value="RASCUNHO">Rascunho</option>
+                        <option value="PUBLICADO">Publicado</option>
+                      </select>
+                    </div>
+                  </div>
                 </div>
-                <div>
-                  <label className="label-field">Projeto <span className="text-red-500">*</span></label>
-                  <select className="input-field" value={form.projetoId} onChange={(e) => set('projetoId', e.target.value)} required>
-                    <option value="">Selecione um projeto</option>
-                    {projetos.map((p) => <option key={p.id} value={p.id}>{p.nome}</option>)}
-                  </select>
+
+                {/* Conteúdo */}
+                <div className="space-y-4 pt-2">
+                  <h3 className="text-sm font-bold text-gray-900 border-b pb-2">Conteúdo</h3>
+                  <div>
+                    <label className="label-field flex items-center justify-between">
+                      <span>Texto Principal <span className="text-red-500">*</span></span>
+                      <span className="text-xs font-normal text-gray-400">Suporta formatação Markdown (ex: **negrito**)</span>
+                    </label>
+                    <textarea className="input-field min-h-[160px] resize-y font-mono text-sm" value={form.conteudo} onChange={(e) => set('conteudo', e.target.value)} required placeholder="Escreva o conteúdo do post aqui..." />
+                  </div>
+                  <div>
+                    <label className="label-field">Resumo <span className="text-gray-400 font-normal text-xs ml-1">(Opcional, usado em cards)</span></label>
+                    <textarea className="input-field min-h-[72px] resize-none" value={form.resumo ?? ''} onChange={(e) => set('resumo', e.target.value)} maxLength={200} />
+                  </div>
                 </div>
-                <div>
-                  <label className="label-field">Conteúdo <span className="text-red-500">*</span></label>
-                  <textarea className="input-field min-h-[160px] resize-y" value={form.conteudo} onChange={(e) => set('conteudo', e.target.value)} required />
-                </div>
-                <div>
-                  <label className="label-field">Resumo</label>
-                  <textarea className="input-field min-h-[72px] resize-none" value={form.resumo ?? ''} onChange={(e) => set('resumo', e.target.value)} />
-                </div>
-                <div>
-                  <label className="label-field">URL da imagem</label>
-                  <input type="url" className="input-field" value={form.imagemUrl ?? ''} onChange={(e) => set('imagemUrl', e.target.value)} />
-                </div>
-                <div>
-                  <label className="label-field">Status</label>
-                  <select className="input-field" value={form.status} onChange={(e) => set('status', e.target.value as PostFormData['status'])}>
-                    <option value="RASCUNHO">Rascunho</option>
-                    <option value="PUBLICADO">Publicado</option>
-                  </select>
+
+                {/* Mídia */}
+                <div className="space-y-4 pt-2">
+                  <h3 className="text-sm font-bold text-gray-900 border-b pb-2">Mídia</h3>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="col-span-2">
+                      <label className="label-field">URL da imagem de capa</label>
+                      <input type="url" className="input-field" value={form.imagemUrl ?? ''} onChange={(e) => set('imagemUrl', e.target.value)} placeholder="https://..." />
+                      {form.imagemUrl && (
+                        <div className="mt-3 p-2 bg-gray-50 rounded-xl border border-gray-100 flex justify-center">
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img src={form.imagemUrl} alt="Preview Capa" className="max-h-40 object-cover rounded-lg shadow-sm" onError={(e) => (e.currentTarget.style.display = 'none')} />
+                        </div>
+                      )}
+                    </div>
+                    <div className="col-span-2">
+                      <label className="label-field">URL de um Vídeo (YouTube/Vimeo)</label>
+                      <input type="url" className="input-field" value={form.videoUrl ?? ''} onChange={(e) => set('videoUrl', e.target.value)} placeholder="https://www.youtube.com/watch?v=..." />
+                      {form.videoUrl && form.videoUrl.includes('youtube.com/watch?v=') && (
+                        <div className="mt-3 aspect-video bg-gray-100 rounded-xl overflow-hidden border border-gray-200">
+                          <iframe 
+                            width="100%" 
+                            height="100%" 
+                            src={`https://www.youtube.com/embed/${new URLSearchParams(new URL(form.videoUrl).search).get('v')}`} 
+                            title="Video preview" 
+                            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" 
+                            allowFullScreen
+                          ></iframe>
+                        </div>
+                      )}
+                    </div>
+                    <div className="col-span-2 md:col-span-1">
+                      <label className="label-field">URL de Arquivo PDF</label>
+                      <input type="url" className="input-field" value={form.arquivoPdfUrl ?? ''} onChange={(e) => set('arquivoPdfUrl', e.target.value)} placeholder="https://.../arquivo.pdf" />
+                    </div>
+                    <div className="col-span-2 md:col-span-1">
+                      <label className="label-field">Link Externo</label>
+                      <input type="url" className="input-field" value={form.linkExterno ?? ''} onChange={(e) => set('linkExterno', e.target.value)} placeholder="https://..." />
+                    </div>
+                  </div>
                 </div>
                 {error && (
                   <div className="flex items-start gap-2 bg-red-50 border border-red-200 rounded-xl p-3 text-red-700 text-xs">
@@ -202,5 +283,13 @@ export default function AdminPostsPage() {
         </>
       )}
     </div>
+  );
+}
+
+export default function AdminPostsPage() {
+  return (
+    <Suspense fallback={<div className="p-8 text-center text-gray-500">Carregando posts...</div>}>
+      <AdminPostsContent />
+    </Suspense>
   );
 }

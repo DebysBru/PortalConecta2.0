@@ -140,6 +140,10 @@ export type ProjetoFormData = {
   coordenador: string;
   area: string;
   descricao?: string;
+  dataInicio?: string;
+  servidores?: string;
+  alunos?: string;
+  observacao?: string;
   status: StatusProjeto;
   logoUrl?: string;
   corPrimaria?: string;
@@ -147,31 +151,69 @@ export type ProjetoFormData = {
   instagram?: string;
   site?: string;
   destaque?: boolean;
+  adminEmails?: string;
 };
 
-export async function listProjetos() {
-  return prisma.projeto.findMany({ orderBy: { createdAt: 'desc' } });
+export async function listProjetos(userEmail?: string, userRole?: string) {
+  const where = userRole === 'EQUIPE_PROJETO' && userEmail 
+    ? { admins: { some: { email: userEmail } } } 
+    : {};
+  return prisma.projeto.findMany({ 
+    where,
+    orderBy: { createdAt: 'desc' },
+    include: { admins: { select: { email: true } } }
+  });
+}
+
+async function syncProjectAdmins(projetoId: string, emailsStr: string) {
+  const emails = emailsStr.split(',').map(e => e.trim().toLowerCase()).filter(Boolean);
+  
+  for (const email of emails) {
+    const user = await prisma.user.findUnique({ where: { email } });
+    if (!user) {
+      await prisma.user.create({ data: { email, name: email, role: 'EQUIPE_PROJETO' } });
+    } else if (user.role === 'VISITANTE') {
+      await prisma.user.update({ where: { email }, data: { role: 'EQUIPE_PROJETO' } });
+    }
+  }
+
+  await prisma.projeto.update({
+    where: { id: projetoId },
+    data: {
+      admins: {
+        set: emails.map(email => ({ email }))
+      }
+    }
+  });
 }
 
 export async function createProjeto(data: ProjetoFormData): Promise<ActionResult<{ id: string; slug: string }>> {
   try {
     const slug = slugify(data.nome);
+    const { adminEmails, ...dbData } = data;
     const projeto = await prisma.projeto.create({
       data: {
-        nome: data.nome,
+        nome: dbData.nome,
         slug,
-        coordenador: data.coordenador,
-        area: data.area,
-        descricao: data.descricao ?? null,
-        status: data.status,
-        logoUrl: data.logoUrl ?? null,
-        corPrimaria: data.corPrimaria ?? '#2F52D3',
-        email: data.email ?? null,
-        instagram: data.instagram ?? null,
-        site: data.site ?? null,
-        destaque: data.destaque ?? false,
+        coordenador: dbData.coordenador,
+        area: dbData.area,
+        descricao: dbData.descricao ?? null,
+        dataInicio: dbData.dataInicio ? new Date(dbData.dataInicio) : null,
+        servidores: dbData.servidores ?? null,
+        alunos: dbData.alunos ?? null,
+        observacao: dbData.observacao ?? null,
+        status: dbData.status,
+        logoUrl: dbData.logoUrl ?? null,
+        corPrimaria: dbData.corPrimaria ?? '#2F52D3',
+        email: dbData.email ?? null,
+        instagram: dbData.instagram ?? null,
+        site: dbData.site ?? null,
+        destaque: dbData.destaque ?? false,
       },
     });
+    if (adminEmails !== undefined) {
+      await syncProjectAdmins(projeto.id, adminEmails);
+    }
     return { ok: true, data: { id: projeto.id, slug: projeto.slug } };
   } catch (e) {
     return { ok: false, error: String(e) };
@@ -180,13 +222,38 @@ export async function createProjeto(data: ProjetoFormData): Promise<ActionResult
 
 export async function updateProjeto(id: string, data: Partial<ProjetoFormData>): Promise<ActionResult> {
   try {
+    const { adminEmails } = data;
+    
+    // Create an explicit update payload to prevent mass assignment
+    // and avoid Prisma rejecting unknown fields sent by the client.
+    const updateData: any = {};
+    if (data.nome !== undefined) {
+      updateData.nome = data.nome;
+      updateData.slug = slugify(data.nome);
+    }
+    if (data.coordenador !== undefined) updateData.coordenador = data.coordenador;
+    if (data.area !== undefined) updateData.area = data.area;
+    if (data.descricao !== undefined) updateData.descricao = data.descricao;
+    if (data.dataInicio !== undefined) updateData.dataInicio = data.dataInicio ? new Date(data.dataInicio) : null;
+    if (data.servidores !== undefined) updateData.servidores = data.servidores;
+    if (data.alunos !== undefined) updateData.alunos = data.alunos;
+    if (data.observacao !== undefined) updateData.observacao = data.observacao;
+    if (data.status !== undefined) updateData.status = data.status;
+    if (data.logoUrl !== undefined) updateData.logoUrl = data.logoUrl;
+    if (data.corPrimaria !== undefined) updateData.corPrimaria = data.corPrimaria;
+    if (data.email !== undefined) updateData.email = data.email;
+    if (data.instagram !== undefined) updateData.instagram = data.instagram;
+    if (data.site !== undefined) updateData.site = data.site;
+    if (data.destaque !== undefined) updateData.destaque = data.destaque;
+
     await prisma.projeto.update({
       where: { id },
-      data: {
-        ...data,
-        slug: data.nome ? slugify(data.nome) : undefined,
-      },
+      data: updateData,
     });
+    
+    if (adminEmails !== undefined) {
+      await syncProjectAdmins(id, adminEmails);
+    }
     return { ok: true };
   } catch (e) {
     return { ok: false, error: String(e) };
@@ -209,12 +276,19 @@ export type PostFormData = {
   conteudo: string;
   resumo?: string;
   imagemUrl?: string;
+  videoUrl?: string;
+  arquivoPdfUrl?: string;
+  linkExterno?: string;
   status: StatusPost;
   projetoId: string;
 };
 
-export async function listPosts() {
+export async function listPosts(userEmail?: string, userRole?: string) {
+  const where = userRole === 'EQUIPE_PROJETO' && userEmail 
+    ? { projeto: { admins: { some: { email: userEmail } } } } 
+    : {};
   return prisma.post.findMany({
+    where,
     orderBy: { createdAt: 'desc' },
     include: {
       projeto: { select: { nome: true, slug: true } },
@@ -234,6 +308,9 @@ export async function createPost(data: PostFormData, authorEmail: string): Promi
         conteudo: data.conteudo,
         resumo: data.resumo ?? null,
         imagemUrl: data.imagemUrl ?? null,
+        videoUrl: data.videoUrl ?? null,
+        arquivoPdfUrl: data.arquivoPdfUrl ?? null,
+        linkExterno: data.linkExterno ?? null,
         status: data.status,
         projetoId: data.projetoId,
         authorId: author.id,
@@ -336,12 +413,31 @@ export async function deleteEvento(id: string): Promise<ActionResult> {
 // ── Usuários (master only) ────────────────────────────────────────────────────
 
 export async function listUsuarios() {
-  return prisma.user.findMany({ orderBy: { createdAt: 'desc' } });
+  return prisma.user.findMany({ 
+    orderBy: { createdAt: 'desc' },
+    include: { projetosAdmin: { select: { id: true, nome: true } } }
+  });
 }
 
-export async function updateUserRole(userId: string, role: UserRole): Promise<ActionResult> {
+export async function updateUserRole(userId: string, role: UserRole, projetoId?: string): Promise<ActionResult> {
   try {
+    if (role === 'EQUIPE_PROJETO' && !projetoId) {
+      return { ok: false, error: 'Um projeto deve ser selecionado para a Equipe de Projeto.' };
+    }
+
     await prisma.user.update({ where: { id: userId }, data: { role } });
+
+    if (role === 'EQUIPE_PROJETO' && projetoId) {
+      await prisma.projeto.update({
+        where: { id: projetoId },
+        data: {
+          admins: {
+            connect: { id: userId }
+          }
+        }
+      });
+    }
+
     return { ok: true };
   } catch (e) {
     return { ok: false, error: String(e) };
@@ -357,13 +453,29 @@ export async function deleteUser(userId: string): Promise<ActionResult> {
   }
 }
 
-export async function inviteUser(email: string, role: UserRole): Promise<ActionResult> {
+export async function inviteUser(email: string, role: UserRole, projetoId?: string): Promise<ActionResult> {
   try {
-    await prisma.user.upsert({
+    if (role === 'EQUIPE_PROJETO' && !projetoId) {
+      return { ok: false, error: 'Um projeto deve ser selecionado para a Equipe de Projeto.' };
+    }
+
+    const user = await prisma.user.upsert({
       where: { email },
       update: { role },
       create: { email, name: email, role },
     });
+
+    if (role === 'EQUIPE_PROJETO' && projetoId) {
+      await prisma.projeto.update({
+        where: { id: projetoId },
+        data: {
+          admins: {
+            connect: { id: user.id }
+          }
+        }
+      });
+    }
+
     return { ok: true };
   } catch (e) {
     return { ok: false, error: String(e) };

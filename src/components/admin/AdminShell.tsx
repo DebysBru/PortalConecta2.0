@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import {
   LayoutDashboard, FileText, FolderOpen, Calendar,
-  Newspaper, Users, LogOut, Menu, X, Sparkles, ChevronRight,
+  Newspaper, Users, LogOut, Menu, X, Sparkles, ChevronRight, RefreshCw,
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 
@@ -23,6 +23,7 @@ const NAV_ITEMS: NavItem[] = [
   { href: '/admin/agenda',   label: 'Agenda',     icon: Calendar },
   { href: '/admin/posts',    label: 'Posts',      icon: Newspaper },
   { href: '/admin/usuarios', label: 'Usuários',   icon: Users, masterOnly: true },
+  { href: '/admin/suap',    label: 'Sync SUAP',  icon: RefreshCw, masterOnly: true },
 ];
 
 function NavLink({ item, onClick }: { item: NavItem; onClick?: () => void }) {
