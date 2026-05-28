@@ -2,10 +2,12 @@
 
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
+import Image from 'next/image';
 import { usePathname, useRouter } from 'next/navigation';
 import {
   LayoutDashboard, FileText, FolderOpen, Calendar,
   Newspaper, Users, LogOut, Menu, X, Sparkles, ChevronRight, RefreshCw,
+  UserCircle,
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 
@@ -105,19 +107,32 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
         ))}
       </nav>
 
-      {/* User info + logout */}
+      {/* User info + ações */}
       <div className="p-4 border-t border-white/15">
-        <div className="flex items-center gap-3 mb-3">
-          <div className="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center text-white font-bold text-sm flex-shrink-0">
-            {user.displayName?.charAt(0) ?? user.email?.charAt(0) ?? '?'}
-          </div>
-          <div className="min-w-0">
+        {/* Avatar + nome clicável → perfil */}
+        <Link
+          href="/admin/perfil"
+          onClick={onNavClick}
+          className="flex items-center gap-3 mb-3 p-2 rounded-xl hover:bg-white/10 transition-colors group"
+        >
+          {user.photoURL ? (
+            <div className="relative w-8 h-8 rounded-full overflow-hidden ring-1 ring-white/20 flex-shrink-0">
+              <Image src={user.photoURL} alt="" fill className="object-cover" unoptimized />
+            </div>
+          ) : (
+            <div className="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center text-white font-bold text-sm flex-shrink-0">
+              {user.displayName?.charAt(0) ?? user.email?.charAt(0) ?? '?'}
+            </div>
+          )}
+          <div className="min-w-0 flex-1">
             <p className="text-white text-xs font-semibold truncate">
               {user.displayName ?? 'Administrador'}
             </p>
             <p className="text-white/50 text-xs truncate">{user.email}</p>
           </div>
-        </div>
+          <UserCircle className="w-4 h-4 text-white/30 group-hover:text-white/60 transition-colors flex-shrink-0" />
+        </Link>
+
         <button
           onClick={handleSignOut}
           className="flex items-center gap-2 w-full px-3 py-2 rounded-xl text-white/70 hover:bg-white/10 hover:text-white transition-all text-sm"

@@ -49,6 +49,12 @@ model User {
   emailVerified DateTime?
   image         String?
   role          UserRole  @default(VISITANTE)
+  // Integração SUAP
+  suapUsername  String?   @unique  // matrícula SUAP (ex: 20251IVA10030013)
+  suapNome      String?            // nome completo do SUAP
+  suapEmail     String?            // email institucional SUAP
+  suapFoto      String?            // URL da foto do perfil no SUAP
+  googleLinked  Boolean   @default(false)
   accounts      Account[]
   sessions      Session[]
   editais       Edital[]
