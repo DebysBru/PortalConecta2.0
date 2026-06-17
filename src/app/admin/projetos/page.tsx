@@ -8,7 +8,7 @@ import { useAuth } from '@/contexts/AuthContext';
 
 type Projeto = Awaited<ReturnType<typeof listProjetos>>[number];
 
-const STATUS_LIST = ['EM_EXECUCAO','ENVIADO_2026','CONCLUIDO','INATIVADO'];
+const STATUS_LIST = ['ATIVO','EM_EXECUCAO','ENCERRADO','SUSPENSO','INSCRICOES_ABERTAS','SEM_VAGAS'];
 const TIPO_LIST = ['Pesquisa', 'Extensão'];
 
 const EMPTY_FORM: ProjetoFormData = {
@@ -104,7 +104,7 @@ export default function AdminProjetosPage() {
   const set = (field: keyof ProjetoFormData, value: unknown) =>
     setForm((f) => ({ ...f, [field]: value }));
 
-  const isMaster = userRole === 'ADMINISTRADOR' || isMasterAdmin;
+  const isMaster = userRole === 'ADMIN' || isMasterAdmin;
 
   return (
     <div className="max-w-5xl mx-auto">
@@ -118,7 +118,7 @@ export default function AdminProjetosPage() {
             }
           </p>
         </div>
-        {(userRole === 'ADMINISTRADOR' || isMasterAdmin) && (
+        {(userRole === 'ADMIN' || isMasterAdmin) && (
           <button onClick={openNew} className="flex items-center gap-2 bg-roxo-luminoso text-white font-semibold px-4 py-2.5 rounded-xl hover:bg-roxo-luminoso/90 transition-all text-sm shadow-sm">
             <Plus className="w-4 h-4" /> Novo Projeto
           </button>

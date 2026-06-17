@@ -3,6 +3,7 @@ import { Inter } from 'next/font/google';
 import './globals.css';
 import { AuthProvider } from '@/contexts/AuthContext';
 import { PublicWrapper } from '@/components/layout/PublicWrapper';
+import { ChatWidget } from '@/components/chat/ChatWidget';
 
 const inter = Inter({ subsets: ['latin'], variable: '--font-inter' });
 
@@ -30,6 +31,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body className={`${inter.variable} font-sans antialiased flex flex-col min-h-screen`}>
         <AuthProvider>
           <PublicWrapper>{children}</PublicWrapper>
+          <ChatWidget />
         </AuthProvider>
       </body>
     </html>

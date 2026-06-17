@@ -44,14 +44,18 @@ export function getDaysUntil(date: Date | string): number {
 
 export function getStatusLabel(status: string): string {
   const labels: Record<string, string> = {
-    ATIVO: 'Aberto',
-    ENCERRA_BREVE: 'Encerra em breve',
-    ENCERRADO: 'Encerrado',
+    EM_BREVE: 'Em breve',
+    ABERTO: 'Aberto',
+    EM_ANALISE: 'Em análise',
+    RESULTADO_PARCIAL: 'Resultado parcial',
+    PRAZO_RECURSO: 'Prazo recurso',
     RESULTADO_PUBLICADO: 'Resultado publicado',
+    ENCERRADO: 'Encerrado',
+    ATIVO: 'Ativo',
     EM_EXECUCAO: 'Em execução',
-    ENVIADO_2026: 'Enviado 2026',
-    CONCLUIDO: 'Concluído',
-    INATIVADO: 'Inativado',
+    SUSPENSO: 'Suspenso',
+    INSCRICOES_ABERTAS: 'Inscrições abertas',
+    SEM_VAGAS: 'Sem vagas',
     PRAZO_EDITAL: 'Prazo Edital',
     EVENTO_CAMPUS: 'Evento Campus',
     EVENTO_PROJETO: 'Evento Projeto',
@@ -71,14 +75,18 @@ export function getStatusLabel(status: string): string {
 
 export function getStatusColor(status: string): string {
   const colors: Record<string, string> = {
-    ATIVO: 'bg-green-100 text-green-800 border-green-200',
-    ENCERRA_BREVE: 'bg-orange-100 text-orange-800 border-orange-200',
+    EM_BREVE: 'bg-gray-100 text-gray-600 border-gray-200',
+    ABERTO: 'bg-green-100 text-green-800 border-green-200',
+    EM_ANALISE: 'bg-yellow-100 text-yellow-800 border-yellow-200',
+    RESULTADO_PARCIAL: 'bg-blue-100 text-blue-800 border-blue-200',
+    PRAZO_RECURSO: 'bg-orange-100 text-orange-800 border-orange-200',
+    RESULTADO_PUBLICADO: 'bg-purple-100 text-purple-800 border-purple-200',
     ENCERRADO: 'bg-gray-100 text-gray-600 border-gray-200',
-    RESULTADO_PUBLICADO: 'bg-blue-100 text-blue-800 border-blue-200',
+    ATIVO: 'bg-green-100 text-green-800 border-green-200',
     EM_EXECUCAO: 'bg-blue-100 text-blue-800 border-blue-200',
-    ENVIADO_2026: 'bg-purple-100 text-purple-800 border-purple-200',
-    CONCLUIDO: 'bg-gray-100 text-gray-600 border-gray-200',
-    INATIVADO: 'bg-red-100 text-red-600 border-red-200',
+    SUSPENSO: 'bg-red-100 text-red-600 border-red-200',
+    INSCRICOES_ABERTAS: 'bg-green-100 text-green-800 border-green-200',
+    SEM_VAGAS: 'bg-gray-100 text-gray-600 border-gray-200',
   };
   return colors[status] ?? 'bg-gray-100 text-gray-600';
 }

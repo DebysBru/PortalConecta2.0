@@ -17,10 +17,10 @@ export default async function ProjetosPage() {
   });
 
   const areas = ['Todas', ...Array.from(new Set(projetos.map((p) => p.area))).sort()];
-  const statusOptions = ['Todos', 'EM_EXECUCAO', 'ENVIADO_2026', 'CONCLUIDO', 'INATIVADO'];
+  const statusOptions = ['Todos', 'ATIVO', 'EM_EXECUCAO', 'ENCERRADO', 'SUSPENSO', 'INSCRICOES_ABERTAS', 'SEM_VAGAS'];
 
   const emExecucao = projetos.filter((p) => p.status === 'EM_EXECUCAO').length;
-  const enviado2026 = projetos.filter((p) => p.status === 'ENVIADO_2026').length;
+  const inscricoesAbertas = projetos.filter((p) => p.status === 'INSCRICOES_ABERTAS').length;
 
   return (
     <div className="min-h-screen">
@@ -49,7 +49,7 @@ export default async function ProjetosPage() {
           <div className="mt-8 flex flex-wrap gap-4">
             {[
               { label: 'Em Execução', value: emExecucao, color: 'bg-green-500' },
-              { label: 'Enviados 2026', value: enviado2026, color: 'bg-yellow-500' },
+              { label: 'Inscrições Abertas', value: inscricoesAbertas, color: 'bg-blue-500' },
               { label: 'Total', value: projetos.length, color: 'bg-white/30' },
             ].map((s) => (
               <div key={s.label} className="bg-white/15 backdrop-blur-sm rounded-xl px-5 py-3 border border-white/20 flex items-center gap-3">
@@ -173,15 +173,15 @@ export default async function ProjetosPage() {
                       </span>
                       <span className={`text-xs font-medium flex items-center gap-1 ${
                         projeto.status === 'EM_EXECUCAO' ? 'text-green-600' :
-                        projeto.status === 'ENVIADO_2026' ? 'text-yellow-600' :
+                        projeto.status === 'ATIVO' ? 'text-blue-600' :
                         'text-gray-500'
                       }`}>
                         <div className={`w-1.5 h-1.5 rounded-full ${
                           projeto.status === 'EM_EXECUCAO' ? 'bg-green-500 animate-pulse' :
-                          projeto.status === 'ENVIADO_2026' ? 'bg-yellow-500' :
+                          projeto.status === 'ATIVO' ? 'bg-blue-500' :
                           'bg-gray-400'
                         }`} />
-                        {projeto.status === 'EM_EXECUCAO' ? 'Ativo' : getStatusLabel(projeto.status)}
+                        {getStatusLabel(projeto.status)}
                       </span>
                     </div>
                   </div>

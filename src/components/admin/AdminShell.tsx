@@ -7,7 +7,7 @@ import { usePathname, useRouter } from 'next/navigation';
 import {
   LayoutDashboard, FileText, FolderOpen, Calendar,
   Newspaper, Users, LogOut, Menu, X, Sparkles, ChevronRight, RefreshCw,
-  UserCircle,
+  UserCircle, BarChart3,
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 
@@ -16,16 +16,19 @@ type NavItem = {
   label: string;
   icon: React.ElementType;
   masterOnly?: boolean;
+  professorOnly?: boolean;
 };
 
 const NAV_ITEMS: NavItem[] = [
-  { href: '/admin',          label: 'Dashboard',  icon: LayoutDashboard },
-  { href: '/admin/editais',  label: 'Editais',    icon: FileText },
-  { href: '/admin/projetos', label: 'Projetos',   icon: FolderOpen },
-  { href: '/admin/agenda',   label: 'Agenda',     icon: Calendar },
-  { href: '/admin/posts',    label: 'Posts',      icon: Newspaper },
-  { href: '/admin/usuarios', label: 'Usuários',   icon: Users, masterOnly: true },
-  { href: '/admin/suap',    label: 'Sync SUAP',  icon: RefreshCw, masterOnly: true },
+  { href: '/admin',          label: 'Dashboard',      icon: LayoutDashboard },
+  { href: '/admin/editais',  label: 'Editais',        icon: FileText },
+  { href: '/admin/projetos', label: 'Projetos',       icon: FolderOpen },
+  { href: '/admin/agenda',   label: 'Agenda',         icon: Calendar },
+  { href: '/admin/posts',    label: 'Posts',          icon: Newspaper },
+  { href: '/admin/usuarios', label: 'Usuários',       icon: Users, masterOnly: true },
+  { href: '/admin/suap',    label: 'Sync SUAP',      icon: RefreshCw, masterOnly: true },
+  { href: '/admin/inscricoes', label: 'Inscrições',  icon: Users, professorOnly: true },
+  { href: '/admin/relatorio', label: 'Relatórios',    icon: BarChart3, professorOnly: true },
 ];
 
 function NavLink({ item, onClick }: { item: NavItem; onClick?: () => void }) {
@@ -51,12 +54,14 @@ function NavLink({ item, onClick }: { item: NavItem; onClick?: () => void }) {
 }
 
 export function AdminShell({ children }: { children: React.ReactNode }) {
-  const { user, isMasterAdmin, loading, signOut } = useAuth();
+  const { user, userRole, isMasterAdmin, loading, signOut } = useAuth();
   const router = useRouter();
   const pathname = usePathname();
   const [mobileOpen, setMobileOpen] = useState(false);
 
   const isLoginPage = pathname === '/admin/login';
+  const isProfessor = userRole === 'PROFESSOR';
+  const isAdmin = userRole === 'ADMIN';
 
   useEffect(() => {
     if (!loading && !user && !isLoginPage) {
@@ -78,24 +83,33 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
     );
   }
 
-  const visibleNav = NAV_ITEMS.filter((item) => !item.masterOnly || isMasterAdmin);
+  // Filtrar nav items baseado no role
+  const visibleNav = NAV_ITEMS.filter((item) => {
+    if (item.masterOnly && !isMasterAdmin) return false;
+    if (item.professorOnly && !isProfessor) return false;
+    // Professores não veem itens de admin (exceto os que são professorOnly)
+    if (isProfessor && !item.professorOnly && item.href !== '/admin') return false;
+    return true;
+  });
 
   const handleSignOut = async () => {
     await signOut();
     router.replace('/admin/login');
   };
 
+  const panelTitle = isProfessor ? 'Painel do Professor' : 'Painel Administrativo';
+
   const Sidebar = ({ onNavClick }: { onNavClick?: () => void }) => (
     <div className="flex flex-col h-full bg-hero-gradient">
       {/* Logo */}
       <div className="p-5 border-b border-white/15">
-        <Link href="/" className="flex items-center gap-2">
+        <Link href="/admin" className="flex items-center gap-2">
           <div className="w-8 h-8 bg-dourado-500 rounded-lg flex items-center justify-center text-sm font-black text-gray-900 shadow-glow-dourado">
             ✨
           </div>
           <div>
             <p className="text-white font-black text-sm leading-none">Portal Conecta</p>
-            <p className="text-white/50 text-xs mt-0.5">Painel Administrativo</p>
+            <p className="text-white/50 text-xs mt-0.5">{panelTitle}</p>
           </div>
         </Link>
       </div>
@@ -126,7 +140,7 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
           )}
           <div className="min-w-0 flex-1">
             <p className="text-white text-xs font-semibold truncate">
-              {user.displayName ?? 'Administrador'}
+              {user.displayName ?? (isProfessor ? 'Professor' : 'Administrador')}
             </p>
             <p className="text-white/50 text-xs truncate">{user.email}</p>
           </div>
@@ -182,7 +196,7 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
             <div className="w-6 h-6 bg-dourado-500 rounded-md flex items-center justify-center text-xs font-black text-gray-900">
               ✨
             </div>
-            <p className="font-bold text-gray-900 text-sm">Portal Conecta</p>
+            <p className="font-bold text-gray-900 text-sm">{panelTitle}</p>
           </div>
           <button
             onClick={() => setMobileOpen(false)}

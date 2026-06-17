@@ -43,68 +43,119 @@ model VerificationToken {
 }
 
 model User {
-  id            String    @id @default(cuid())
-  name          String?
-  email         String    @unique
-  emailVerified DateTime?
-  image         String?
-  role          UserRole  @default(VISITANTE)
+  id                 String               @id @default(cuid())
+  name               String?
+  email              String               @unique
+  emailVerified      DateTime?
+  image              String?
+  role               UserRole             @default(ESTUDANTE)
+  // Dados de perfil estudante
+  curso              String?
+  turma              String?
+  semestre           String?
+  matricula          String?              @unique
+  phone              String?
   // Integração SUAP
-  suapUsername  String?   @unique  // matrícula SUAP (ex: 20251IVA10030013)
-  suapNome      String?            // nome completo do SUAP
-  suapEmail     String?            // email institucional SUAP
-  suapFoto      String?            // URL da foto do perfil no SUAP
-  googleLinked  Boolean   @default(false)
-  accounts      Account[]
-  sessions      Session[]
-  editais       Edital[]
-  posts         Post[]
-  eventos       Evento[]
-  projetosAdmin Projeto[] @relation("ProjectAdmins")
-  createdAt     DateTime  @default(now())
+  suapUsername       String?              @unique // matrícula SUAP (ex: 20251IVA10030013)
+  suapNome           String? // nome completo do SUAP
+  suapEmail          String? // email institucional SUAP
+  suapFoto           String? // URL da foto do perfil no SUAP
+  googleLinked       Boolean              @default(false)
+  // Relações
+  accounts           Account[]
+  sessions           Session[]
+  editais            Edital[]
+  posts              Post[]
+  eventos            Evento[]
+  projetosAdmin      Projeto[]            @relation("ProjectAdmins")
+  permissions        UserPermission[]
+  inscricoes         Inscricao[]
+  coordenadoProjetos ProjectCoordinator[] @relation("Coordinator")
+  createdAt          DateTime             @default(now())
+  updatedAt          DateTime             @default(now()) @updatedAt
+  ChatSessao         ChatSessao[]
+  IaRevisao          IaRevisao[]
+  AuditLog           AuditLog[]
+  alertasInteresse   AlertaInteresse[]
+  favoritos          Favorito[]
+  notificacoes       Notificacao[]
+  editalResumoVersoes EditalResumoVersao[]
 }
 
 enum UserRole {
-  VISITANTE
-  EDITOR_IFIZINHA
-  EQUIPE_PROJETO
-  ADMINISTRADOR
+  ESTUDANTE
+  PROFESSOR
+  ADMIN
 }
 
 model Edital {
-  id               String          @id @default(cuid())
-  suapId           Int?            @unique           // ID do edital no SUAP
-  suapSyncedAt     DateTime?                         // Última sincronização com SUAP
-  titulo           String
-  slug             String          @unique
-  numero           String?                           // Ex: "01/2025"
-  categoria        CategoriaEdital
-  resumo           String          @db.Text
-  dataInicio       DateTime?                         // Data de início das inscrições
-  dataEncerramento DateTime
-  dataResultado    DateTime?                         // Data de divulgação do resultado
-  status           StatusEdital
-  traducaoIFizinha Json
-  arquivoPdfUrl    String?
-  linkOficial      String
-  visualizacoes    Int             @default(0)
-  destaque         Boolean         @default(false)
-  authorId         String
-  author           User            @relation(fields: [authorId], references: [id])
-  createdAt        DateTime        @default(now())
-  updatedAt        DateTime        @updatedAt
+  id                    String          @id @default(cuid())
+  suapId                Int?            @unique // ID do edital no SUAP
+  suapSyncedAt          DateTime? // Última sincronização com SUAP
+  titulo                String
+  slug                  String          @unique
+  numero                String? // Ex: "01/2025"
+  ano                   Int?
+  categoria             CategoriaEdital
+  setorResponsavel      String?
+  publicoAlvo           String?
+  resumoSimples         String?         @db.Text // "A IFizinha explica" (derivado, revisado)
+  resumoTecnico         String?         @db.Text
+  resumo                String?         @db.Text // Compatibilidade antiga
+  pdfPath               String? // Storage path do PDF original
+  pdfFilename           String?
+  arquivoPdfUrl         String? // URL para download
+  linkOficial           String?
+  dataPublicacao        DateTime?
+  dataInicio            DateTime? // Data de início das inscrições
+  inscricao_inicio      DateTime?
+  inscricao_fim         DateTime?
+  dataEncerramento      DateTime?
+  dataResultado         DateTime? // Data de divulgação do resultado
+  dataResultadoParcial  DateTime?
+  prazoRecurso          DateTime?
+  dataResultadoFinal    DateTime?
+  localInscricao        String?
+  linkInscricao         String?
+  documentosNecessarios Json            @default("[]")
+  criteriosSelecao      String?         @db.Text
+  beneficios            String?         @db.Text
+  quemPode              String?         @db.Text
+  quemNaoPode           String?         @db.Text
+  contatoDuvidas        String?
+  observacoes           String?         @db.Text
+  fonteOficial          String?
+  status                StatusEdital    @default(EM_BREVE)
+  source                DataSource      @default(MANUAL)
+  review_status         ReviewStatus    @default(RASCUNHO)
+  extraction_confidence Float? // 0..1, da extração por IA
+  traducaoIFizinha      Json            @default("{}")
+  visualizacoes         Int             @default(0)
+  destaque              Boolean         @default(false)
+  authorId              String
+  author                User            @relation(fields: [authorId], references: [id])
+  createdAt             DateTime        @default(now())
+  updatedAt             DateTime        @updatedAt
+  deleted_at            DateTime?
+  tags                  EditalTag[]
+  explicacoes           EditalExplicacao[]
+  resumoVersoes         EditalResumoVersao[]
+
+  @@index([deleted_at])
+  @@index([source])
+  @@index([review_status])
 }
 
 // Registro de sincronizações com o SUAP
 model SyncLog {
-  id          String   @id @default(cuid())
-  tipo        String   // "projetos" | "editais" | "full"
-  status      String   // "success" | "error" | "partial"
-  totalSuap   Int      @default(0)  // Total de registros na API
-  sincronizados Int    @default(0)  // Registros criados/atualizados
-  erros       Int      @default(0)
-  mensagem    String?  @db.Text
-  createdAt   DateTime @default(now())
+  id            String   @id @default(cuid())
+  tipo          String // "projetos" | "editais" | "full"
+  status        String // "success" | "error" | "partial"
+  totalSuap     Int      @default(0) // Total de registros na API
+  sincronizados Int      @default(0) // Registros criados/atualizados
+  erros         Int      @default(0)
+  mensagem      String?  @db.Text
+  createdAt     DateTime @default(now())
 }
 
 enum CategoriaEdital {
@@ -119,69 +170,123 @@ enum CategoriaEdital {
 }
 
 enum StatusEdital {
-  ATIVO
-  ENCERRA_BREVE
-  ENCERRADO
+  EM_BREVE
+  ABERTO
+  EM_ANALISE
+  RESULTADO_PARCIAL
+  PRAZO_RECURSO
   RESULTADO_PUBLICADO
+  ENCERRADO
 }
 
 model Projeto {
-  id            String        @id @default(cuid())
-  suapId        Int?          @unique           // ID do projeto no SUAP
-  suapSyncedAt  DateTime?                       // Última sincronização com SUAP
-  nome          String
-  slug          String        @unique
-  coordenador   String
-  coordenadorEmail String?
-  coordenadorMatricula String?
-  area          String
-  descricao     String?       @db.Text
-  objetivo      String?       @db.Text
-  metodologia   String?       @db.Text
-  resultadoEsperado String?   @db.Text
-  dataInicio    DateTime?
-  dataConclusao DateTime?
-  servidores    String?       @db.Text
-  alunos        String?       @db.Text
-  observacao    String?       @db.Text
-  status        StatusProjeto
-  logoUrl       String?
-  corPrimaria   String        @default("#2F52D3")
-  email         String?
-  instagram     String?
-  site          String?
-  visualizacoes Int           @default(0)
-  destaque      Boolean       @default(false)
-  posts         Post[]
-  admins        User[]        @relation("ProjectAdmins")
-  createdAt     DateTime      @default(now())
-  updatedAt     DateTime      @updatedAt
+  id                     String               @id @default(cuid())
+  suapId                 Int?                 @unique // ID do projeto no SUAP
+  suapSyncedAt           DateTime? // Última sincronização com SUAP
+  nome                   String
+  slug                   String               @unique
+  tipo                   String? // ensino, pesquisa, extensao, inovacao, cultura, esporte, outro
+  categoria              String?
+  resumoCurto            String?
+  descricao              String?              @db.Text
+  objetivo               String?              @db.Text
+  metodologia            String?              @db.Text
+  resultadoEsperado      String?              @db.Text
+  publicoAlvo            String?
+  area                   String               @default("")
+  coordenador            String
+  coordenadorEmail       String?
+  coordenadorMatricula   String?
+  cargaHorariaSemanal    Int?
+  localRealizacao        String?
+  dataInicio             DateTime?
+  dataConclusao          DateTime?
+  servidores             String?              @db.Text
+  alunos                 String?              @db.Text
+  observacao             String?              @db.Text
+  status                 StatusProjeto        @default(ATIVO)
+  inscricoes_abertas     Boolean              @default(false)
+  inscricao_inicio       DateTime?
+  inscricao_fim          DateTime?
+  formulario_extra       Json                 @default("[]") // campos complementares do form
+  observacoes_estudantes String?
+  vagasBolsista          Int                  @default(0)
+  vagasVoluntario        Int                  @default(0)
+  logoUrl                String?
+  bannerUrl              String?
+  corPrimaria            String               @default("#2F52D3")
+  email                  String?
+  instagram              String?
+  site                   String?
+  source                 DataSource           @default(MANUAL)
+  review_status          ReviewStatus         @default(RASCUNHO)
+  visualizacoes          Int                  @default(0)
+  destaque               Boolean              @default(false)
+  posts                  Post[]
+  admins                 User[]               @relation("ProjectAdmins")
+  coordenadores          ProjectCoordinator[]
+  inscricoes             Inscricao[]
+  tags                   ProjetoTag[]
+  cursos                 ProjetoCurso[]
+  faq                    ProjetoFaq[]
+  createdAt              DateTime             @default(now())
+  updatedAt              DateTime             @updatedAt
+  deleted_at             DateTime?
+
+  @@index([deleted_at])
+  @@index([source])
+  @@index([review_status])
 }
 
 enum StatusProjeto {
+  ATIVO
   EM_EXECUCAO
-  ENVIADO_2026
-  CONCLUIDO
-  INATIVADO
+  ENCERRADO
+  SUSPENSO
+  INSCRICOES_ABERTAS
+  SEM_VAGAS
+}
+
+enum ReviewStatus {
+  RASCUNHO
+  PROCESSANDO
+  PENDENTE_REVISAO
+  PUBLICADO
+  REJEITADO
+  ARQUIVADO
+  ERRO
+}
+
+enum DataSource {
+  SUAP
+  MANUAL
+  IMPORT
+  IA
+}
+
+enum VagaTipo {
+  BOLSISTA
+  VOLUNTARIO
+  AMBOS
 }
 
 model Post {
-  id              String     @id @default(cuid())
-  titulo          String
-  slug            String     @unique
-  conteudo        String     @db.Text
-  resumo          String?
-  imagemUrl       String?
-  videoUrl        String?
-  arquivoPdfUrl   String?
-  linkExterno     String?
-  status          StatusPost
-  projetoId       String
-  projeto         Projeto    @relation(fields: [projetoId], references: [id])
-  authorId        String
-  author          User       @relation(fields: [authorId], references: [id])
-  createdAt       DateTime   @default(now())
-  updatedAt       DateTime   @updatedAt
+  id            String     @id @default(cuid())
+  titulo        String
+  slug          String     @unique
+  conteudo      String     @db.Text
+  resumo        String?
+  imagemUrl     String?
+  videoUrl      String?
+  arquivoPdfUrl String?
+  linkExterno   String?
+  status        StatusPost
+  projetoId     String
+  projeto       Projeto    @relation(fields: [projetoId], references: [id])
+  authorId      String
+  author        User       @relation(fields: [authorId], references: [id])
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
 }
 
 enum StatusPost {
@@ -190,18 +295,18 @@ enum StatusPost {
 }
 
 model Evento {
-  id          String     @id @default(cuid())
-  titulo      String
-  descricao   String?
-  data        DateTime
-  dataFim     DateTime?
-  tipo        TipoEvento
-  local       String?
-  linkInscr   String?
-  editalSlug  String?
-  authorId    String
-  author      User       @relation(fields: [authorId], references: [id])
-  createdAt   DateTime   @default(now())
+  id         String     @id @default(cuid())
+  titulo     String
+  descricao  String?
+  data       DateTime
+  dataFim    DateTime?
+  tipo       TipoEvento
+  local      String?
+  linkInscr  String?
+  editalSlug String?
+  authorId   String
+  author     User       @relation(fields: [authorId], references: [id])
+  createdAt  DateTime   @default(now())
 }
 
 enum TipoEvento {
@@ -210,4 +315,296 @@ enum TipoEvento {
   EVENTO_PROJETO
   REUNIAO
   PALESTRA
+  LETIVO_INICIO_FIM
+  FERIADO
+  RECESSO
+  SABADO_LETIVO
+  EVENTO_ACADEMICO
+  EVENTO_CIENTIFICO
+  EVENTO_CULTURAL
+  INSCRICAO
+  RESULTADO
+  RECURSO
+  PROJETO
+  FORMACAO
+  CONSELHO_CLASSE
+}
+
+// Coordenadores de projeto (relação N:N)
+model ProjectCoordinator {
+  id         String   @id @default(cuid())
+  projeto_id String
+  projeto    Projeto  @relation(fields: [projeto_id], references: [id], onDelete: Cascade)
+  user_id    String
+  user       User     @relation("Coordinator", fields: [user_id], references: [id], onDelete: Cascade)
+  createdAt  DateTime @default(now())
+
+  @@unique([projeto_id, user_id])
+}
+
+// Permissões explícitas (ex: professor sem vínculo SUAP)
+model UserPermission {
+  id         String   @id @default(cuid())
+  user_id    String
+  user       User     @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  permission String // ex: 'manage_project', 'admin_full'
+  granted_by String? // user_id de quem concedeu
+  created_at DateTime @default(now())
+
+  @@unique([user_id, permission])
+}
+
+// Inscrições em projetos
+model Inscricao {
+  id                 String   @id @default(cuid())
+  protocolo          String   @unique // ex: "PRJ-2026-000123"
+  projeto_id         String
+  projeto            Projeto  @relation(fields: [projeto_id], references: [id], onDelete: Cascade)
+  user_id            String?
+  user               User?    @relation(fields: [user_id], references: [id], onDelete: SetNull)
+  nome_completo      String
+  email              String
+  telefone           String?
+  curso              String?
+  turma              String?
+  semestre           String?
+  idade              Int?
+  matricula          String?
+  tipo_interesse     VagaTipo
+  disponibilidade    String?
+  experiencia_previa String?  @db.Text
+  justificativa      String?  @db.Text
+  ciencia_regras     Boolean  @default(false)
+  consentimento_lgpd Boolean  @default(false)
+  campos_extra       Json     @default("{}")
+  status             String   @default("recebida") // recebida, em_analise, selecionado, lista_espera, nao_selecionado, desistente
+  observacao_interna String?
+  created_at         DateTime @default(now())
+  updated_at         DateTime @updatedAt
+
+  @@index([projeto_id])
+  @@index([user_id])
+  @@index([status])
+}
+
+// Fila de jobs assíncronos
+model Job {
+  id         String   @id @default(cuid())
+  tipo       String // 'pdf_extract', 'embed', 'suap_sync', etc
+  payload    Json     @default("{}")
+  status     String   @default("pendente") // pendente, rodando, ok, erro
+  tentativas Int      @default(0)
+  erro       String?  @db.Text
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+
+  @@index([status])
+  @@index([tipo])
+}
+
+// Documentos para RAG
+model RagDocumento {
+  id           String     @id @default(cuid())
+  tipo         String // 'edital', 'projeto', 'agenda', 'faq', 'contato'
+  ref_id       String? // id da entidade origem (edital_id, projeto_id, etc)
+  titulo       String
+  conteudo     String     @db.Text
+  content_hash String // para idempotência
+  metadata     Json       @default("{}")
+  ativo        Boolean    @default(true)
+  chunks       RagChunk[]
+  created_at   DateTime   @default(now())
+  updated_at   DateTime   @updatedAt
+
+  @@index([tipo])
+  @@index([ref_id])
+}
+
+// Chunks de documentos com embeddings
+model RagChunk {
+  id           String       @id @default(cuid())
+  documento_id String
+  documento    RagDocumento @relation(fields: [documento_id], references: [id], onDelete: Cascade)
+  chunk_index  Int
+  conteudo     String       @db.Text
+  embedding    String? // JSON array de floats (vector serializado)
+  metadata     Json         @default("{}")
+  created_at   DateTime     @default(now())
+
+  @@index([documento_id])
+  @@index([chunk_index])
+}
+
+// Sessões de chat com IFizinha
+model ChatSessao {
+  id          String         @id @default(cuid())
+  user_id     String?
+  user        User?          @relation(fields: [user_id], references: [id], onDelete: SetNull)
+  mensagens   ChatMensagem[]
+  iniciada_em DateTime       @default(now())
+}
+
+// Mensagens de chat
+model ChatMensagem {
+  id         String     @id @default(cuid())
+  sessao_id  String
+  sessao     ChatSessao @relation(fields: [sessao_id], references: [id], onDelete: Cascade)
+  papel      String // 'user' | 'assistant'
+  conteudo   String     @db.Text
+  fontes     Json       @default("[]") // [{documento_id, tipo, titulo}]
+  created_at DateTime   @default(now())
+
+  @@index([sessao_id])
+}
+
+// Fila de revisão de extrações de IA
+model IaRevisao {
+  id             String   @id @default(cuid())
+  entidade       String // 'edital' | 'projeto'
+  entidade_id    String
+  campo          String
+  valor_extraido String?  @db.Text
+  confianca      Float? // 0..1
+  status         String   @default("pendente") // pendente, aceito, editado, rejeitado
+  valor_final    String?  @db.Text
+  revisor_id     String?
+  revisor        User?    @relation(fields: [revisor_id], references: [id], onDelete: SetNull)
+  created_at     DateTime @default(now())
+
+  @@index([entidade])
+  @@index([entidade_id])
+  @@index([status])
+}
+
+// Configuração da home e site (chave-valor)
+model SiteConfig {
+  chave      String   @id
+  valor      Json
+  updated_by String?
+  updated_at DateTime @default(now()) @updatedAt
+}
+
+// Log de auditoria
+model AuditLog {
+  id          String   @id @default(cuid())
+  user_id     String?
+  user        User?    @relation(fields: [user_id], references: [id], onDelete: SetNull)
+  acao        String
+  entidade    String?
+  entidade_id String?
+  detalhes    Json     @default("{}")
+  ip          String?
+  created_at  DateTime @default(now())
+
+  @@index([user_id])
+  @@index([acao])
+}
+
+// Tags de projetos (com origem IA vs manual)
+model ProjetoTag {
+  projeto_id String
+  projeto    Projeto @relation(fields: [projeto_id], references: [id], onDelete: Cascade)
+  tag        String
+  origem     DataSource @default(MANUAL)
+  aprovada   Boolean @default(false)
+
+  @@id([projeto_id, tag])
+}
+
+// Cursos relacionados ao projeto (N:N)
+model ProjetoCurso {
+  projeto_id String
+  projeto    Projeto @relation(fields: [projeto_id], references: [id], onDelete: Cascade)
+  curso      String
+
+  @@id([projeto_id, curso])
+}
+
+// FAQ do projeto
+model ProjetoFaq {
+  id         String  @id @default(cuid())
+  projeto_id String
+  projeto    Projeto @relation(fields: [projeto_id], references: [id], onDelete: Cascade)
+  pergunta   String
+  resposta   String  @db.Text
+  ordem      Int     @default(0)
+
+  @@index([projeto_id])
+}
+
+// Tags de editais (com origem IA vs manual)
+model EditalTag {
+  edital_id String
+  edital    Edital @relation(fields: [edital_id], references: [id], onDelete: Cascade)
+  tag       String
+  origem    DataSource @default(MANUAL)
+  aprovada  Boolean @default(false)
+
+  @@id([edital_id, tag])
+}
+
+// "A IFizinha Explica" - Q&A do edital
+model EditalExplicacao {
+  id        String  @id @default(cuid())
+  edital_id String
+  edital    Edital @relation(fields: [edital_id], references: [id], onDelete: Cascade)
+  pergunta  String
+  resposta  String  @db.Text
+  ordem     Int     @default(0)
+  revisada  Boolean @default(false)
+
+  @@index([edital_id])
+}
+
+// Versionamento de resumos do edital
+model EditalResumoVersao {
+  id           String   @id @default(cuid())
+  edital_id    String
+  edital       Edital  @relation(fields: [edital_id], references: [id], onDelete: Cascade)
+  resumo       String   @db.Text
+  gerado_por   DataSource
+  revisado_por String?
+  revisor      User?    @relation(fields: [revisado_por], references: [id], onDelete: SetNull)
+  created_at   DateTime @default(now())
+
+  @@index([edital_id])
+}
+
+// Alertas de interesse do estudante
+model AlertaInteresse {
+  id         String   @id @default(cuid())
+  user_id    String
+  user       User     @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  canal      String   // 'email' | 'portal' | 'whatsapp'
+  categorias String[] @default([])
+  ativo      Boolean  @default(true)
+  created_at DateTime @default(now())
+
+  @@unique([user_id, canal])
+}
+
+// Favoritos do estudante
+model Favorito {
+  user_id     String
+  user        User    @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  entidade    String  // 'edital' | 'projeto'
+  entidade_id String
+  created_at  DateTime @default(now())
+
+  @@id([user_id, entidade, entidade_id])
+}
+
+// Notificações internas
+model Notificacao {
+  id         String   @id @default(cuid())
+  user_id    String
+  user       User     @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  titulo     String
+  texto      String?
+  link       String?
+  lida       Boolean  @default(false)
+  created_at DateTime @default(now())
+
+  @@index([user_id])
+  @@index([lida])
 }

@@ -2,12 +2,13 @@
 
 import { prisma } from '@/lib/prisma';
 import { slugify } from '@/lib/utils';
+import { derivarEventosEdital, derivarEventosProjeto } from '@/lib/evento-helpers';
 import {
   CategoriaEdital, StatusEdital, StatusProjeto, StatusPost,
   TipoEvento, UserRole,
 } from '@prisma/client';
 
-const MASTER_ADMIN_EMAIL = 'bru.mkt2024@gmail.com';
+const MASTER_ADMIN_EMAIL = process.env.ADMIN_EMAILS?.split(',')[0]?.trim() || 'bru.mkt2024@gmail.com';
 
 type ActionResult<T = void> = { ok: true; data?: T } | { ok: false; error: string };
 
@@ -18,10 +19,10 @@ export async function getUserRole(email: string): Promise<UserRole | null> {
   if (email === MASTER_ADMIN_EMAIL) {
     await prisma.user.upsert({
       where: { email },
-      update: { role: 'ADMINISTRADOR' },
-      create: { email, name: 'Administrador Master', role: 'ADMINISTRADOR' },
+      update: { role: 'ADMIN' },
+      create: { email, name: 'Administrador Master', role: 'ADMIN' },
     });
-    return 'ADMINISTRADOR';
+    return 'ADMIN';
   }
   const user = await prisma.user.findUnique({ where: { email }, select: { role: true } });
   return user?.role ?? null;
@@ -31,7 +32,7 @@ export async function ensureUser(email: string, name?: string): Promise<{ id: st
   const user = await prisma.user.upsert({
     where: { email },
     update: name ? { name } : {},
-    create: { email, name: name ?? email, role: email === MASTER_ADMIN_EMAIL ? 'ADMINISTRADOR' : 'VISITANTE' },
+    create: { email, name: name ?? email, role: email === MASTER_ADMIN_EMAIL ? 'ADMIN' : 'ESTUDANTE' },
   });
   return { id: user.id, role: user.role };
 }
@@ -40,7 +41,7 @@ export async function ensureUser(email: string, name?: string): Promise<{ id: st
 
 export async function getDashboardStats() {
   const [editaisAtivos, projetos, usuarios, eventos] = await Promise.all([
-    prisma.edital.count({ where: { status: { in: ['ATIVO', 'ENCERRA_BREVE'] } } }),
+    prisma.edital.count({ where: { status: { in: ['ABERTO', 'EM_ANALISE'] } } }),
     prisma.projeto.count({ where: { status: 'EM_EXECUCAO' } }),
     prisma.user.count(),
     prisma.evento.count({ where: { data: { gte: new Date() } } }),
@@ -99,6 +100,10 @@ export async function createEdital(
         authorId: author.id,
       },
     });
+
+    // Derivar eventos automaticamente
+    await derivarEventosEdital(edital.id).catch(console.error);
+
     return { ok: true, data: { id: edital.id, slug: edital.slug } };
   } catch (e) {
     return { ok: false, error: String(e) };
@@ -118,6 +123,10 @@ export async function updateEdital(
         slug: data.titulo ? slugify(data.titulo) : undefined,
       },
     });
+
+    // Re-derivar eventos quando datas mudam
+    await derivarEventosEdital(id).catch(console.error);
+
     return { ok: true };
   } catch (e) {
     return { ok: false, error: String(e) };
@@ -155,7 +164,7 @@ export type ProjetoFormData = {
 };
 
 export async function listProjetos(userEmail?: string, userRole?: string) {
-  const where = userRole === 'EQUIPE_PROJETO' && userEmail 
+  const where = userRole === 'PROFESSOR' && userEmail 
     ? { admins: { some: { email: userEmail } } } 
     : {};
   return prisma.projeto.findMany({ 
@@ -171,9 +180,9 @@ async function syncProjectAdmins(projetoId: string, emailsStr: string) {
   for (const email of emails) {
     const user = await prisma.user.findUnique({ where: { email } });
     if (!user) {
-      await prisma.user.create({ data: { email, name: email, role: 'EQUIPE_PROJETO' } });
-    } else if (user.role === 'VISITANTE') {
-      await prisma.user.update({ where: { email }, data: { role: 'EQUIPE_PROJETO' } });
+      await prisma.user.create({ data: { email, name: email, role: 'PROFESSOR' } });
+    } else if (user.role === 'ESTUDANTE') {
+      await prisma.user.update({ where: { email }, data: { role: 'PROFESSOR' } });
     }
   }
 
@@ -214,6 +223,10 @@ export async function createProjeto(data: ProjetoFormData): Promise<ActionResult
     if (adminEmails !== undefined) {
       await syncProjectAdmins(projeto.id, adminEmails);
     }
+
+    // Derivar eventos automaticamente
+    await derivarEventosProjeto(projeto.id).catch(console.error);
+
     return { ok: true, data: { id: projeto.id, slug: projeto.slug } };
   } catch (e) {
     return { ok: false, error: String(e) };
@@ -254,6 +267,10 @@ export async function updateProjeto(id: string, data: Partial<ProjetoFormData>):
     if (adminEmails !== undefined) {
       await syncProjectAdmins(id, adminEmails);
     }
+
+    // Re-derivar eventos quando dados mudam
+    await derivarEventosProjeto(id).catch(console.error);
+
     return { ok: true };
   } catch (e) {
     return { ok: false, error: String(e) };
@@ -284,7 +301,7 @@ export type PostFormData = {
 };
 
 export async function listPosts(userEmail?: string, userRole?: string) {
-  const where = userRole === 'EQUIPE_PROJETO' && userEmail 
+  const where = userRole === 'PROFESSOR' && userEmail 
     ? { projeto: { admins: { some: { email: userEmail } } } } 
     : {};
   return prisma.post.findMany({
@@ -421,13 +438,13 @@ export async function listUsuarios() {
 
 export async function updateUserRole(userId: string, role: UserRole, projetoId?: string): Promise<ActionResult> {
   try {
-    if (role === 'EQUIPE_PROJETO' && !projetoId) {
-      return { ok: false, error: 'Um projeto deve ser selecionado para a Equipe de Projeto.' };
+    if (role === 'PROFESSOR' && !projetoId) {
+      return { ok: false, error: 'Um projeto deve ser selecionado para o Professor.' };
     }
 
     await prisma.user.update({ where: { id: userId }, data: { role } });
 
-    if (role === 'EQUIPE_PROJETO' && projetoId) {
+    if (role === 'PROFESSOR' && projetoId) {
       await prisma.projeto.update({
         where: { id: projetoId },
         data: {
@@ -455,8 +472,8 @@ export async function deleteUser(userId: string): Promise<ActionResult> {
 
 export async function inviteUser(email: string, role: UserRole, projetoId?: string): Promise<ActionResult> {
   try {
-    if (role === 'EQUIPE_PROJETO' && !projetoId) {
-      return { ok: false, error: 'Um projeto deve ser selecionado para a Equipe de Projeto.' };
+    if (role === 'PROFESSOR' && !projetoId) {
+      return { ok: false, error: 'Um projeto deve ser selecionado para o Professor.' };
     }
 
     const user = await prisma.user.upsert({
@@ -465,7 +482,7 @@ export async function inviteUser(email: string, role: UserRole, projetoId?: stri
       create: { email, name: email, role },
     });
 
-    if (role === 'EQUIPE_PROJETO' && projetoId) {
+    if (role === 'PROFESSOR' && projetoId) {
       await prisma.projeto.update({
         where: { id: projetoId },
         data: {

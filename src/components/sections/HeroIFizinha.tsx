@@ -4,13 +4,17 @@ import {
   Sparkles, BookOpen, FolderOpen, ChevronRight, CheckCircle2,
 } from 'lucide-react';
 
-const quickStats = [
-  { value: '25+', label: 'Projetos ativos' },
-  { value: '4',   label: 'Editais abertos' },
-  { value: '300+', label: 'Estudantes' },
-];
+interface HeroIFizinhaProps {
+  config?: Record<string, any>;
+}
 
-export function HeroIFizinha() {
+export function HeroIFizinha({ config = {} }: HeroIFizinhaProps) {
+  const quickStats = [
+    { value: config.stat_projetos || '25+', label: 'Projetos ativos' },
+    { value: config.stat_editais || '4',   label: 'Editais abertos' },
+    { value: config.stat_estudantes || '300+', label: 'Estudantes' },
+  ];
+
   return (
     <section className="relative min-h-screen bg-hero-gradient flex items-center overflow-hidden">
 
@@ -50,10 +54,10 @@ export function HeroIFizinha() {
 
             {/* Headline */}
             <h1 className="text-4xl md:text-5xl lg:text-[3.5rem] font-black leading-[1.06] mb-6 tracking-tight">
-              Tudo do IFPR
+              {config.hero_titulo || 'Tudo do IFPR'}
               <br />
               <span className="text-dourado-500 drop-shadow">
-                traduzido pra você
+                {config.hero_subtitulo || 'traduzido pra você'}
               </span>
               <span className="ml-3 inline-block animate-sparkle select-none">✨</span>
             </h1>
@@ -75,14 +79,14 @@ export function HeroIFizinha() {
                 className="inline-flex items-center justify-center gap-2 bg-white text-azul-500 font-bold px-8 py-4 rounded-xl hover:bg-white/92 active:scale-[0.98] transition-all shadow-lg hover:shadow-xl text-base"
               >
                 <BookOpen className="w-5 h-5 flex-shrink-0" />
-                Ver Editais Abertos
+                {config.hero_cta_editais || 'Ver Editais Abertos'}
               </Link>
               <Link
                 href="/projetos"
                 className="inline-flex items-center justify-center gap-2 bg-white/15 backdrop-blur-sm text-white font-semibold px-8 py-4 rounded-xl hover:bg-white/25 active:scale-[0.98] transition-all border border-white/30 text-base"
               >
                 <FolderOpen className="w-5 h-5 flex-shrink-0" />
-                Explorar Projetos
+                {config.hero_cta_projetos || 'Explorar Projetos'}
               </Link>
             </div>
 

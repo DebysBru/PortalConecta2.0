@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useEffect, useState, useTransition } from 'react';
-import { Plus, Pencil, Trash2, X, FileText, AlertCircle } from 'lucide-react';
+import { Plus, Pencil, Trash2, X, FileText, AlertCircle, Sparkles, Loader2 } from 'lucide-react';
 import {
   listEditais, createEdital, updateEdital, deleteEdital,
   type EditalFormData,
@@ -12,11 +12,11 @@ import { getStatusLabel, getCategoryColor, getStatusColor, formatDateShort } fro
 type Edital = Awaited<ReturnType<typeof listEditais>>[number];
 
 const CATEGORIAS = ['BOLSAS','AUXILIOS','EXTENSAO','PESQUISA','ENSINO','EVENTOS','ESTAGIOS','RESULTADOS'];
-const STATUS_LIST = ['ATIVO','ENCERRA_BREVE','ENCERRADO','RESULTADO_PUBLICADO'];
+const STATUS_LIST = ['EM_BREVE','ABERTO','EM_ANALISE','RESULTADO_PARCIAL','PRAZO_RECURSO','RESULTADO_PUBLICADO','ENCERRADO'];
 
 const EMPTY_FORM: EditalFormData = {
   titulo: '', categoria: 'BOLSAS', resumo: '', dataEncerramento: '',
-  status: 'ATIVO', linkOficial: '', arquivoPdfUrl: '', destaque: false,
+  status: 'EM_BREVE', linkOficial: '', arquivoPdfUrl: '', destaque: false,
   traducaoIFizinha: { oquee: '', quempode: '', beneficios: '', documentos: '', comoinscrever: '', prazo: '', observacoes: '' },
 };
 
@@ -29,6 +29,7 @@ export default function AdminEditaisPage() {
   const [activeTab, setActiveTab] = useState<'info' | 'ifizinha'>('info');
   const [error, setError] = useState('');
   const [isPending, startTransition] = useTransition();
+  const [generatingAI, setGeneratingAI] = useState(false);
 
   const load = () => listEditais().then(setEditais).catch(console.error);
   useEffect(() => { load(); }, []);
@@ -47,10 +48,10 @@ export default function AdminEditaisPage() {
     setForm({
       titulo: edital.titulo,
       categoria: edital.categoria,
-      resumo: edital.resumo,
-      dataEncerramento: edital.dataEncerramento.toISOString().split('T')[0],
+      resumo: edital.resumo ?? '',
+      dataEncerramento: edital.dataEncerramento ? edital.dataEncerramento.toISOString().split('T')[0] : '',
       status: edital.status,
-      linkOficial: edital.linkOficial,
+      linkOficial: edital.linkOficial ?? '',
       arquivoPdfUrl: edital.arquivoPdfUrl ?? '',
       destaque: edital.destaque,
       traducaoIFizinha: trad ?? EMPTY_FORM.traducaoIFizinha,
@@ -119,7 +120,7 @@ export default function AdminEditaisPage() {
                       <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-semibold border ${getStatusColor(e.status)}`}>
                         {getStatusLabel(e.status)}
                       </span>
-                      <span className="text-xs text-gray-400">{formatDateShort(e.dataEncerramento)}</span>
+                      <span className="text-xs text-gray-400">{e.dataEncerramento ? formatDateShort(e.dataEncerramento) : '-'}</span>
                     </div>
                   </div>
                   <div className="flex items-center gap-1 flex-shrink-0 mt-0.5">
@@ -160,7 +161,7 @@ export default function AdminEditaisPage() {
                           {getStatusLabel(e.status)}
                         </span>
                       </td>
-                      <td className="px-4 py-3 text-gray-500">{formatDateShort(e.dataEncerramento)}</td>
+                      <td className="px-4 py-3 text-gray-500">{e.dataEncerramento ? formatDateShort(e.dataEncerramento) : '-'}</td>
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-1 justify-end">
                           <button onClick={() => openEdit(e)} className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-400 hover:text-azul-eletrico transition-colors">
@@ -247,6 +248,53 @@ export default function AdminEditaisPage() {
                   </>
                 ) : (
                   <>
+                    <div className="flex items-center justify-between mb-4">
+                      <p className="text-sm text-gray-500">Preencha a tradução em linguagem simples</p>
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          if (!form.titulo || !form.resumo) {
+                            setError('Preencha o título e resumo primeiro na aba "Informações"');
+                            setActiveTab('info');
+                            return;
+                          }
+                          setGeneratingAI(true);
+                          setError('');
+                          try {
+                            const res = await fetch('/api/ai/ifizinha', {
+                              method: 'POST',
+                              headers: { 'Content-Type': 'application/json' },
+                              body: JSON.stringify({
+                                titulo: form.titulo,
+                                resumo: form.resumo,
+                                categoria: form.categoria,
+                                dataEncerramento: form.dataEncerramento,
+                              }),
+                            });
+                            const data = await res.json();
+                            if (data.traducao) {
+                              setForm((f) => ({ ...f, traducaoIFizinha: data.traducao }));
+                            } else {
+                              setError(data.error || 'Erro ao gerar tradução');
+                            }
+                          } catch {
+                            setError('Erro ao conectar com a IA');
+                          } finally {
+                            setGeneratingAI(false);
+                          }
+                        }}
+                        disabled={generatingAI}
+                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-gradient-to-r from-purple-500 to-pink-500 text-white text-xs font-semibold hover:opacity-90 transition-all disabled:opacity-60"
+                      >
+                        {generatingAI ? (
+                          <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                        ) : (
+                          <Sparkles className="w-3.5 h-3.5" />
+                        )}
+                        {generatingAI ? 'Gerando...' : 'Gerar com IA'}
+                      </button>
+                    </div>
+
                     {[
                       { key: 'oquee',        label: 'O que é esse edital?' },
                       { key: 'quempode',     label: 'Quem pode se inscrever?' },

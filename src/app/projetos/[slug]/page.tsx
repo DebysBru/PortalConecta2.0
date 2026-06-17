@@ -1,9 +1,15 @@
 import React from 'react';
 import Link from 'next/link';
-import { ChevronRight, Users, Mail, Instagram, Globe, ArrowLeft, BookOpen, Calendar, ArrowRight, Image as ImageIcon } from 'lucide-react';
+import { notFound } from 'next/navigation';
+import {
+  ChevronRight, Users, Mail, Instagram, Globe, ArrowLeft,
+  BookOpen, Calendar, ArrowRight, Image as ImageIcon, HelpCircle,
+} from 'lucide-react';
 import { getStatusLabel, getStatusColor } from '@/lib/utils';
-import type { Metadata } from 'next';
 import { prisma } from '@/lib/prisma';
+import type { Metadata } from 'next';
+
+export const dynamic = 'force-dynamic';
 
 type Params = { slug: string };
 
@@ -14,32 +20,44 @@ export async function generateMetadata({ params }: { params: Params }): Promise<
 }
 
 export default async function ProjetoPage({ params }: { params: Params }) {
-  const projeto = await prisma.projeto.findUnique({ 
+  const projeto = await prisma.projeto.findUnique({
     where: { slug: params.slug },
     include: {
       posts: {
         where: { status: 'PUBLICADO' },
-        orderBy: { createdAt: 'desc' }
-      }
-    }
+        orderBy: { createdAt: 'desc' },
+        take: 5,
+      },
+      faq: { orderBy: { ordem: 'asc' } },
+      tags: true,
+      cursos: true,
+      coordenadores: {
+        include: { user: { select: { name: true, email: true } } },
+      },
+    },
   });
 
-  if (!projeto) {
-    return (
-      <div className="min-h-screen pt-24 flex items-center justify-center">
-        <div className="text-center">
-          <div className="text-6xl mb-4">🔍</div>
-          <h1 className="text-2xl font-bold text-gray-900 mb-2">Projeto não encontrado</h1>
-          <p className="text-gray-500 mb-6">Este projeto pode não ter página individual ainda ou o link está incorreto.</p>
-          <Link href="/projetos">
-            <button className="inline-flex items-center gap-2 bg-azul-eletrico text-white font-semibold px-6 py-3 rounded-xl hover:bg-azul-eletrico/90 transition-all">
-              Ver todos os projetos
-            </button>
-          </Link>
-        </div>
-      </div>
-    );
-  }
+  if (!projeto) notFound();
+
+  // Buscar projetos relacionados (mesma área)
+  const relacionados = await prisma.projeto.findMany({
+    where: {
+      id: { not: projeto.id },
+      area: projeto.area,
+      review_status: 'PUBLICADO',
+      deleted_at: null,
+    },
+    take: 3,
+    select: {
+      id: true,
+      nome: true,
+      slug: true,
+      area: true,
+      corPrimaria: true,
+      coordenador: true,
+      resumoCurto: true,
+    },
+  });
 
   const paragrafos = projeto.descricao ? projeto.descricao.split('\n\n') : [];
 
@@ -73,6 +91,11 @@ export default async function ProjetoPage({ params }: { params: Params }) {
                 <span className="bg-white/20 text-white text-sm font-medium px-3 py-1 rounded-full">
                   {projeto.area}
                 </span>
+                {projeto.inscricoes_abertas && (
+                  <span className="bg-green-500 text-white text-sm font-medium px-3 py-1 rounded-full">
+                    Inscrições Abertas
+                  </span>
+                )}
               </div>
               <h1 className="text-2xl md:text-3xl font-black text-white mb-2 leading-tight">{projeto.nome}</h1>
               <div className="flex items-center gap-2 text-white/80 text-sm">
@@ -94,6 +117,7 @@ export default async function ProjetoPage({ params }: { params: Params }) {
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Main content */}
           <div className="lg:col-span-2 space-y-6">
+            {/* Sobre */}
             <div className="bg-white rounded-2xl border border-gray-100 p-6">
               <h2 className="font-bold text-gray-900 text-lg mb-4">Sobre o Projeto</h2>
               {paragrafos.length > 0 ? (
@@ -107,9 +131,61 @@ export default async function ProjetoPage({ params }: { params: Params }) {
               )}
             </div>
 
-            {/* Posts Section */}
+            {/* Tags */}
+            {projeto.tags.length > 0 && (
+              <div className="bg-white rounded-2xl border border-gray-100 p-6">
+                <h2 className="font-bold text-gray-900 text-lg mb-3">Tags</h2>
+                <div className="flex flex-wrap gap-2">
+                  {projeto.tags.map((tag) => (
+                    <span
+                      key={tag.tag}
+                      className="inline-flex px-3 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-700"
+                    >
+                      {tag.tag}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Cursos relacionados */}
+            {projeto.cursos.length > 0 && (
+              <div className="bg-white rounded-2xl border border-gray-100 p-6">
+                <h2 className="font-bold text-gray-900 text-lg mb-3">Cursos Relacionados</h2>
+                <div className="flex flex-wrap gap-2">
+                  {projeto.cursos.map((curso) => (
+                    <span
+                      key={curso.curso}
+                      className="inline-flex px-3 py-1 rounded-full text-xs font-medium bg-azul-eletrico/10 text-azul-eletrico"
+                    >
+                      {curso.curso}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* FAQ */}
+            {projeto.faq.length > 0 && (
+              <div className="bg-white rounded-2xl border border-gray-100 p-6">
+                <h2 className="font-bold text-gray-900 text-lg mb-4 flex items-center gap-2">
+                  <HelpCircle className="w-5 h-5 text-azul-eletrico" />
+                  Perguntas Frequentes
+                </h2>
+                <div className="space-y-4">
+                  {projeto.faq.map((faq) => (
+                    <div key={faq.id} className="border-b border-gray-50 pb-4 last:border-0 last:pb-0">
+                      <p className="font-semibold text-gray-900 text-sm mb-1">{faq.pergunta}</p>
+                      <p className="text-gray-600 text-sm leading-relaxed">{faq.resposta}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Posts */}
             {projeto.posts.length > 0 && (
-              <div className="mt-8">
+              <div>
                 <h2 className="font-bold text-gray-900 text-2xl mb-6">Últimas Atualizações</h2>
                 <div className="space-y-4">
                   {projeto.posts.map((post) => (
@@ -131,15 +207,33 @@ export default async function ProjetoPage({ params }: { params: Params }) {
                         </div>
                         <h3 className="font-bold text-gray-900 text-lg mb-2 leading-tight">{post.titulo}</h3>
                         {post.resumo && <p className="text-sm text-gray-500 line-clamp-2 mb-3">{post.resumo}</p>}
-                        
-                        <div className="mt-auto flex items-center gap-3">
-                          <Link href={`/posts/${post.slug}`} className="inline-flex items-center gap-1.5 text-sm font-semibold text-azul-eletrico hover:text-azul-eletrico/80 transition-colors">
-                            Ler mais
-                            <ArrowRight className="w-4 h-4" />
-                          </Link>
-                        </div>
                       </div>
                     </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Projetos relacionados */}
+            {relacionados.length > 0 && (
+              <div>
+                <h2 className="font-bold text-gray-900 text-2xl mb-6">Projetos Relacionados</h2>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                  {relacionados.map((r) => (
+                    <Link key={r.id} href={`/projetos/${r.slug}`} className="group block">
+                      <div className="bg-white rounded-xl border border-gray-100 p-4 hover:border-gray-200 hover:shadow-md transition-all">
+                        <div
+                          className="w-10 h-10 rounded-lg flex items-center justify-center text-white font-bold text-sm mb-3"
+                          style={{ backgroundColor: r.corPrimaria }}
+                        >
+                          {r.nome.charAt(0)}
+                        </div>
+                        <h3 className="font-semibold text-gray-900 text-sm group-hover:text-azul-eletrico transition-colors line-clamp-2">
+                          {r.nome}
+                        </h3>
+                        <p className="text-xs text-gray-500 mt-1">{r.coordenador}</p>
+                      </div>
+                    </Link>
                   ))}
                 </div>
               </div>
@@ -181,6 +275,33 @@ export default async function ProjetoPage({ params }: { params: Params }) {
                     <p className="text-sm font-semibold text-green-600">{getStatusLabel(projeto.status)}</p>
                   </div>
                 </div>
+
+                {/* Vagas */}
+                {(projeto.vagasBolsista > 0 || projeto.vagasVoluntario > 0) && (
+                  <div className="flex items-start gap-3">
+                    <div className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0" style={{ backgroundColor: `${projeto.corPrimaria}20` }}>
+                      <Users className="w-4 h-4" style={{ color: projeto.corPrimaria }} />
+                    </div>
+                    <div>
+                      <p className="text-xs text-gray-400 font-medium">Vagas</p>
+                      <p className="text-sm text-gray-700 font-semibold">
+                        {projeto.vagasBolsista > 0 && `${projeto.vagasBolsista} bolsista${projeto.vagasBolsista > 1 ? 's' : ''}`}
+                        {projeto.vagasBolsista > 0 && projeto.vagasVoluntario > 0 && ' / '}
+                        {projeto.vagasVoluntario > 0 && `${projeto.vagasVoluntario} voluntário${projeto.vagasVoluntario > 1 ? 's' : ''}`}
+                      </p>
+                    </div>
+                  </div>
+                )}
+
+                {/* Coordenadores */}
+                {projeto.coordenadores.length > 0 && (
+                  <div className="pt-3 border-t border-gray-100">
+                    <p className="text-xs text-gray-400 font-medium mb-2">Coordenadores</p>
+                    {projeto.coordenadores.map((c) => (
+                      <p key={c.user_id} className="text-sm text-gray-700">{c.user.name || c.user.email}</p>
+                    ))}
+                  </div>
+                )}
               </div>
 
               {/* Contatos */}
@@ -209,14 +330,29 @@ export default async function ProjetoPage({ params }: { params: Params }) {
               )}
             </div>
 
-            {/* CTA Participe */}
+            {/* CTA */}
             <div className="rounded-2xl p-5 text-white" style={{ background: `linear-gradient(135deg, ${projeto.corPrimaria} 0%, ${projeto.corPrimaria}cc 100%)` }}>
               <h3 className="font-bold mb-2">Quer participar?</h3>
-              <p className="text-sm text-white/80 mb-4">Entre em contato com o coordenador ou aguarde os editais de bolsas!</p>
-              <Link href="/editais" className="inline-flex items-center gap-1.5 bg-white text-gray-900 font-semibold px-4 py-2 rounded-xl hover:bg-white/90 transition-all text-sm w-full justify-center">
-                Ver Editais de Bolsas
-                <ArrowRight className="w-4 h-4" />
-              </Link>
+              {(projeto.inscricoes_abertas || projeto.status === 'INSCRICOES_ABERTAS') ? (
+                <>
+                  <p className="text-sm text-white/80 mb-4">Inscrições abertas! Preencha o formulário agora.</p>
+                  <Link
+                    href={`/inscricao/${projeto.slug}`}
+                    className="inline-flex items-center gap-1.5 bg-white text-gray-900 font-semibold px-4 py-2 rounded-xl hover:bg-white/90 transition-all text-sm w-full justify-center"
+                  >
+                    Inscreva-se agora
+                    <ArrowRight className="w-4 h-4" />
+                  </Link>
+                </>
+              ) : (
+                <>
+                  <p className="text-sm text-white/80 mb-4">Inscrições não estão abertas no momento.</p>
+                  <Link href="/editais" className="inline-flex items-center gap-1.5 bg-white text-gray-900 font-semibold px-4 py-2 rounded-xl hover:bg-white/90 transition-all text-sm w-full justify-center">
+                    Ver Editais de Bolsas
+                    <ArrowRight className="w-4 h-4" />
+                  </Link>
+                </>
+              )}
             </div>
           </div>
         </div>

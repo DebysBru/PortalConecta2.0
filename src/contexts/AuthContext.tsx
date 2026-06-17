@@ -51,7 +51,7 @@ type AuthState = {
 
 const AuthContext = createContext<AuthState | null>(null);
 
-const MASTER_ADMIN_EMAIL = 'bru.mkt2024@gmail.com';
+const MASTER_ADMIN_EMAIL = process.env.ADMIN_EMAILS?.split(',')[0]?.trim() || 'bru.mkt2024@gmail.com';
 
 // ── Helper: extrai e-mail do usuário Firebase (inclui claims de custom token) ──
 async function extractEmail(firebaseUser: FirebaseUser): Promise<string | null> {
@@ -86,8 +86,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             setSupabaseUserId(id);
           } catch {
             const fallbackRole: UserRole | null =
-              email === MASTER_ADMIN_EMAIL ? 'ADMINISTRADOR' : null;
+              email === MASTER_ADMIN_EMAIL ? 'ADMIN' : null;
             setUserRole(fallbackRole);
+            setSupabaseUserId(null);
           }
         } else {
           // Usuário autenticado mas sem e-mail em lugar nenhum (não deveria ocorrer)
@@ -190,7 +191,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       // 3. Vínculo salvo com sucesso.
       //    O usuário está logado como Google user — isso é suficiente para o painel.
       //    Fazemos um refresh do role pois o complete-suap-link pode ter promovido
-      //    o usuário para EQUIPE_PROJETO (o onAuthStateChanged já rodou com VISITANTE).
+      //    o usuário para PROFESSOR (o onAuthStateChanged já rodou com ESTUDANTE).
       try {
         const { id, role } = await ensureUser(result.user.email!, result.user.displayName ?? undefined);
         setUserRole(role);
@@ -216,9 +217,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const isMasterAdmin = user?.email === MASTER_ADMIN_EMAIL;
   const isAdmin =
-    userRole === 'ADMINISTRADOR' ||
-    userRole === 'EDITOR_IFIZINHA' ||
-    userRole === 'EQUIPE_PROJETO';
+    userRole === 'ADMIN';
 
   return (
     <AuthContext.Provider value={{

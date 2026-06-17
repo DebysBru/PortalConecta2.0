@@ -11,17 +11,15 @@ type User = Awaited<ReturnType<typeof listUsuarios>>[number];
 type Projeto = Awaited<ReturnType<typeof listProjetos>>[number];
 
 const ROLE_LABELS: Record<UserRole, string> = {
-  VISITANTE: 'Visitante',
-  EDITOR_IFIZINHA: 'Editor IFizinha',
-  EQUIPE_PROJETO: 'Equipe Projeto',
-  ADMINISTRADOR: 'Administrador',
+  ESTUDANTE: 'Estudante',
+  PROFESSOR: 'Professor',
+  ADMIN: 'Administrador',
 };
 
 const ROLE_COLORS: Record<UserRole, string> = {
-  VISITANTE: 'bg-gray-100 text-gray-600',
-  EDITOR_IFIZINHA: 'bg-blue-100 text-blue-700',
-  EQUIPE_PROJETO: 'bg-purple-100 text-purple-700',
-  ADMINISTRADOR: 'bg-dourado-500/20 text-dourado-700',
+  ESTUDANTE: 'bg-gray-100 text-gray-600',
+  PROFESSOR: 'bg-blue-100 text-blue-700',
+  ADMIN: 'bg-dourado-500/20 text-dourado-700',
 };
 
 export default function AdminUsuariosPage() {
@@ -29,7 +27,7 @@ export default function AdminUsuariosPage() {
   const [users, setUsers] = useState<User[]>([]);
   const [projetos, setProjetos] = useState<Projeto[]>([]);
   const [inviteEmail, setInviteEmail] = useState('');
-  const [inviteRole, setInviteRole] = useState<UserRole>('EQUIPE_PROJETO');
+  const [inviteRole, setInviteRole] = useState<UserRole>('PROFESSOR');
   const [inviteProjetoId, setInviteProjetoId] = useState('');
   const [error, setError] = useState('');
   const [isPending, startTransition] = useTransition();
@@ -53,8 +51,8 @@ export default function AdminUsuariosPage() {
   }
 
   const handleRoleChange = (userId: string, role: UserRole) => {
-    if (role === 'EQUIPE_PROJETO') {
-      alert('Para atribuir "Equipe Projeto", por favor utilize o formulário de convite acima para selecionar o projeto.');
+    if (role === 'PROFESSOR') {
+      alert('Para atribuir "Professor", por favor utilize o formulário de convite acima para selecionar o projeto.');
       return;
     }
     startTransition(async () => {
@@ -74,12 +72,12 @@ export default function AdminUsuariosPage() {
 
   const handleInvite = (e: React.FormEvent) => {
     e.preventDefault(); setError('');
-    if (inviteRole === 'EQUIPE_PROJETO' && !inviteProjetoId) {
-      setError('Selecione um projeto.');
+    if (inviteRole === 'PROFESSOR' && !inviteProjetoId) {
+      setError('Selecione um projeto para o professor.');
       return;
     }
     startTransition(async () => {
-      const r = await inviteUser(inviteEmail, inviteRole, inviteRole === 'EQUIPE_PROJETO' ? inviteProjetoId : undefined);
+      const r = await inviteUser(inviteEmail, inviteRole, inviteRole === 'PROFESSOR' ? inviteProjetoId : undefined);
       if (r.ok) { setInviteEmail(''); setInviteProjetoId(''); load(); } else setError(r.error);
     });
   };
@@ -110,11 +108,11 @@ export default function AdminUsuariosPage() {
             onChange={(e) => setInviteRole(e.target.value as UserRole)}
             className="input-field sm:w-48"
           >
-            {(Object.keys(ROLE_LABELS) as UserRole[]).filter(r => r !== 'VISITANTE').map((r) => (
+            {(Object.keys(ROLE_LABELS) as UserRole[]).map((r) => (
               <option key={r} value={r}>{ROLE_LABELS[r]}</option>
             ))}
           </select>
-          {inviteRole === 'EQUIPE_PROJETO' && (
+          {inviteRole === 'PROFESSOR' && (
             <select
               value={inviteProjetoId}
               onChange={(e) => setInviteProjetoId(e.target.value)}
@@ -175,11 +173,11 @@ export default function AdminUsuariosPage() {
                             className="text-xs border border-gray-200 rounded-lg px-2 py-1 bg-white text-gray-700 font-medium focus:outline-none focus:ring-1 focus:ring-azul-eletrico/30"
                           >
                             {(Object.keys(ROLE_LABELS) as UserRole[]).map((r) => (
-                              <option key={r} value={r} disabled={r === 'EQUIPE_PROJETO' && u.role !== 'EQUIPE_PROJETO'}>{ROLE_LABELS[r]}</option>
+                              <option key={r} value={r}>{ROLE_LABELS[r]}</option>
                             ))}
                           </select>
                         )}
-                        {u.role === 'EQUIPE_PROJETO' && u.projetosAdmin && u.projetosAdmin.length > 0 && (
+                        {u.role === 'PROFESSOR' && u.projetosAdmin && u.projetosAdmin.length > 0 && (
                           <p className="text-[10px] text-gray-500 mt-1 font-medium bg-gray-50 px-2 py-1 rounded-md inline-block">
                             Projetos: {u.projetosAdmin.map(p => p.nome).join(', ')}
                           </p>
@@ -235,11 +233,11 @@ export default function AdminUsuariosPage() {
                               className="text-xs border border-gray-200 rounded-lg px-2 py-1 bg-white text-gray-700 font-medium focus:outline-none focus:ring-1 focus:ring-azul-eletrico/30"
                             >
                               {(Object.keys(ROLE_LABELS) as UserRole[]).map((r) => (
-                                <option key={r} value={r} disabled={r === 'EQUIPE_PROJETO' && u.role !== 'EQUIPE_PROJETO'}>{ROLE_LABELS[r]}</option>
+                                <option key={r} value={r}>{ROLE_LABELS[r]}</option>
                               ))}
                             </select>
                           )}
-                          {u.role === 'EQUIPE_PROJETO' && u.projetosAdmin && u.projetosAdmin.length > 0 && (
+                          {u.role === 'PROFESSOR' && u.projetosAdmin && u.projetosAdmin.length > 0 && (
                             <div className="mt-1">
                               <span className="text-[10px] text-gray-500 font-medium bg-gray-50 px-2 py-0.5 rounded-md">
                                 Projetos: {u.projetosAdmin.map(p => p.nome).join(', ')}

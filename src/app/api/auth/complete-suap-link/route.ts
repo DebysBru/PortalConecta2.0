@@ -61,7 +61,7 @@ export async function POST(req: NextRequest) {
         email: googleEmail,
         name: googleName ?? suapData.name,
         image: googlePhoto ?? suapData.fotoUrl ?? undefined,
-        role: 'EQUIPE_PROJETO',
+        role: 'PROFESSOR',
         suapUsername: suapData.username,
         suapNome: suapData.name,
         suapEmail: suapData.email,

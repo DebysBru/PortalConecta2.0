@@ -23,7 +23,7 @@ async function main() {
     create: {
       email: 'admin@ifpr.edu.br',
       name: 'Administrador Portal Conecta',
-      role: UserRole.ADMINISTRADOR,
+      role: UserRole.ADMIN,
     },
   });
 
@@ -33,7 +33,7 @@ async function main() {
     create: {
       email: 'marketing@ifpr.edu.br',
       name: 'Marketing Digital Solidário',
-      role: UserRole.EDITOR_IFIZINHA,
+      role: UserRole.ADMIN,
     },
   });
 
@@ -257,7 +257,7 @@ async function main() {
       nome: 'Fotografia Social',
       coordenador: 'Camila Ramos Ferreira',
       area: 'Arte e Comunicação',
-      status: StatusProjeto.ENVIADO_2026,
+      status: StatusProjeto.ATIVO,
       corPrimaria: '#4A148C',
       descricao: 'Oficinas de fotografia documental e narrativa visual para jovens em vulnerabilidade social, desenvolvendo olhar crítico e meios de expressão artística.',
     },
@@ -265,7 +265,7 @@ async function main() {
       nome: 'Cooperativismo Solidário',
       coordenador: 'Prof. Marcio Barbosa',
       area: 'Economia Solidária',
-      status: StatusProjeto.ENVIADO_2026,
+      status: StatusProjeto.ATIVO,
       corPrimaria: '#E65100',
       descricao: 'Formação em cooperativismo e economia solidária para trabalhadores informais e empreendedores sociais da região, fortalecendo redes de colaboração.',
     },
@@ -299,7 +299,7 @@ async function main() {
       categoria: CategoriaEdital.BOLSAS,
       resumo: 'Seleção de estudantes para recebimento de bolsas de extensão no valor de R$400/mês para participação em projetos de extensão do IFPR Campus Ivaiporã.',
       dataEncerramento: new Date('2025-08-31'),
-      status: StatusEdital.ATIVO,
+      status: StatusEdital.ABERTO,
       destaque: true,
       linkOficial: 'https://reitoria.ifpr.edu.br/editais',
       traducaoIFizinha: {
@@ -316,7 +316,7 @@ async function main() {
       categoria: CategoriaEdital.PESQUISA,
       resumo: 'Seleção de estudantes para o Programa de Iniciação Científica, com bolsas de R$700/mês para desenvolvimento de projetos de pesquisa orientados por docentes.',
       dataEncerramento: new Date('2025-09-15'),
-      status: StatusEdital.ATIVO,
+      status: StatusEdital.ABERTO,
       destaque: true,
       linkOficial: 'https://reitoria.ifpr.edu.br/editais',
       traducaoIFizinha: {
@@ -333,7 +333,7 @@ async function main() {
       categoria: CategoriaEdital.AUXILIOS,
       resumo: 'Concessão de auxílios financeiros para estudantes em vulnerabilidade socioeconômica: Auxílio Permanência (R$350), Auxílio Transporte (R$200) e Auxílio Alimentação (R$150).',
       dataEncerramento: new Date('2025-08-15'),
-      status: StatusEdital.ENCERRA_BREVE,
+      status: StatusEdital.PRAZO_RECURSO,
       destaque: true,
       linkOficial: 'https://reitoria.ifpr.edu.br/editais',
       traducaoIFizinha: {
@@ -350,7 +350,7 @@ async function main() {
       categoria: CategoriaEdital.EXTENSAO,
       resumo: 'Chamada para submissão de propostas de projetos de extensão para o período 2025-2026, com possibilidade de financiamento de até R$5.000 por projeto aprovado.',
       dataEncerramento: new Date('2025-10-30'),
-      status: StatusEdital.ATIVO,
+      status: StatusEdital.ABERTO,
       destaque: false,
       linkOficial: 'https://reitoria.ifpr.edu.br/editais',
       traducaoIFizinha: {

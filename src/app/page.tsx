@@ -10,68 +10,57 @@ import {
 } from '@/lib/utils';
 import { HeroIFizinha } from '@/components/sections/HeroIFizinha';
 import { ProjetosGrid } from '@/components/sections/ProjetosGrid';
+import { getDashboardStatsAction } from '@/actions/auth';
+import { getAllSiteConfigAction } from '@/actions/site-config';
+import { db } from '@/lib/prisma';
 
-// Dados mock para o MVP (substituir por fetch do Prisma quando o banco estiver conectado)
-const editaisDestaque = [
-  {
-    id: '1',
-    titulo: 'Auxílio Estudantil – Programa de Assistência Estudantil 2025',
-    slug: 'auxilio-estudantil-2025',
-    categoria: 'AUXILIOS',
-    resumo: 'Auxílios financeiros para estudantes em vulnerabilidade socioeconômica: Permanência (R$350), Transporte (R$200) e Alimentação (R$150).',
-    dataEncerramento: new Date('2025-08-15'),
-    status: 'ENCERRA_BREVE',
-  },
-  {
-    id: '2',
-    titulo: 'Edital PROEX 01/2025 – Bolsas de Extensão',
-    slug: 'proex-bolsas-extensao-2025',
-    categoria: 'BOLSAS',
-    resumo: 'Seleção de estudantes para bolsas de extensão de R$400/mês para participação em projetos do campus.',
-    dataEncerramento: new Date('2025-08-31'),
-    status: 'ATIVO',
-  },
-  {
-    id: '3',
-    titulo: 'Edital PIBIC 02/2025 – Iniciação Científica',
-    slug: 'pibic-iniciacao-cientifica-2025',
-    categoria: 'PESQUISA',
-    resumo: 'Bolsas de R$700/mês para desenvolvimento de pesquisa científica com orientação de docentes.',
-    dataEncerramento: new Date('2025-09-15'),
-    status: 'ATIVO',
-  },
-];
+export const dynamic = 'force-dynamic';
 
-const proximosEventos = [
-  { id: '1', titulo: 'Prazo Final – Auxílio Estudantil', data: new Date('2025-08-15'), tipo: 'PRAZO_EDITAL' },
-  { id: '2', titulo: 'Prazo Final – Bolsas de Extensão', data: new Date('2025-08-31'), tipo: 'PRAZO_EDITAL' },
-  { id: '3', titulo: 'Semana de Ciência e Tecnologia IFPR', data: new Date('2025-09-08'), tipo: 'EVENTO_CAMPUS' },
-  { id: '4', titulo: 'Prazo Final – PIBIC 02/2025', data: new Date('2025-09-15'), tipo: 'PRAZO_EDITAL' },
-];
+export default async function HomePage() {
+  // Buscar dados do banco (cache revalidate a cada 5 min)
+  const [stats, siteConfig, editaisDestaque, proximosEventos] = await Promise.all([
+    getDashboardStatsAction(),
+    getAllSiteConfigAction(),
+    db.edital.findMany({
+      where: {
+        review_status: 'PUBLICADO',
+        deleted_at: null,
+        status: { in: ['ABERTO', 'EM_ANALISE'] },
+      },
+      orderBy: { updatedAt: 'desc' },
+      take: 3,
+    }),
+    db.evento.findMany({
+      where: {
+        data: { gte: new Date() },
+      },
+      orderBy: { data: 'asc' },
+      take: 4,
+    }),
+  ]);
 
-const stats = [
-  { label: 'Editais Ativos', value: '4', icon: FileText, color: 'text-azul-eletrico', bg: 'bg-azul-eletrico/10' },
-  { label: 'Projetos em Execução', value: '25+', icon: FolderOpen, color: 'text-roxo-luminoso', bg: 'bg-roxo-luminoso/10' },
-  { label: 'Estudantes Beneficiados', value: '300+', icon: Users, color: 'text-rosa-vibrante', bg: 'bg-rosa-vibrante/10' },
-  { label: 'Editais Traduzidos', value: '12', icon: Sparkles, color: 'text-ciano-claro', bg: 'bg-ciano-claro/10' },
-];
+  const statsConfig = [
+    { label: 'Editais Ativos', value: stats.editaisAtivos, icon: FileText, color: 'text-azul-eletrico', bg: 'bg-azul-eletrico/10' },
+    { label: 'Projetos em Execução', value: stats.projetos, icon: FolderOpen, color: 'text-roxo-luminoso', bg: 'bg-roxo-luminoso/10' },
+    { label: 'Usuários', value: stats.usuarios, icon: Users, color: 'text-rosa-vibrante', bg: 'bg-rosa-vibrante/10' },
+    { label: 'Eventos Próximos', value: stats.eventos, icon: Sparkles, color: 'text-ciano-claro', bg: 'bg-ciano-claro/10' },
+  ];
 
-const tipoEventoConfig: Record<string, { label: string; color: string; icon: React.ReactNode }> = {
-  PRAZO_EDITAL: { label: 'Prazo', color: 'bg-red-100 text-red-700', icon: <AlertCircle className="w-3 h-3" /> },
-  EVENTO_CAMPUS: { label: 'Campus', color: 'bg-blue-100 text-blue-700', icon: <Star className="w-3 h-3" /> },
-  EVENTO_PROJETO: { label: 'Projeto', color: 'bg-purple-100 text-purple-700', icon: <Zap className="w-3 h-3" /> },
-};
+  const tipoEventoConfig: Record<string, { label: string; color: string; icon: React.ReactNode }> = {
+    PRAZO_EDITAL: { label: 'Prazo', color: 'bg-red-100 text-red-700', icon: <AlertCircle className="w-3 h-3" /> },
+    EVENTO_CAMPUS: { label: 'Campus', color: 'bg-blue-100 text-blue-700', icon: <Star className="w-3 h-3" /> },
+    EVENTO_PROJETO: { label: 'Projeto', color: 'bg-purple-100 text-purple-700', icon: <Zap className="w-3 h-3" /> },
+  };
 
-export default function HomePage() {
   return (
     <div className="flex flex-col">
-      <HeroIFizinha />
+      <HeroIFizinha config={siteConfig} />
 
       {/* === ESTATÍSTICAS === */}
       <section className="py-12 bg-white">
         <div className="container mx-auto px-4 max-w-7xl">
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 md:gap-6">
-            {stats.map((stat) => (
+            {statsConfig.map((stat) => (
               <div
                 key={stat.label}
                 className="flex flex-col items-center text-center p-6 rounded-2xl border border-gray-100 hover:border-gray-200 hover:shadow-md transition-all group"
@@ -109,9 +98,9 @@ export default function HomePage() {
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            {editaisDestaque.map((edital, index) => {
-              const daysLeft = getDaysUntil(edital.dataEncerramento);
-              const isUrgent = daysLeft <= 7 && daysLeft > 0;
+            {editaisDestaque.map((edital) => {
+              const daysLeft = edital.inscricao_fim ? getDaysUntil(edital.inscricao_fim) : null;
+              const isUrgent = daysLeft !== null && daysLeft <= 7 && daysLeft > 0;
 
               return (
                 <Link
@@ -131,9 +120,11 @@ export default function HomePage() {
 
                     <div className="flex items-start justify-between gap-3 mb-4">
                       <div className="flex gap-2 flex-wrap">
-                        <span className={`inline-flex px-2.5 py-1 rounded-full text-xs font-semibold ${getCategoryColor(edital.categoria)}`}>
-                          {getStatusLabel(edital.categoria)}
-                        </span>
+                        {edital.categoria && (
+                          <span className={`inline-flex px-2.5 py-1 rounded-full text-xs font-semibold ${getCategoryColor(edital.categoria)}`}>
+                            {edital.categoria}
+                          </span>
+                        )}
                         <span className={`inline-flex px-2.5 py-1 rounded-full text-xs font-semibold border ${getStatusColor(edital.status)}`}>
                           {getStatusLabel(edital.status)}
                         </span>
@@ -148,13 +139,15 @@ export default function HomePage() {
                     </h3>
 
                     <p className="text-gray-500 text-sm leading-relaxed mb-4 line-clamp-2">
-                      {edital.resumo}
+                      {edital.resumoSimples || edital.resumo || 'Sem descrição disponível'}
                     </p>
 
-                    <div className="flex items-center gap-1.5 text-xs text-gray-400 mt-auto pt-3 border-t border-gray-50">
-                      <Clock className="w-3.5 h-3.5" />
-                      Encerra: {formatDateShort(edital.dataEncerramento)}
-                    </div>
+                    {edital.inscricao_fim && (
+                      <div className="flex items-center gap-1.5 text-xs text-gray-400 mt-auto pt-3 border-t border-gray-50">
+                        <Clock className="w-3.5 h-3.5" />
+                        Encerra: {formatDateShort(edital.inscricao_fim)}
+                      </div>
+                    )}
 
                     <div className="mt-3 flex items-center gap-1.5 text-xs text-azul-eletrico font-medium">
                       <Sparkles className="w-3.5 h-3.5 text-dourado-ifizinha" />
@@ -202,7 +195,7 @@ export default function HomePage() {
 
           <div className="space-y-3">
             {proximosEventos.map((evento) => {
-              const config = tipoEventoConfig[evento.tipo] ?? { label: evento.tipo, color: 'bg-gray-100 text-gray-700', icon: null };
+              const config = tipoEventoConfig[evento.tipo as string] ?? { label: evento.tipo, color: 'bg-gray-100 text-gray-700', icon: null };
               const daysLeft = getDaysUntil(evento.data);
 
               return (
@@ -269,11 +262,10 @@ export default function HomePage() {
             <div className="relative">
               <div className="text-5xl mb-4">✨</div>
               <h2 className="text-3xl md:text-4xl font-black text-white mb-4">
-                Ainda com dúvidas sobre algum edital?
+                {siteConfig.ifizinha_titulo || 'Ainda com dúvidas sobre algum edital?'}
               </h2>
               <p className="text-white/85 text-lg max-w-xl mx-auto mb-8">
-                Cada edital no Portal Conecta tem uma tradução especial minha — a versão IFizinha!
-                Linguagem simples, estrutura clara, sem enrolação.
+                {siteConfig.ifizinha_descricao || 'Cada edital no Portal Conecta tem uma tradução especial minha — a versão IFizinha!\nLinguagem simples, estrutura clara, sem enrolação.'}
               </p>
               <div className="flex flex-col sm:flex-row gap-3 justify-center">
                 <Link

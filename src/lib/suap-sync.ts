@@ -147,7 +147,7 @@ export async function syncProjetos(options?: { dryRun?: boolean }): Promise<Sync
         dataConclusao: parseDateSafe(sp.dt_final),
         servidores: null,
         alunos: null,
-        status: status as 'EM_EXECUCAO' | 'ENVIADO_2026' | 'CONCLUIDO' | 'INATIVADO',
+        status: status as 'ATIVO' | 'EM_EXECUCAO' | 'ENCERRADO' | 'SUSPENSO' | 'INSCRICOES_ABERTAS' | 'SEM_VAGAS',
       };
 
       if (existente) {
@@ -175,7 +175,7 @@ export async function syncProjetos(options?: { dryRun?: boolean }): Promise<Sync
 export async function syncEditais(options?: { dryRun?: boolean }): Promise<SyncResult> {
   // Buscar admin padrão para ser author dos editais
   const adminUser = await prisma.user.findFirst({
-    where: { role: { in: ['ADMINISTRADOR', 'EDITOR_IFIZINHA'] } },
+    where: { role: 'ADMIN' },
     orderBy: { createdAt: 'asc' },
   });
 
@@ -235,14 +235,14 @@ export async function syncEditais(options?: { dryRun?: boolean }): Promise<SyncR
         const s = se.status.toLowerCase();
         if (s.includes('result') || s.includes('divulg')) status = 'RESULTADO_PUBLICADO';
         else if (s.includes('encerr') || s.includes('finaliz')) status = 'ENCERRADO';
-        else if (diasRestantes <= 7) status = 'ENCERRA_BREVE';
-        else status = 'ATIVO';
+        else if (diasRestantes <= 7) status = 'PRAZO_RECURSO';
+        else status = 'ABERTO';
       } else if (diasRestantes < 0) {
         status = 'ENCERRADO';
       } else if (diasRestantes <= 7) {
-        status = 'ENCERRA_BREVE';
+        status = 'PRAZO_RECURSO';
       } else {
-        status = 'ATIVO';
+        status = 'ABERTO';
       }
 
       // Tradução IFizinha padrão (será enriquecida manualmente)
@@ -279,7 +279,7 @@ export async function syncEditais(options?: { dryRun?: boolean }): Promise<SyncR
         dataInicio,
         dataEncerramento,
         dataResultado,
-        status: status as 'ATIVO' | 'ENCERRA_BREVE' | 'ENCERRADO' | 'RESULTADO_PUBLICADO',
+        status: status as 'EM_BREVE' | 'ABERTO' | 'EM_ANALISE' | 'RESULTADO_PARCIAL' | 'PRAZO_RECURSO' | 'RESULTADO_PUBLICADO' | 'ENCERRADO',
         traducaoIFizinha,
         arquivoPdfUrl: se.arquivo ?? null,
         linkOficial: se.link ?? `https://suap.ifpr.edu.br/api/v2/extensao/editais/${se.id}/`,

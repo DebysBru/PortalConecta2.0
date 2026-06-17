@@ -22,17 +22,15 @@ type Profile = Awaited<ReturnType<typeof getMyProfile>>;
 // ── Helpers ────────────────────────────────────────────────────────────────────
 
 const ROLE_LABEL: Record<UserRole, string> = {
-  VISITANTE: 'Visitante',
-  EDITOR_IFIZINHA: 'Editor IFizinha',
-  EQUIPE_PROJETO: 'Equipe de Projeto',
-  ADMINISTRADOR: 'Administrador',
+  ESTUDANTE: 'Estudante',
+  PROFESSOR: 'Professor',
+  ADMIN: 'Administrador',
 };
 
 const ROLE_COLOR: Record<UserRole, string> = {
-  VISITANTE:       'bg-gray-100 text-gray-600',
-  EDITOR_IFIZINHA: 'bg-purple-100 text-purple-700',
-  EQUIPE_PROJETO:  'bg-blue-100 text-blue-700',
-  ADMINISTRADOR:   'bg-amber-100 text-amber-700',
+  ESTUDANTE:       'bg-gray-100 text-gray-600',
+  PROFESSOR:       'bg-blue-100 text-blue-700',
+  ADMIN:           'bg-amber-100 text-amber-700',
 };
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {

@@ -107,19 +107,33 @@ export function Header() {
             {/* Admin / Login button */}
             {!loading && (
               user ? (
-                <Link
-                  href="/admin"
-                  title="Painel Admin"
-                  className={cn(
-                    'flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-semibold transition-all',
-                    isScrolled || !isHome
-                      ? 'text-gray-600 hover:text-azul-eletrico hover:bg-gray-100'
-                      : 'text-white/80 hover:text-white hover:bg-white/10'
-                  )}
-                >
-                  <LayoutDashboard className="w-4 h-4" />
-                  <span className="hidden md:inline">Admin</span>
-                </Link>
+                <div className="flex items-center gap-1">
+                  <Link
+                    href="/meus-dados"
+                    title="Meus Dados"
+                    className={cn(
+                      'flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-semibold transition-all',
+                      isScrolled || !isHome
+                        ? 'text-gray-600 hover:text-azul-eletrico hover:bg-gray-100'
+                        : 'text-white/80 hover:text-white hover:bg-white/10'
+                    )}
+                  >
+                    <span className="hidden md:inline">Meus Dados</span>
+                  </Link>
+                  <Link
+                    href="/admin"
+                    title="Painel Admin"
+                    className={cn(
+                      'flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-semibold transition-all',
+                      isScrolled || !isHome
+                        ? 'text-gray-600 hover:text-azul-eletrico hover:bg-gray-100'
+                        : 'text-white/80 hover:text-white hover:bg-white/10'
+                    )}
+                  >
+                    <LayoutDashboard className="w-4 h-4" />
+                    <span className="hidden md:inline">Admin</span>
+                  </Link>
+                </div>
               ) : (
                 <Link
                   href="/admin/login"

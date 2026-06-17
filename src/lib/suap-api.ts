@@ -320,9 +320,9 @@ export function mapStatusProjeto(situacao?: string): string {
   if (!situacao) return 'EM_EXECUCAO';
   const s = situacao.toLowerCase();
   if (s.includes('execu')) return 'EM_EXECUCAO';
-  if (s.includes('conclu') || s.includes('finaliz')) return 'CONCLUIDO';
-  if (s.includes('inativ') || s.includes('cancel')) return 'INATIVADO';
-  if (s.includes('submeti') || s.includes('enviado')) return 'ENVIADO_2026';
+  if (s.includes('conclu') || s.includes('finaliz')) return 'ENCERRADO';
+  if (s.includes('inativ') || s.includes('cancel')) return 'ENCERRADO';
+  if (s.includes('submeti') || s.includes('enviado')) return 'ATIVO';
   return 'EM_EXECUCAO';
 }
 
