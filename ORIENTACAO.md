@@ -1,7 +1,7 @@
 # ORIENTACAO.md — Guia de Andamento do Projeto
 
-**Última atualização:** 2026-06-17  
-**Status geral:** Fase 1 completa (~85%) + Fase 2 parcial (~60%) — Painel unificado em `/admin`
+**Última atualização:** 2026-06-17 (Atualizado)  
+**Status geral:** Fase 1 completa (~90%) + Fase 2 parcial (~70%) — Chat IFizinha com RAG funcional
 
 ---
 
@@ -17,22 +17,23 @@
 
 ## ✅ STATUS ATUAL — O QUE FOI IMPLEMENTADO
 
-### Fase 1 — Fundação + MVP Público (~85%)
+### Fase 1 — Fundação + MVP Público (~90%)
 
 | Item | Status | Detalhes |
 |---|---|---|
-| Schema Prisma | ✅ | 27 tabelas, todos os enums limpos (UserRole 3, StatusProjeto 6, StatusEdital 7) |
+| Schema Prisma | ✅ | 27 tabelas, todos os enums limpos |
 | Auth helpers | ✅ | `assignUserRole`, `ensureUserProfile`, `requireRole`, `requireProjectCoordinator` |
 | Home dinâmica | ✅ | Métricas do BD, SiteConfig, editais/destaque, projetos, agenda |
 | Projetos | ✅ | Listagem com filtros, busca, página individual com FAQ/tags/cursos/relacionados |
 | Editais | ✅ | Listagem com filtros, página individual com "A IFizinha Explica" |
 | Agenda | ✅ | Timeline por mês, eventos derivados, exportação `.ics` |
 | Event derivation | ✅ | Auto-criar eventos ao publicar/editar edital ou projeto |
-| AI translation | ✅ | Botão "Gerar com IA" com DeepSeek (API `/api/ai/ifizinha`) |
-| Inscrição | ✅ | Formulário público com LGPD, protocolo PRJ-YYYY-NNNNNN |
+| AI translation | ✅ | Botão "Gerar com IA" com DeepSeek |
+| Inscrição | ✅ | Formulário com selects/radios/checkboxes, LGPD, protocolo |
+| Tags com IA | ✅ | `sugerirTags` funcional |
 | Painel admin/professor | ✅ | Unificado em `/admin` com navegação por role |
 
-### Fase 2 — Gestão de Professores (~60%)
+### Fase 2 — Gestão de Professores (~70%)
 
 | Item | Status | Detalhes |
 |---|---|---|
@@ -42,6 +43,18 @@
 | Inscrições | ✅ | Listagem, filtros, alteração de status, export CSV |
 | Relatórios | ✅ | Estatísticas, busca, filtros por status |
 
+### Chat IFizinha (RAG)
+
+| Item | Status | Detalhes |
+|---|---|---|
+| Widget flutuante | ✅ | Em todas as páginas |
+| Busca por projetos | ✅ | Nome, área, tags, coordenador, tipo |
+| Busca por editais | ✅ | Título, resumo, categoria |
+| Cache local | ✅ | 5 min TTL |
+| Detecção de intenção | ✅ | Projeto/Edital/Ambos |
+| Formatação markdown | ✅ | Negrito, listas, tabelas |
+| Resumo do portal | ✅ | Totais de projetos/editais |
+
 ---
 
 ## ❌ O QUE FALTA IMPLEMENTAR
@@ -50,9 +63,8 @@
 
 | Item | Prioridade | Descrição |
 |---|---|---|
-| Filtros avançados | Média | Busca textual, paginação, filtros por data, público-alvo |
-| View `public_metrics` | Baixa | Materializar métricas para performance |
 | Testes | Média | Critérios de aceite §14 |
+| Confirmação e-mail | Alta | Pós-inscrição (Resend/SendGrid) |
 | Upload PDF | Baixa | Storage para PDFs de editais |
 
 ### Fase 3 — IA de Extração (não iniciada)
@@ -60,11 +72,11 @@
 | Item | Prioridade | Descrição |
 |---|---|---|
 | Upload PDF | Alta | Admin envia PDF do edital |
-| Extração IA | Alta | Claude/DeepSeek extrai campos estruturados |
+| Extração IA | Alta | DeepSeek extrai campos estruturados |
 | Revisão humana | Alta | Tela de revisão por campo com confiança |
 | Publicação | Alta | Só após aprovação → `review_status='publicado'` |
 
-### Fase 4 — IFizinha RAG (não iniciada)
+### Fase 4 — IFizinha RAG (parcial)
 
 | Item | Prioridade | Descrição |
 |---|---|---|
@@ -72,7 +84,7 @@
 | Ingestão | Alta | Documentos publicados → `rag_documentos` |
 | Embeddings | Alta | Chunking + geração de embeddings |
 | Busca vetorial | Alta | `rag-query` com filtro de permissão |
-| Chat com citações | Alta | IFizinha responde com fontes |
+| Chat com citações | ✅ | IFizinha responde com fontes |
 
 ### Fase 5 — Integração SUAP (parcial)
 
@@ -82,54 +94,60 @@
 | Proteção edição manual | Média | Não sobrescrever campos editados |
 | Conflitos | Média | Registrar e exigir decisão do admin |
 
-### Fase 6 — Portal Completo (não iniciada)
+### Fase 6 — Portal Completo (parcial)
 
 | Item | Prioridade | Descrição |
 |---|---|---|
 | Notificações | Média | Push/email para prazos próximos |
 | Favoritos | Baixa | Estudante favorita editais/projetos |
 | Alertas | Baixa | Interesse por categoria |
-| "Meus dados" | Média | Estudante vê suas inscrições |
+| "Meus dados" | ✅ | Página implementada |
 | Busca global | Baixa | Full-text search |
 
 ---
 
 ## 🎯 SUGESTÕES DE MELHORIA
 
-### 1. **Notificações automáticas** (Alta prioridade)
+### 1. **Confirmação por e-mail** (Alta prioridade)
+- Enviar email de confirmação pós-inscrição
+- Usar Resend ou SendGrid
+
+### 2. **Notificações automáticas** (Alta)
 - Enviar email/WhatsApp quando inscrições estão quase encerrando
 - Lembrete 3 dias antes do prazo final
 - Notificar professor quando nova inscrição é recebida
 
-### 2. **Dashboard admin avançado** (Média)
+### 3. **Dashboard admin avançado** (Média)
 - Gráficos de inscrições por período
 - Taxa de aprovação/reprovação
 - Projetos mais populares
 - Editais mais acessados
 
-### 3. **Formulário dinâmico** (Média)
-- Cada projeto pode ter campos extras (`formulario_extra`)
-- Arrastar para reordenar campos
-- Campos condicionais (ex: se bolsista, mostrar campo de renda)
+### 4. **Upload PDF** (Média)
+- Storage para upload de editais
+- Extração automática com IA
+- Revisão humana por campo
 
-### 4. **Exportação avançada** (Baixa)
-- Exportar para XLSX (não só CSV)
-- Relatórios em PDF com gráficos
-- Relatório consolidado de todos os projetos
+### 6. **pgvector + RAG completo** (Média)
+- Migrar embeddings para extensão nativa
+- Ingestão automática de documentos
+- Busca vetorial com filtro de permissão
 
-### 5. **Chat IFizinha integrado** (Alta)
-- Widget flutuante em todas as páginas
-- Contexto da página atual (ex: "Sobre este edital")
-- Histórico de conversas
+### 7. **Cache e Performance** (Alta)
+- Cache em memória com TTL (5 min)
+- Queries Prisma otimizadas com `select`
+- Revalidate a cada 5 minutos
+- Lazy loading para componentes pesados
 
-### 6. **Modo urgente** (Baixa)
-- Banner vermelho em editais/projetos com prazo em 24h
-- Notificação push para estudantes interessados
+### 8. **Notificações** (Média)
+- Email para prazos próximos
+- Push para estudantes interessados
+- WhatsApp (opt-in)
 
-### 7. **Página "Como participar"** (Baixa)
-- Tutorial passo a passo para estudantes
-- FAQ interativo
-- Vídeos explicativos
+### 7. **Relatórios avançados** (Baixa)
+- Gráficos de inscrições
+- Export PDF
+- Relatório consolidado
 
 ---
 
@@ -141,16 +159,32 @@
 | Enums limpos | ✅ | — |
 | Auth + Role assignment | ✅ | — |
 | Home dinâmica | ✅ | — |
-| Projetos (BD) | ✅ | Filtros avançados |
+| Projetos (BD) | ✅ | Tags com IA |
 | Editais (BD) | ✅ | Upload PDF |
-| Agenda + .ics | ✅ | Derivação automática |
+| Agenda + .ics | ✅ | — |
 | AI translation | ✅ | — |
+| Tags com IA | ✅ | — |
 | Inscrição + LGPD | ✅ | Confirmação e-mail |
+| Chat IFizinha | ✅ | pgvector |
 | Painel admin/professor | ✅ | — |
+| "Meus dados" | ✅ | — |
+| Cache + Performance | ✅ | Pagination |
 | Testes | ❌ | Critérios §14 |
 | Upload PDF | ❌ | Fase 3 |
-| RAG | ❌ | Fase 4 |
+| RAG completo | ⚠️ | pgvector + ingestão |
 | SUAP sync | ⚠️ | Sync agendada |
+| Notificações | ❌ | Fase 6 |
+
+---
+
+## 📈 EVOLUÇÃO RECENTE
+
+| Data | Funcionalidade |
+|---|---|
+| 2026-06-17 | Chat IFizinha com RAG, cache, markdown |
+| 2026-06-17 | Formulário inscrição com selects/radios/checkboxes |
+| 2026-06-17 | Tags com IA (`sugerirTags`) |
+| 2026-06-17 | Melhoria busca chat (10 projetos, filtros, intenção) |
 
 ---
 

@@ -2,6 +2,7 @@
 
 import React, { useState, useRef, useEffect } from 'react';
 import { MessageCircle, X, Send, Sparkles, Loader2 } from 'lucide-react';
+import Markdown from 'react-markdown';
 
 type Message = {
   role: 'user' | 'assistant';
@@ -127,7 +128,35 @@ export function ChatWidget() {
                       : 'bg-gray-100 text-gray-800 rounded-bl-md'
                   }`}
                 >
-                  {msg.content}
+                  {msg.role === 'assistant' ? (
+                    <Markdown
+                      components={{
+                        p: ({ children }) => <p className="mb-2 last:mb-0">{children}</p>,
+                        strong: ({ children }) => <strong className="font-bold">{children}</strong>,
+                        em: ({ children }) => <em className="italic">{children}</em>,
+                        ul: ({ children }) => <ul className="list-disc list-inside mb-2 space-y-1">{children}</ul>,
+                        ol: ({ children }) => <ol className="list-decimal list-inside mb-2 space-y-1">{children}</ol>,
+                        li: ({ children }) => <li>{children}</li>,
+                        h1: ({ children }) => <h1 className="font-bold text-base mb-2">{children}</h1>,
+                        h2: ({ children }) => <h2 className="font-bold text-sm mb-2">{children}</h2>,
+                        h3: ({ children }) => <h3 className="font-bold text-sm mb-1">{children}</h3>,
+                        code: ({ children }) => <code className="bg-gray-200 px-1 rounded text-xs">{children}</code>,
+                        pre: ({ children }) => <pre className="bg-gray-200 p-2 rounded text-xs overflow-x-auto mb-2">{children}</pre>,
+                        a: ({ children, href }) => <a href={href} className="text-azul-eletrico underline" target="_blank" rel="noopener noreferrer">{children}</a>,
+                        blockquote: ({ children }) => <blockquote className="border-l-4 border-gray-300 pl-3 italic mb-2">{children}</blockquote>,
+                        table: ({ children }) => <table className="border-collapse border border-gray-300 text-xs mb-2 w-full">{children}</table>,
+                        thead: ({ children }) => <thead className="bg-gray-200">{children}</thead>,
+                        tbody: ({ children }) => <tbody>{children}</tbody>,
+                        tr: ({ children }) => <tr className="border-b border-gray-200">{children}</tr>,
+                        th: ({ children }) => <th className="border border-gray-300 px-2 py-1 text-left font-bold">{children}</th>,
+                        td: ({ children }) => <td className="border border-gray-300 px-2 py-1">{children}</td>,
+                      }}
+                    >
+                      {msg.content}
+                    </Markdown>
+                  ) : (
+                    msg.content
+                  )}
                 </div>
               </div>
             ))}

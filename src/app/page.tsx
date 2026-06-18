@@ -13,15 +13,17 @@ import { ProjetosGrid } from '@/components/sections/ProjetosGrid';
 import { getDashboardStatsAction } from '@/actions/auth';
 import { getAllSiteConfigAction } from '@/actions/site-config';
 import { db } from '@/lib/prisma';
+import { withCache } from '@/lib/cache';
 
 export const dynamic = 'force-dynamic';
+export const revalidate = 300; // Revalidar a cada 5 minutos
 
 export default async function HomePage() {
-  // Buscar dados do banco (cache revalidate a cada 5 min)
+  // Buscar dados do banco com cache (5 min TTL)
   const [stats, siteConfig, editaisDestaque, proximosEventos] = await Promise.all([
-    getDashboardStatsAction(),
-    getAllSiteConfigAction(),
-    db.edital.findMany({
+    withCache('home:stats', () => getDashboardStatsAction(), 5 * 60 * 1000),
+    withCache('home:siteConfig', () => getAllSiteConfigAction(), 5 * 60 * 1000),
+    withCache('home:editais', () => db.edital.findMany({
       where: {
         review_status: 'PUBLICADO',
         deleted_at: null,
@@ -29,14 +31,34 @@ export default async function HomePage() {
       },
       orderBy: { updatedAt: 'desc' },
       take: 3,
-    }),
-    db.evento.findMany({
+      select: {
+        id: true,
+        titulo: true,
+        slug: true,
+        categoria: true,
+        resumoSimples: true,
+        resumo: true,
+        dataEncerramento: true,
+        inscricao_fim: true,
+        status: true,
+        destaque: true,
+        visualizacoes: true,
+      },
+    }), 5 * 60 * 1000),
+    withCache('home:eventos', () => db.evento.findMany({
       where: {
         data: { gte: new Date() },
       },
       orderBy: { data: 'asc' },
       take: 4,
-    }),
+      select: {
+        id: true,
+        titulo: true,
+        data: true,
+        tipo: true,
+        local: true,
+      },
+    }), 5 * 60 * 1000),
   ]);
 
   const statsConfig = [

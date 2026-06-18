@@ -3,18 +3,32 @@ import Link from 'next/link';
 import { FolderOpen, ChevronRight, Search, Filter, Users, ArrowRight, TrendingUp, Sparkles } from 'lucide-react';
 import { getStatusLabel, getStatusColor } from '@/lib/utils';
 import type { Metadata } from 'next';
+import { prisma } from '@/lib/prisma';
+import { withCache } from '@/lib/cache';
+
+export const revalidate = 300; // Revalidar a cada 5 minutos
 
 export const metadata: Metadata = {
   title: 'Projetos',
   description: 'Diretório completo dos projetos de extensão, pesquisa e ensino do IFPR Campus Ivaiporã.',
 };
 
-import { prisma } from '@/lib/prisma';
-
 export default async function ProjetosPage() {
-  const projetos = await prisma.projeto.findMany({
-    orderBy: { nome: 'asc' }
-  });
+  const projetos = await withCache('projetos:all', () => prisma.projeto.findMany({
+    orderBy: { nome: 'asc' },
+    select: {
+      id: true,
+      nome: true,
+      slug: true,
+      area: true,
+      coordenador: true,
+      status: true,
+      corPrimaria: true,
+      descricao: true,
+      destaque: true,
+      inscricoes_abertas: true,
+    },
+  }), 5 * 60 * 1000);
 
   const areas = ['Todas', ...Array.from(new Set(projetos.map((p) => p.area))).sort()];
   const statusOptions = ['Todos', 'ATIVO', 'EM_EXECUCAO', 'ENCERRADO', 'SUSPENSO', 'INSCRICOES_ABERTAS', 'SEM_VAGAS'];

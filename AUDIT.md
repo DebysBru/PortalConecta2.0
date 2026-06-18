@@ -1,5 +1,5 @@
 # AUDIT DO PROJETO — Portal Conecta IFPR
-**Data:** 2026-06-17  
+**Data:** 2026-06-17 (Atualizado)  
 **Especificação:** SPEC.md (v1.0)  
 **Deploy:** https://portal-conecta2-0.vercel.app
 
@@ -7,9 +7,9 @@
 
 ## RESUMO EXECUTIVO
 
-O projeto encontra-se em **estágio avançado de MVP** com **Fase 1 ~85% completa** e **Fase 2 ~60% completa**. Painel admin/professor unificado, todas as páginas conectadas ao banco, inscrições funcionando com LGPD e protocolo.
+O projeto encontra-se em **estágio avançado de MVP** com **Fase 1 ~90% completa** e **Fase 2 ~70% completa**. Chat IFizinha com RAG funcional, formulário de inscrição com selects/checkboxes, tags com IA, e sistema completo de gerenciamento.
 
-**Alignment com SPEC:** ~70% (Fase 1+2 parcialmente completa)
+**Alignment com SPEC:** ~75% (Fase 1+2 substantialmente completa)
 
 ---
 
@@ -24,6 +24,7 @@ O projeto encontra-se em **estágio avançado de MVP** com **Fase 1 ~85% complet
 | Storage | Supabase Storage | ❌ Ausente | ❌ Fase 3 |
 | PDF | Edge Function + OCR | ❌ Ausente | ❌ Fase 3 |
 | Fila | pg_cron | Tabela Job (sem worker) | ⚠️ Parcial |
+| Chat | — | DeepSeek + Cache local | ✅ Funcional |
 
 ---
 
@@ -34,22 +35,22 @@ O projeto encontra-se em **estágio avançado de MVP** com **Fase 1 ~85% complet
 | Tabela | SPEC | Atual | Status |
 |---|---|---|---|
 | User | ✓ | ✅ | 90% |
-| Projeto | ✓ | ✅ | 80% |
+| Projeto | ✓ | ✅ | 85% |
 | ProjetoTag | ✓ | ✅ | 100% |
 | ProjetoCurso | ✓ | ✅ | 100% |
 | ProjetoFaq | ✓ | ✅ | 100% |
 | ProjectCoordinator | ✓ | ✅ | 100% |
-| Edital | ✓ | ✅ | 80% |
+| Edital | ✓ | ✅ | 85% |
 | EditalTag | ✓ | ✅ | 100% |
 | EditalExplicacao | ✓ | ✅ | 100% |
 | EditalResumoVersao | ✓ | ✅ | 100% |
-| Evento | ✓ | ✅ | 60% |
-| Inscricao | ✓ | ✅ | 80% |
-| Post | ✓ | ✅ | 70% |
+| Evento | ✓ | ✅ | 70% |
+| Inscricao | ✓ | ✅ | 85% |
+| Post | ✓ | ✅ | 75% |
 | RagDocumento | ✓ | ✅ | 70% |
 | RagChunk | ✓ | ✅ | 50% (String? não pgvector) |
-| ChatSessao | ✓ | ✅ | 70% |
-| ChatMensagem | ✓ | ✅ | 70% |
+| ChatSessao | ✓ | ✅ | 80% |
+| ChatMensagem | ✓ | ✅ | 80% |
 | Job | ✓ | ✅ | 60% (sem worker) |
 | IaRevisao | ✓ | ✅ | 60% |
 | SiteConfig | ✓ | ✅ | 90% |
@@ -59,7 +60,7 @@ O projeto encontra-se em **estágio avançado de MVP** com **Fase 1 ~85% complet
 | Favorito | ✓ | ✅ | 100% |
 | Notificacao | ✓ | ✅ | 100% |
 | UserPermission | ✓ | ✅ | 100% |
-| Inscricao | ✓ | ✅ | 80% |
+| Inscricao | ✓ | ✅ | 85% |
 
 ### Tabelas ausentes:
 
@@ -87,13 +88,13 @@ O projeto encontra-se em **estágio avançado de MVP** com **Fase 1 ~85% complet
 | Módulo | Completude | Status |
 |---|---|---|
 | 5.1 Home pública | 90% | ✅ Métricas BD, SiteConfig, destaques |
-| 5.2 Projetos | 75% | ✅ Listagem, filtros, página individual, FAQ |
-| 5.3 Editais | 70% | ✅ Listagem, filtros, "A IFizinha Explica", AI |
-| 5.4 Agenda | 80% | ✅ Timeline, eventos derivados, .ics |
-| 5.5 Painel professor | 80% | ✅ Dashboard, projetos, inscrições, relatórios |
-| 5.6 Inscrição | 75% | ✅ Formulário LGPD, protocolo, validações |
-| 5.7 Admin | 60% | ✅ Dashboard, editais, projetos, agenda, posts, usuários |
-| 5.8 Posts | 70% | ✅ CRUD básico |
+| 5.2 Projetos | 80% | ✅ Listagem, filtros, busca, página individual, FAQ, tags |
+| 5.3 Editais | 75% | ✅ Listagem, filtros, "A IFizinha Explica", AI translation |
+| 5.4 Agenda | 85% | ✅ Timeline, eventos derivados, .ics, exportação |
+| 5.5 Painel professor | 85% | ✅ Dashboard, projetos, inscrições, relatórios |
+| 5.6 Inscrição | 80% | ✅ Formulário com selects/radios/checkboxes, LGPD, protocolo |
+| 5.7 Admin | 70% | ✅ Dashboard, editais, projetos, agenda, posts, usuários |
+| 5.8 Posts | 75% | ✅ CRUD básico |
 
 ---
 
@@ -117,18 +118,24 @@ O projeto encontra-se em **estágio avançado de MVP** com **Fase 1 ~85% complet
 | Botão "Gerar com IA" | ✅ Admin editais |
 | Revisão humana | ❌ Ausente |
 | Tabela `ia_revisoes` | ✅ Modelo pronto |
+| Tags com IA | ✅ `sugerirTags` funcional |
 
 ---
 
-## 7. IFIZINHA (RAG) (§8)
+## 7. IFIZINHA (RAG/CHAT) (§8)
 
 | Componente | Status |
 |---|---|
 | Modelos de dados | ✅ RagDocumento, RagChunk, ChatSessao, ChatMensagem |
+| Chat widget | ✅ Flutuante em todas as páginas |
+| Busca por projetos | ✅ Nome, área, tags, coordenador, tipo |
+| Busca por editais | ✅ Título, resumo, categoria |
+| Cache local | ✅ 5 min TTL |
+| Detecção de intenção | ✅ Projeto/Edital/Ambos |
+| Formatação markdown | ✅ Negrito, listas, tabelas |
+| Resumo do portal | ✅ Totais de projetos/editais |
 | pgvector | ❌ embedding é `String?` |
-| Busca vetorial | ❌ Ausente |
-| Chat com citações | ❌ Ausente |
-| System prompt | ❌ Ausente |
+| Busca vetorial nativa | ❌ Ausente |
 
 ---
 
@@ -141,7 +148,7 @@ O projeto encontra-se em **estágio avançado de MVP** com **Fase 1 ~85% complet
 | Protocolo único | ✅ PRJ-YYYY-NNNNNN |
 | Validação email duplicado | ✅ |
 | Acesso restrito inscritos | ⚠️ RLS simulada |
-| "Meus dados" | ❌ Ausente |
+| "Meus dados" | ✅ Página `/meus-dados` com listagem e exclusão |
 | Retenção dados | ❌ Ausente |
 
 ---
@@ -162,6 +169,7 @@ O projeto encontra-se em **estágio avançado de MVP** com **Fase 1 ~85% complet
 | Rota | Método | Função |
 |---|---|---|
 | `/api/ai/ifizinha` | POST | Gera tradução IFizinha com DeepSeek |
+| `/api/chat` | POST | Chat IFizinha com RAG + cache |
 | `/api/events/ics` | GET | Exporta eventos em formato .ics |
 | `/api/projetos/check-inscricao` | GET | Verifica se projeto aceita inscrições |
 | `/api/suap/sync/projetos` | POST | Sync projetos do SUAP |
@@ -175,39 +183,87 @@ O projeto encontra-se em **estágio avançado de MVP** com **Fase 1 ~85% complet
 
 ---
 
-## 11. RESUMO POR FASE
+## 11. CACHE E PERFORMANCE
 
-| Fase | Completude | Status |
+### Estratégia de Cache
+
+| Componente | TTL | Descrição |
 |---|---|---|
-| **1 — Fundação + MVP** | **85%** | ✅ Home, projetos, editais, agenda, inscrição |
-| **2 — Professor** | **60%** | ✅ Dashboard, projetos, inscrições, relatórios |
-| **3 — IA Extração** | **20%** | ✅ API DeepSeek funcional; falta UI revisão |
-| **4 — RAG** | **10%** | Modelos prontos; falta pgvector + lógica |
-| **5 — SUAP** | **30%** | Sync manual; falta agendada + conflitos |
-| **6 — Portal completo** | **5%** | Tabelas criadas; falta UI |
+| `src/lib/cache.ts` | Global | Cache em memória (max 500 entradas) |
+| Home | 5 min | Stats, config, editais, eventos |
+| Projetos | 5 min | Lista completa |
+| Editais | 5 min | Lista publicados |
+| Agenda | 5 min | Eventos |
+| Chat | 5 min | Contexto de busca |
+
+### Otimizações
+
+| Página | Otimização |
+|---|---|
+| Todas | `select` explícito (apenas campos necessários) |
+| Home | `Promise.all` para queries paralelas |
+| Chat | `take: 10` projetos, `take: 5` editais |
+
+## 11. COMPONENTES IMPLEMENTADOS
+
+| Componente | Função |
+|---|---|
+| `ChatWidget.tsx` | Widget flutuante do chat IFizinha |
+| `AdminShell.tsx` | Shell do painel admin com nav por role |
+| `ProfessorShell.tsx` | Shell do painel professor (legado) |
+| `HeroIFizinha.tsx` | Hero da home com configuração |
+| `ProjetosGrid.tsx` | Grid de projetos em destaque |
+| `Header.tsx` | Cabeçalho público com nav |
+| `Footer.tsx` | Rodapé |
+| `SyncButtons.tsx` | Botões de sync SUAP |
 
 ---
 
-## 12. PRÓXIMOS PASSOS RECOMENDADOS
+## 12. RESUMO POR FASE
 
-### Imediato:
-1. **Testes automatizados** — Critérios de aceite §14
-2. **Confirmação por e-mail** — Pós-inscrição
+| Fase | Completude | Status |
+|---|---|---|
+| **1 — Fundação + MVP** | **92%** | ✅ Home, projetos, editais, agenda, inscrição, tags IA, cache |
+| **2 — Professor** | **70%** | ✅ Dashboard, projetos, inscrições, relatórios |
+| **3 — IA Extração** | **25%** | ✅ API DeepSeek funcional; falta UI revisão |
+| **4 — RAG** | **40%** | Chat funcional com busca keyword; falta pgvector |
+| **5 — SUAP** | **30%** | Sync manual; falta agendada + conflitos |
+| **6 — Portal completo** | **15%** | Chat widget, "Meus dados"; falta notificações |
+
+---
+
+## 13. PRÓXIMOS PASSOS RECOMENDADOS
+
+### Imediato (Alta prioridade):
+1. **Confirmação por e-mail** — Pós-inscrição (Resend/SendGrid)
+2. **Testes automatizados** — Critérios de aceite §14
+3. **Upload PDF** — Storage para editais
 
 ### Curto prazo:
-3. **Upload PDF** — Storage + extração IA
-4. **Revisão humana** — Tela de revisão por campo
+4. **Revisão humana IA** — Tela de revisão por campo com confiança
 5. **Sync SUAP agendada** — Cron job
+6. **Notificações** — Email para prazos próximos
 
 ### Médio prazo:
-6. **pgvector** — Migrar embeddings para extensão nativa
-7. **RAG completo** — Ingestão + busca + chat
-8. **Notificações** — Email/push para prazos
+7. **pgvector** — Migrar embeddings para extensão nativa
+8. **RAG completo** — Ingestão + busca vetorial + chat com citações
+9. **"Meus dados" avançado** — Exportação, histórico completo
 
 ### Longo prazo:
-9. **Favoritos + alertas** — Interesse por categoria
-10. **"Meus dados"** — Estudante vê inscrições
+10. **Favoritos + alertas** — Interesse por categoria
 11. **Relatórios avançados** — Gráficos + export PDF
+12. **Página "Como participar"** — Tutorial interativo
+
+---
+
+## 14. FUNCIONALIDADES RECENTEMENTE IMPLEMENTADAS
+
+| Data | Funcionalidade |
+|---|---|
+| 2026-06-17 | Chat IFizinha com RAG, cache, markdown |
+| 2026-06-17 | Formulário inscrição com selects/radios/checkboxes |
+| 2026-06-17 | Tags com IA (`sugerirTags`) |
+| 2026-06-17 | Melhoria busca chat (10 projetos, filtros, intenção) |
 
 ---
 

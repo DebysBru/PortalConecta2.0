@@ -3,9 +3,11 @@ import Link from 'next/link';
 import { Calendar, Clock, ChevronRight, AlertCircle, MapPin, ExternalLink, Sparkles, Download } from 'lucide-react';
 import { formatDate, getDaysUntil } from '@/lib/utils';
 import { prisma } from '@/lib/prisma';
+import { withCache } from '@/lib/cache';
 import type { Metadata } from 'next';
 
 export const dynamic = 'force-dynamic';
+export const revalidate = 300; // Revalidar a cada 5 minutos
 
 export const metadata: Metadata = {
   title: 'Agenda',
@@ -72,7 +74,7 @@ function groupByMonth(events: { data: Date; tipo: string; id: string; titulo: st
 }
 
 export default async function AgendaPage() {
-  const eventos = await prisma.evento.findMany({
+  const eventos = await withCache('agenda:eventos', () => prisma.evento.findMany({
     orderBy: { data: 'asc' },
     select: {
       id: true,
@@ -85,7 +87,7 @@ export default async function AgendaPage() {
       linkInscr: true,
       editalSlug: true,
     },
-  });
+  }), 5 * 60 * 1000);
 
   const grouped = groupByMonth(eventos);
   const urgentes = eventos.filter((e) => {

@@ -3,9 +3,11 @@ import Link from 'next/link';
 import { BookOpen, Clock, Search, Filter, AlertCircle, ChevronRight, Sparkles, ExternalLink } from 'lucide-react';
 import { formatDateShort, getDaysUntil, getStatusLabel, getStatusColor, getCategoryColor } from '@/lib/utils';
 import { prisma } from '@/lib/prisma';
+import { withCache } from '@/lib/cache';
 import type { Metadata } from 'next';
 
 export const dynamic = 'force-dynamic';
+export const revalidate = 300; // Revalidar a cada 5 minutos
 
 export const metadata: Metadata = {
   title: 'Editais',
@@ -15,7 +17,7 @@ export const metadata: Metadata = {
 const categorias = ['Todas', 'BOLSAS', 'AUXILIOS', 'PESQUISA', 'EXTENSAO', 'ENSINO', 'ESTAGIOS', 'EVENTOS', 'RESULTADOS'];
 
 export default async function EditaisPage() {
-  const editais = await prisma.edital.findMany({
+  const editais = await withCache('editais:published', () => prisma.edital.findMany({
     where: {
       review_status: 'PUBLICADO',
       deleted_at: null,
@@ -33,7 +35,7 @@ export default async function EditaisPage() {
       destaque: true,
       visualizacoes: true,
     },
-  });
+  }), 5 * 60 * 1000);
 
   const editaisAtivos = editais.filter(
     (e) => e.status === 'ABERTO' || e.status === 'EM_ANALISE' || e.status === 'PRAZO_RECURSO'

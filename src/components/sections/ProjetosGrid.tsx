@@ -1,72 +1,18 @@
 import React from 'react';
 import Link from 'next/link';
 import { ArrowRight, Users, Sparkles } from 'lucide-react';
+import { prisma } from '@/lib/prisma';
+import { withCache } from '@/lib/cache';
 
 type Projeto = {
   slug: string;
   nome: string;
   coordenador: string;
   area: string;
-  descricao: string;
+  descricao: string | null;
   corPrimaria: string;
   destaque: boolean;
-  badge?: string;
 };
-
-// First 5 projects from seed data (seed order = relevance order)
-const PROJETOS: Projeto[] = [
-  {
-    slug: 'marketing-digital-solidario',
-    nome: 'Marketing Digital Solidário',
-    coordenador: 'Onivaldo Flores Junior',
-    area: 'Marketing Digital',
-    descricao:
-      'Capacitação em marketing digital e comunicação, promovendo habilidades práticas e apoio a organizações sociais da região do Vale do Ivaí.',
-    corPrimaria: '#2F52D3',
-    destaque: true,
-    badge: 'Criou o Portal ✨',
-  },
-  {
-    slug: 'mais-empatia',
-    nome: 'Mais Empatia',
-    coordenador: 'Aline Spaciari Matioli',
-    area: 'Psicologia e Saúde Mental',
-    descricao:
-      'Desenvolvimento de empatia e habilidades socioemocionais na comunidade escolar, promovendo saúde mental e bem-estar entre estudantes.',
-    corPrimaria: '#E83D89',
-    destaque: true,
-  },
-  {
-    slug: 'ao-infinito-e-alem-astronomia-para-todos',
-    nome: 'Ao Infinito e Além',
-    coordenador: 'Adriano Jose Ortiz',
-    area: 'Ciências e Astronomia',
-    descricao:
-      'Democratizando o acesso à astronomia com observações noturnas e oficinas educativas para a comunidade do Vale do Ivaí.',
-    corPrimaria: '#7B24C7',
-    destaque: true,
-  },
-  {
-    slug: 'nea-vale-do-ivai',
-    nome: 'NEA Vale do Ivaí',
-    coordenador: 'Gisele Fernanda Mouro',
-    area: 'Agroecologia',
-    descricao:
-      'Práticas sustentáveis de produção agrícola conectando saberes tradicionais e científicos na região.',
-    corPrimaria: '#2E7D32',
-    destaque: false,
-  },
-  {
-    slug: 'biologia-ilustrada',
-    nome: 'Biologia Ilustrada',
-    coordenador: 'Andrea Martini Ribeiro Gonçalves',
-    area: 'Biologia e Arte',
-    descricao:
-      'Aproximando a biologia da comunidade através da ilustração científica, tornando conceitos complexos acessíveis.',
-    corPrimaria: '#00897B',
-    destaque: false,
-  },
-];
 
 // ── Sub-components ──────────────────────────────────────────────────────────
 
@@ -84,25 +30,16 @@ function DestaqueCard({ projeto }: { projeto: Projeto }) {
             background: `linear-gradient(135deg, ${projeto.corPrimaria} 0%, ${projeto.corPrimaria}bb 100%)`,
           }}
         >
-          {/* Decorative circle */}
           <div className="absolute -top-8 -right-8 w-28 h-28 bg-white/10 rounded-full" />
           <div className="absolute -bottom-4 -left-4 w-16 h-16 bg-white/5 rounded-full" />
 
-          {/* Badge */}
           <div className="relative">
-            {projeto.badge ? (
-              <span className="inline-flex items-center bg-white/20 text-white text-xs font-semibold px-2.5 py-1 rounded-full border border-white/30">
-                {projeto.badge}
-              </span>
-            ) : (
-              <span className="inline-flex items-center gap-1 bg-black/15 text-white text-xs font-medium px-2.5 py-1 rounded-full">
-                <span className="w-1.5 h-1.5 bg-green-400 rounded-full inline-block" />
-                Em execução
-              </span>
-            )}
+            <span className="inline-flex items-center gap-1 bg-black/15 text-white text-xs font-medium px-2.5 py-1 rounded-full">
+              <span className="w-1.5 h-1.5 bg-green-400 rounded-full inline-block" />
+              Em execução
+            </span>
           </div>
 
-          {/* Avatar */}
           <div
             className="relative w-14 h-14 bg-white/20 rounded-2xl flex items-center justify-center text-white font-black text-xl border border-white/30"
           >
@@ -146,7 +83,6 @@ function CompactCard({ projeto }: { projeto: Projeto }) {
       <div className="bg-white rounded-2xl border border-gray-100 hover:border-gray-200 hover:shadow-md transition-all duration-200 hover:-translate-y-0.5 overflow-hidden">
         <div className="h-1.5 w-full" style={{ backgroundColor: projeto.corPrimaria }} />
         <div className="p-4 flex items-center gap-4">
-          {/* Avatar */}
           <div
             className="w-12 h-12 rounded-xl flex items-center justify-center text-white font-bold text-lg flex-shrink-0 shadow-sm"
             style={{ backgroundColor: projeto.corPrimaria }}
@@ -154,7 +90,6 @@ function CompactCard({ projeto }: { projeto: Projeto }) {
             {projeto.nome.charAt(0)}
           </div>
 
-          {/* Text */}
           <div className="flex-1 min-w-0">
             <h3 className="font-bold text-gray-900 text-sm leading-snug group-hover:text-azul-eletrico transition-colors truncate">
               {projeto.nome}
@@ -163,7 +98,6 @@ function CompactCard({ projeto }: { projeto: Projeto }) {
             <p className="text-xs text-gray-500 mt-1.5 line-clamp-1">{projeto.descricao}</p>
           </div>
 
-          {/* Meta */}
           <div className="flex flex-col items-end gap-2 flex-shrink-0">
             <span
               className="inline-flex px-2.5 py-0.5 rounded-full text-xs font-medium text-white whitespace-nowrap"
@@ -184,9 +118,31 @@ function CompactCard({ projeto }: { projeto: Projeto }) {
 
 // ── Main component ──────────────────────────────────────────────────────────
 
-export function ProjetosGrid() {
-  const destaques = PROJETOS.filter((p) => p.destaque);
-  const demais    = PROJETOS.filter((p) => !p.destaque);
+export async function ProjetosGrid() {
+  // Buscar projetos do banco com cache (5 min)
+  const projetos = await withCache('home:projetosGrid', () => prisma.projeto.findMany({
+    where: {
+      review_status: 'PUBLICADO',
+      deleted_at: null,
+    },
+    orderBy: [
+      { destaque: 'desc' },
+      { updatedAt: 'desc' },
+    ],
+    take: 10,
+    select: {
+      slug: true,
+      nome: true,
+      coordenador: true,
+      area: true,
+      descricao: true,
+      corPrimaria: true,
+      destaque: true,
+    },
+  }), 5 * 60 * 1000);
+
+  const destaques = projetos.filter((p) => p.destaque).slice(0, 3);
+  const demais = projetos.filter((p) => !p.destaque).slice(0, 2);
 
   return (
     <section className="py-16 bg-white">
@@ -210,24 +166,28 @@ export function ProjetosGrid() {
             href="/projetos"
             className="hidden md:flex items-center gap-1.5 text-roxo-luminoso font-semibold hover:gap-3 transition-all text-sm"
           >
-            Ver todos (25+)
+            Ver todos
             <ArrowRight className="w-4 h-4" />
           </Link>
         </div>
 
         {/* ── Row 1: 3 featured cards with gradient header ── */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-5 mb-5">
-          {destaques.map((p) => (
-            <DestaqueCard key={p.slug} projeto={p} />
-          ))}
-        </div>
+        {destaques.length > 0 && (
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-5 mb-5">
+            {destaques.map((p) => (
+              <DestaqueCard key={p.slug} projeto={p} />
+            ))}
+          </div>
+        )}
 
         {/* ── Row 2: 2 compact cards ── */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-5 mb-8">
-          {demais.map((p) => (
-            <CompactCard key={p.slug} projeto={p} />
-          ))}
-        </div>
+        {demais.length > 0 && (
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-5 mb-8">
+            {demais.map((p) => (
+              <CompactCard key={p.slug} projeto={p} />
+            ))}
+          </div>
+        )}
 
         {/* Stats bar + CTA */}
         <div className="bg-gradient-to-r from-azul-eletrico/5 via-roxo-luminoso/5 to-rosa-vibrante/5 rounded-2xl p-5 border border-gray-100 flex flex-col sm:flex-row items-center justify-between gap-4">
@@ -236,7 +196,7 @@ export function ProjetosGrid() {
               <Sparkles className="w-5 h-5 text-white" />
             </div>
             <div>
-              <p className="font-bold text-gray-900">25+ projetos ativos este semestre</p>
+              <p className="font-bold text-gray-900">Projetos ativos este semestre</p>
               <p className="text-sm text-gray-500">Em extensão, pesquisa e ensino</p>
             </div>
           </div>

@@ -26,7 +26,7 @@ const CURSOS_SUPERIORES = [
   'Engenharia Agronômica',
 ];
 
-const CURSOS Tecnicos = [
+const CURSOS_TECNICOS = [
   'Informática Integrado',
   'Eletrotécnica Integrado',
   'Agropecuária Integrado',
@@ -44,7 +44,7 @@ const CURSOS_POS = [
 
 const TODOS_OS_CURSOS = [
   { group: 'Cursos Superiores', options: CURSOS_SUPERIORES },
-  { group: 'Cursos Técnicos', options: CURSOS_Tecnicos },
+  { group: 'Cursos Técnicos', options: CURSOS_TECNICOS },
   { group: 'Cursos FIC', options: CURSOS_FIC },
   { group: 'Pós-graduação', options: CURSOS_POS },
 ];

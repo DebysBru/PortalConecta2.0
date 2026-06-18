@@ -2,6 +2,7 @@
 
 import { prisma } from '@/lib/prisma';
 import { slugify } from '@/lib/utils';
+import { enviarAtualizacaoStatus } from '@/lib/email';
 
 type ActionResult<T = void> = { ok: true; data?: T } | { ok: false; error: string };
 
@@ -169,6 +170,16 @@ export async function updateInscricaoStatus(
   observacao?: string
 ): Promise<ActionResult> {
   try {
+    // Buscar inscrição atual antes de atualizar
+    const inscricaoAtual = await prisma.inscricao.findUnique({
+      where: { id: inscricaoId },
+      include: { projeto: { select: { nome: true } } },
+    });
+
+    if (!inscricaoAtual) {
+      return { ok: false, error: 'Inscrição não encontrada' };
+    }
+
     await prisma.inscricao.update({
       where: { id: inscricaoId },
       data: {
@@ -176,6 +187,19 @@ export async function updateInscricaoStatus(
         ...(observacao !== undefined ? { observacao_interna: observacao } : {}),
       },
     });
+
+    // Enviar e-mail de atualização de status
+    if (inscricaoAtual.email) {
+      enviarAtualizacaoStatus({
+        protocolo: inscricaoAtual.protocolo,
+        nomeCompleto: inscricaoAtual.nome_completo,
+        email: inscricaoAtual.email,
+        projetoNome: inscricaoAtual.projeto.nome,
+        novoStatus: status,
+        observacao,
+      }).catch(console.error);
+    }
+
     return { ok: true };
   } catch (e) {
     return { ok: false, error: String(e) };
