@@ -625,7 +625,7 @@ export async function createRagDocument(data: {
   conteudo: string;
   tipo: string;
   ref_id?: string;
-}): Promise<ActionResult> {
+}): Promise<ActionResult<{ id: string; chunks: number }>> {
   try {
     // Gerar hash do conteúdo para idempotência
     const crypto = await import('crypto');

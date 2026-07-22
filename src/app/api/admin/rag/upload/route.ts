@@ -23,7 +23,8 @@ export async function POST(request: NextRequest) {
     const buffer = Buffer.from(arrayBuffer);
 
     // Extrair texto do PDF
-    const pdfParse = (await import('pdf-parse')).default;
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const pdfParse = require('pdf-parse');
     const pdfData = await pdfParse(buffer);
 
     if (!pdfData.text || pdfData.text.trim().length === 0) {
