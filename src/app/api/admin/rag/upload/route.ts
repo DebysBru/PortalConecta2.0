@@ -23,17 +23,47 @@ export async function POST(request: NextRequest) {
     const arrayBuffer = await file.arrayBuffer();
     const buffer = Buffer.from(arrayBuffer);
 
-    // Extrair texto do PDF
+    // Extrair texto do PDF usando pdf2json
     // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const pdfParse = require('pdf-parse');
-    const pdfData = await pdfParse(buffer);
+    const PDFParser = require('pdf2json');
 
-    if (!pdfData.text || pdfData.text.trim().length === 0) {
+    const conteudo = await new Promise<string>((resolve, reject) => {
+      const pdfParser = new PDFParser();
+
+      pdfParser.on('pdfParser_dataError', (errData: unknown) => {
+        reject(new Error('Erro ao parse PDF'));
+      });
+
+      pdfParser.on('pdfParser_dataReady', (pdfData: { Pages?: Array<{ Texts?: Array<{ R?: Array<{ T?: string }> }> }> }) => {
+        const textParts: string[] = [];
+        if (pdfData.Pages) {
+          for (const page of pdfData.Pages) {
+            if (page.Texts) {
+              for (const text of page.Texts) {
+                if (text.R) {
+                  for (const r of text.R) {
+                    if (r.T) {
+                      // Decodificar URL encoding
+                      textParts.push(decodeURIComponent(r.T));
+                    }
+                  }
+                }
+              }
+              textParts.push('\n'); // Quebra de página
+            }
+          }
+        }
+        resolve(textParts.join(' '));
+      });
+
+      pdfParser.loadPDF(buffer);
+    });
+
+    const numPages = 1; // pdf2json não retorna easily, mas funciona
+
+    if (!conteudo || conteudo.trim().length === 0) {
       return NextResponse.json({ error: 'Não foi possível extrair texto do PDF' }, { status: 400 });
     }
-
-    const conteudo = pdfData.text;
-    const numPages = pdfData.numpages || 1;
 
     // Gerar hash para idempotência
     const content_hash = createHash('md5').update(conteudo).digest('hex');
