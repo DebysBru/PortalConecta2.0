@@ -85,7 +85,8 @@ function detectarIntencao(pergunta: string): {
 
 async function buscarRagChunks(pergunta: string): Promise<Array<{
   conteudo: string;
-  documento: { titulo: string; tipo: string };
+  titulo: string | null;
+  documento: { titulo: string; tipo: string; resumo: string | null; links: string[] };
 }>> {
   // Buscar chunks de documentos ativos
   const chunks = await prisma.ragChunk.findMany({
@@ -99,39 +100,60 @@ async function buscarRagChunks(pergunta: string): Promise<Array<{
         select: {
           titulo: true,
           tipo: true,
-          conteudo: true,
+          resumo: true,
+          links: true,
         },
       },
     },
-    take: 20,
+    take: 50,
   });
 
   if (chunks.length === 0) return [];
 
-  // Busca por palavras-chave simples (melhorar com pgvector no futuro)
-  const palavrasChave = pergunta
+  // Normalizar pergunta para busca
+  const perguntaNormalizada = pergunta
     .toLowerCase()
     .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[\u0300-\u036f]/g, '');
+
+  const palavrasChave = perguntaNormalizada
     .split(/\s+/)
     .filter((p) => p.length > 3);
 
-  // Pontuação por relevância
+  // Pontuação por relevância (múltiplos critérios)
   const scored = chunks.map((chunk) => {
-    const conteudoLower = chunk.conteudo.toLowerCase();
     let score = 0;
+    const conteudoLower = chunk.conteudo.toLowerCase();
+    const tituloChunkLower = (chunk.titulo || '').toLowerCase();
+    const tituloDocLower = chunk.documento.titulo.toLowerCase();
 
-    for (const palavra of palavrasChave) {
-      if (conteudoLower.includes(palavra)) {
-        score += 1;
+    // 1. Match nas tags do chunk (mais rápido e preciso)
+    for (const tag of chunk.tags) {
+      for (const palavra of palavrasChave) {
+        if (tag.includes(palavra)) {
+          score += 5; // Tags têm prioridade alta
+        }
       }
     }
 
-    // Bonus para títulos que contenham palavras-chave
-    const tituloLower = chunk.documento.titulo.toLowerCase();
+    // 2. Match no título do chunk
     for (const palavra of palavrasChave) {
-      if (tituloLower.includes(palavra)) {
-        score += 2;
+      if (tituloChunkLower.includes(palavra)) {
+        score += 4;
+      }
+    }
+
+    // 3. Match no título do documento
+    for (const palavra of palavrasChave) {
+      if (tituloDocLower.includes(palavra)) {
+        score += 3;
+      }
+    }
+
+    // 4. Match no conteúdo
+    for (const palavra of palavrasChave) {
+      if (conteudoLower.includes(palavra)) {
+        score += 1;
       }
     }
 
@@ -181,7 +203,16 @@ async function buscarContexto(pergunta: string): Promise<string> {
     partes.push('=== DOCUMENTOS INSTITUCIONAIS ===');
     ragChunks.forEach((chunk, i) => {
       partes.push(`\n[Fonte: ${chunk.documento.titulo} (${chunk.documento.tipo})]`);
+      if (chunk.documento.resumo) {
+        partes.push(`Resumo: ${chunk.documento.resumo}`);
+      }
+      if (chunk.titulo) {
+        partes.push(`Seção: ${chunk.titulo}`);
+      }
       partes.push(chunk.conteudo);
+      if (chunk.documento.links.length > 0) {
+        partes.push(`Links: ${chunk.documento.links.join(', ')}`);
+      }
     });
   }
 

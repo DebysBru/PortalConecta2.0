@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { createHash } from 'crypto';
+import { processDocumentWithAI, generateChunkTags } from '@/lib/rag-processor';
 
 export async function POST(request: NextRequest) {
   try {
@@ -24,7 +25,8 @@ export async function POST(request: NextRequest) {
 
     // Extrair texto do PDF
     // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const pdfParse = require('pdf-parse');
+    const pdfParseModule = require('pdf-parse');
+    const pdfParse = pdfParseModule.default || pdfParseModule;
     const pdfData = await pdfParse(buffer);
 
     if (!pdfData.text || pdfData.text.trim().length === 0) {
@@ -42,13 +44,20 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Documento já existe (mesmo conteúdo)' }, { status: 409 });
     }
 
-    // Criar documento
+    // Processar com IA (organiza, gera tags, resume)
+    const aiResult = await processDocumentWithAI(titulo, conteudo);
+
+    // Criar documento com conteúdo processado
     const doc = await prisma.ragDocumento.create({
       data: {
         titulo,
         conteudo,
+        resumo: aiResult.resumo,
+        tags: aiResult.tags,
+        links: aiResult.links,
         tipo: tipo || 'outro',
         content_hash,
+        processado: true,
         metadata: JSON.stringify({
           source: 'pdf_upload',
           filename: file.name,
@@ -58,14 +67,21 @@ export async function POST(request: NextRequest) {
       },
     });
 
-    // Criar chunks (~500 palavras)
+    // Criar chunks com tags específicas
     const chunks = chunkText(conteudo, 500);
     for (let i = 0; i < chunks.length; i++) {
+      const chunkTags = generateChunkTags(chunks[i], aiResult.tags);
+
+      // Tentar encontrar o título da seção para este chunk
+      const sectionTitle = findSectionTitle(chunks[i], aiResult.sections);
+
       await prisma.ragChunk.create({
         data: {
           documento_id: doc.id,
           chunk_index: i,
           conteudo: chunks[i],
+          titulo: sectionTitle,
+          tags: chunkTags,
           metadata: JSON.stringify({
             chunk_total: chunks.length,
             page_hint: Math.floor((i / chunks.length) * (pdfData.numpages || 1)),
@@ -79,14 +95,34 @@ export async function POST(request: NextRequest) {
       data: {
         id: doc.id,
         titulo: doc.titulo,
+        resumo: aiResult.resumo,
+        tags: aiResult.tags,
+        links: aiResult.links.length,
         chunks: chunks.length,
         pages: pdfData.numpages,
+        processado: true,
       },
     });
   } catch (e) {
     console.error('RAG upload error:', e);
     return NextResponse.json({ error: 'Erro ao processar PDF' }, { status: 500 });
   }
+}
+
+function findSectionTitle(
+  chunkContent: string,
+  sections: Array<{ titulo: string; conteudo: string }>
+): string | null {
+  const chunkLower = chunkContent.toLowerCase().slice(0, 100);
+
+  for (const section of sections) {
+    const sectionLower = section.conteudo.toLowerCase().slice(0, 100);
+    if (chunkLower.includes(sectionLower) || sectionLower.includes(chunkLower)) {
+      return section.titulo;
+    }
+  }
+
+  return null;
 }
 
 function chunkText(text: string, maxWords: number): string[] {

@@ -407,15 +407,20 @@ model RagDocumento {
   ref_id       String? // id da entidade origem (edital_id, projeto_id, etc)
   titulo       String
   conteudo     String     @db.Text
+  resumo       String?    @db.Text // resumo gerado por IA
+  tags         String[]   @default([]) // tags geradas por IA para busca
+  links        String[]   @default([]) // links extraídos do documento
   content_hash String // para idempotência
   metadata     Json       @default("{}")
   ativo        Boolean    @default(true)
+  processado   Boolean    @default(false) // true = IA já processou
   chunks       RagChunk[]
   created_at   DateTime   @default(now())
   updated_at   DateTime   @updatedAt
 
   @@index([tipo])
   @@index([ref_id])
+  @@index([tags], type: Gin)
 }
 
 // Chunks de documentos com embeddings
@@ -425,12 +430,15 @@ model RagChunk {
   documento    RagDocumento @relation(fields: [documento_id], references: [id], onDelete: Cascade)
   chunk_index  Int
   conteudo     String       @db.Text
-  embedding    String? // JSON array de floats (vector serializado)
+  titulo       String?      // título da seção (gerado por IA)
+  tags         String[]     @default([]) // tags específicas deste chunk
+  embedding    String?      // JSON array de floats (vector serializado)
   metadata     Json         @default("{}")
   created_at   DateTime     @default(now())
 
   @@index([documento_id])
   @@index([chunk_index])
+  @@index([tags], type: Gin)
 }
 
 // Sessões de chat com IFizinha
