@@ -56,7 +56,7 @@ export async function POST(request: NextRequest) {
         resolve(textParts.join(' '));
       });
 
-      pdfParser.loadPDF(buffer);
+      pdfParser.parseBuffer(buffer);
     });
 
     const numPages = 1; // pdf2json não retorna easily, mas funciona
