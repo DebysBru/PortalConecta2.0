@@ -25,15 +25,16 @@ export async function POST(request: NextRequest) {
 
     // Extrair texto do PDF
     // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const pdfParseModule = require('pdf-parse');
-    const pdfParse = pdfParseModule.default || pdfParseModule;
-    const pdfData = await pdfParse(buffer);
+    const { PDFParse } = require('pdf-parse');
+    const parser = new PDFParse({ data: buffer });
+    const pdfData = await parser.getText();
 
     if (!pdfData.text || pdfData.text.trim().length === 0) {
       return NextResponse.json({ error: 'Não foi possível extrair texto do PDF' }, { status: 400 });
     }
 
     const conteudo = pdfData.text;
+    const numPages = pdfData.total || 1;
 
     // Gerar hash para idempotência
     const content_hash = createHash('md5').update(conteudo).digest('hex');
@@ -61,7 +62,7 @@ export async function POST(request: NextRequest) {
         metadata: JSON.stringify({
           source: 'pdf_upload',
           filename: file.name,
-          pages: pdfData.numpages,
+          pages: numPages,
           uploaded_at: new Date().toISOString(),
         }),
       },
@@ -84,7 +85,7 @@ export async function POST(request: NextRequest) {
           tags: chunkTags,
           metadata: JSON.stringify({
             chunk_total: chunks.length,
-            page_hint: Math.floor((i / chunks.length) * (pdfData.numpages || 1)),
+            page_hint: Math.floor((i / chunks.length) * numPages),
           }),
         },
       });
@@ -99,7 +100,7 @@ export async function POST(request: NextRequest) {
         tags: aiResult.tags,
         links: aiResult.links.length,
         chunks: chunks.length,
-        pages: pdfData.numpages,
+        pages: numPages,
         processado: true,
       },
     });
