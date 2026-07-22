@@ -25,16 +25,15 @@ export async function POST(request: NextRequest) {
 
     // Extrair texto do PDF
     // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const { PDFParse } = require('pdf-parse');
-    const parser = new PDFParse({ data: buffer });
-    const pdfData = await parser.getText();
+    const pdfParse = require('pdf-parse');
+    const pdfData = await pdfParse(buffer);
 
     if (!pdfData.text || pdfData.text.trim().length === 0) {
       return NextResponse.json({ error: 'Não foi possível extrair texto do PDF' }, { status: 400 });
     }
 
     const conteudo = pdfData.text;
-    const numPages = pdfData.total || 1;
+    const numPages = pdfData.numpages || 1;
 
     // Gerar hash para idempotência
     const content_hash = createHash('md5').update(conteudo).digest('hex');
