@@ -3,6 +3,7 @@
 import { prisma } from '@/lib/prisma';
 import { slugify } from '@/lib/utils';
 import { enviarAtualizacaoStatus } from '@/lib/email';
+import { cache } from '@/lib/cache';
 
 type ActionResult<T = void> = { ok: true; data?: T } | { ok: false; error: string };
 
@@ -131,15 +132,30 @@ export async function listInscricoes(projetoId: string, userEmail: string) {
 /**
  * Atualiza um projeto (apenas o coordenador/admin pode)
  */
-export async function updateMyProjeto(projetoId: string, data: MyProjetoFormData): Promise<ActionResult> {
+export async function updateMyProjeto(projetoId: string, data: MyProjetoFormData, userEmail?: string): Promise<ActionResult> {
   try {
     const projeto = await prisma.projeto.findUnique({
       where: { id: projetoId },
-      select: { id: true },
+      select: {
+        id: true,
+        coordenadorEmail: true,
+        admins: { select: { email: true } },
+        coordenadores: { include: { user: { select: { email: true } } } },
+      },
     });
 
     if (!projeto) {
       return { ok: false, error: 'Projeto não encontrado' };
+    }
+
+    if (userEmail) {
+      const isCoordinator =
+        projeto.coordenadorEmail === userEmail ||
+        projeto.admins.some((a) => a.email === userEmail) ||
+        projeto.coordenadores.some((c) => c.user.email === userEmail);
+      if (!isCoordinator) {
+        return { ok: false, error: 'Acesso negado: você não é coordenador deste projeto' };
+      }
     }
 
     await prisma.projeto.update({
@@ -157,8 +173,44 @@ export async function updateMyProjeto(projetoId: string, data: MyProjetoFormData
         site: data.site || null,
       },
     });
+    cache.invalidate('chat:');
 
     return { ok: true };
+  } catch (e) {
+    return { ok: false, error: String(e) };
+  }
+}
+
+export async function toggleInscricoes(projetoId: string, userEmail: string): Promise<ActionResult<{ inscricoes_abertas: boolean }>> {
+  try {
+    const projeto = await prisma.projeto.findUnique({
+      where: { id: projetoId },
+      include: {
+        admins: { select: { email: true } },
+        coordenadores: { include: { user: { select: { email: true } } } },
+      },
+    });
+
+    if (!projeto) return { ok: false, error: 'Projeto não encontrado' };
+
+    const isCoordinator =
+      projeto.coordenadorEmail === userEmail ||
+      projeto.admins.some((a) => a.email === userEmail) ||
+      projeto.coordenadores.some((c) => c.user.email === userEmail);
+
+    if (!isCoordinator) return { ok: false, error: 'Acesso negado' };
+
+    const newValue = !projeto.inscricoes_abertas;
+
+    await prisma.projeto.update({
+      where: { id: projetoId },
+      data: {
+        inscricoes_abertas: newValue,
+        status: newValue ? 'INSCRICOES_ABERTAS' : 'ATIVO',
+      },
+    });
+
+    return { ok: true, data: { inscricoes_abertas: newValue } };
   } catch (e) {
     return { ok: false, error: String(e) };
   }
@@ -205,6 +257,158 @@ export async function updateInscricaoStatus(
     return { ok: false, error: String(e) };
   }
 }
+
+// ==================== POSTS ====================
+
+export type PostFormData = {
+  titulo: string;
+  conteudo: string;
+  resumo?: string;
+  imagemUrl?: string;
+  status: 'RASCUNHO' | 'PUBLICADO';
+};
+
+export async function listPosts(projetoId: string, userEmail: string) {
+  const projeto = await prisma.projeto.findUnique({
+    where: { id: projetoId },
+    include: {
+      admins: { select: { email: true } },
+      coordenadores: { include: { user: { select: { email: true } } } },
+    },
+  });
+
+  if (!projeto) return { ok: false, error: 'Projeto não encontrado' } as const;
+
+  const isCoordinator =
+    projeto.coordenadorEmail === userEmail ||
+    projeto.admins.some((a) => a.email === userEmail) ||
+    projeto.coordenadores.some((c) => c.user.email === userEmail);
+
+  if (!isCoordinator) return { ok: false, error: 'Acesso negado' } as const;
+
+  const posts = await prisma.post.findMany({
+    where: { projetoId },
+    orderBy: { createdAt: 'desc' },
+  });
+
+  return { ok: true, data: posts } as const;
+}
+
+export async function createPost(projetoId: string, data: PostFormData, userEmail: string): Promise<ActionResult> {
+  try {
+    const projeto = await prisma.projeto.findUnique({
+      where: { id: projetoId },
+      include: {
+        admins: { select: { email: true } },
+        coordenadores: { include: { user: { select: { email: true } } } },
+      },
+    });
+
+    if (!projeto) return { ok: false, error: 'Projeto não encontrado' };
+
+    const isCoordinator =
+      projeto.coordenadorEmail === userEmail ||
+      projeto.admins.some((a) => a.email === userEmail) ||
+      projeto.coordenadores.some((c) => c.user.email === userEmail);
+
+    if (!isCoordinator) return { ok: false, error: 'Acesso negado' };
+
+    const user = await prisma.user.findUnique({ where: { email: userEmail } });
+    if (!user) return { ok: false, error: 'Usuário não encontrado' };
+
+    const slug = slugify(data.titulo) + '-' + Date.now().toString(36);
+
+    await prisma.post.create({
+      data: {
+        titulo: data.titulo,
+        slug,
+        conteudo: data.conteudo,
+        resumo: data.resumo || null,
+        imagemUrl: data.imagemUrl || null,
+        status: data.status,
+        projetoId,
+        authorId: user.id,
+      },
+    });
+
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: String(e) };
+  }
+}
+
+export async function updatePost(postId: string, data: PostFormData, userEmail: string): Promise<ActionResult> {
+  try {
+    const post = await prisma.post.findUnique({
+      where: { id: postId },
+      include: {
+        projeto: {
+          include: {
+            admins: { select: { email: true } },
+            coordenadores: { include: { user: { select: { email: true } } } },
+          },
+        },
+      },
+    });
+
+    if (!post) return { ok: false, error: 'Post não encontrado' };
+
+    const isCoordinator =
+      post.projeto.coordenadorEmail === userEmail ||
+      post.projeto.admins.some((a) => a.email === userEmail) ||
+      post.projeto.coordenadores.some((c) => c.user.email === userEmail);
+
+    if (!isCoordinator) return { ok: false, error: 'Acesso negado' };
+
+    await prisma.post.update({
+      where: { id: postId },
+      data: {
+        titulo: data.titulo,
+        conteudo: data.conteudo,
+        resumo: data.resumo || null,
+        imagemUrl: data.imagemUrl || null,
+        status: data.status,
+      },
+    });
+
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: String(e) };
+  }
+}
+
+export async function deletePost(postId: string, userEmail: string): Promise<ActionResult> {
+  try {
+    const post = await prisma.post.findUnique({
+      where: { id: postId },
+      include: {
+        projeto: {
+          include: {
+            admins: { select: { email: true } },
+            coordenadores: { include: { user: { select: { email: true } } } },
+          },
+        },
+      },
+    });
+
+    if (!post) return { ok: false, error: 'Post não encontrado' };
+
+    const isCoordinator =
+      post.projeto.coordenadorEmail === userEmail ||
+      post.projeto.admins.some((a) => a.email === userEmail) ||
+      post.projeto.coordenadores.some((c) => c.user.email === userEmail);
+
+    if (!isCoordinator) return { ok: false, error: 'Acesso negado' };
+
+    await prisma.post.delete({ where: { id: postId } });
+
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: String(e) };
+  }
+}
+
+// ==================== INSCRIÇÕES ====================
 
 export async function exportInscricoesCSV(projetoId: string): Promise<string> {
   const inscricoes = await prisma.inscricao.findMany({

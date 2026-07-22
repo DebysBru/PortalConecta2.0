@@ -6,10 +6,10 @@ import { useRouter } from 'next/navigation';
 import {
   ChevronRight, Users, FolderOpen, Calendar, Mail,
   Download, Search, Filter, AlertCircle, CheckCircle,
-  Clock, XCircle, Eye, ArrowLeft,
+  Clock, XCircle, Eye, ArrowLeft, FileText,
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
-import { getProjetoDetalhes, listInscricoes, updateInscricaoStatus, exportInscricoesCSV } from '@/actions/professor';
+import { getProjetoDetalhes, listInscricoes, updateInscricaoStatus, exportInscricoesCSV, toggleInscricoes } from '@/actions/professor';
 import { getStatusLabel, getStatusColor, formatDateShort } from '@/lib/utils';
 import { Prisma } from '@prisma/client';
 
@@ -59,6 +59,14 @@ export default function ProfessorProjetoDetalhePage({ params }: { params: { id: 
     a.download = `inscricoes-${projeto.slug}.csv`;
     a.click();
     URL.revokeObjectURL(url);
+  };
+
+  const handleToggleInscricoes = async () => {
+    if (!projeto || !user?.email) return;
+    const result = await toggleInscricoes(projeto.id, user.email);
+    if (result.ok && 'data' in result && result.data) {
+      setProjeto({ ...projeto, inscricoes_abertas: result.data.inscricoes_abertas });
+    }
   };
 
   const filtered = inscricoes.filter((i) => {
@@ -113,6 +121,37 @@ export default function ProfessorProjetoDetalhePage({ params }: { params: { id: 
           </span>
         </div>
 
+        {/* Ações rápidas */}
+        <div className="px-6 py-3 border-b border-gray-50 flex gap-2">
+          <Link
+            href={`/professor/projetos/${params.id}/posts`}
+            className="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-gray-200 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+          >
+            <FileText className="w-3.5 h-3.5" />
+            Gerenciar Posts
+          </Link>
+          <button
+            onClick={handleToggleInscricoes}
+            className={`flex items-center gap-2 px-3 py-1.5 rounded-lg border text-sm font-medium transition-colors ${
+              projeto.inscricoes_abertas
+                ? 'border-green-200 bg-green-50 text-green-700 hover:bg-green-100'
+                : 'border-gray-200 bg-gray-50 text-gray-700 hover:bg-gray-100'
+            }`}
+          >
+            {projeto.inscricoes_abertas ? (
+              <>
+                <CheckCircle className="w-3.5 h-3.5" />
+                Inscrições Abertas
+              </>
+            ) : (
+              <>
+                <XCircle className="w-3.5 h-3.5" />
+                Inscrições Fechadas
+              </>
+            )}
+          </button>
+        </div>
+
         <div className="p-6">
           <p className="text-gray-600 text-sm leading-relaxed mb-4">{projeto.descricao}</p>
 
@@ -133,7 +172,7 @@ export default function ProfessorProjetoDetalhePage({ params }: { params: { id: 
             </div>
             <div>
               <p className="text-gray-400 text-xs mb-1">Inscrições</p>
-              <p className="font-medium text-gray-900">{projeto.inscricoes_abertas ? 'Abertas' : 'Fechadas'}</p>
+              <p className="font-medium text-gray-900">{projeto.status === 'INSCRICOES_ABERTAS' ? 'Abertas' : 'Fechadas'}</p>
             </div>
           </div>
         </div>

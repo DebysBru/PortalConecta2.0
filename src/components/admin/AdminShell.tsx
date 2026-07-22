@@ -7,7 +7,7 @@ import { usePathname, useRouter } from 'next/navigation';
 import {
   LayoutDashboard, FileText, FolderOpen, Calendar,
   Newspaper, Users, LogOut, Menu, X, Sparkles, ChevronRight, RefreshCw,
-  UserCircle, BarChart3,
+  UserCircle, BarChart3, Trash2, Brain,
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 
@@ -25,8 +25,10 @@ const NAV_ITEMS: NavItem[] = [
   { href: '/admin/projetos', label: 'Projetos',       icon: FolderOpen },
   { href: '/admin/agenda',   label: 'Agenda',         icon: Calendar },
   { href: '/admin/posts',    label: 'Posts',          icon: Newspaper },
+  { href: '/admin/rag',      label: 'RAG (IFizinha)', icon: Brain, masterOnly: true },
   { href: '/admin/usuarios', label: 'Usuários',       icon: Users, masterOnly: true },
   { href: '/admin/suap',    label: 'Sync SUAP',      icon: RefreshCw, masterOnly: true },
+  { href: '/admin/limpar-dados', label: 'Limpar Dados', icon: Trash2, masterOnly: true },
   { href: '/admin/inscricoes', label: 'Inscrições',  icon: Users, professorOnly: true },
   { href: '/admin/relatorio', label: 'Relatórios',    icon: BarChart3, professorOnly: true },
 ];

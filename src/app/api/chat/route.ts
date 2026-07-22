@@ -16,22 +16,17 @@ function getCacheKey(pergunta: string): string {
   return `chat:${pergunta.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim()}`;
 }
 
-/**
- * Detecta a intenção do usuário
- */
 function detectarIntencao(pergunta: string): {
   tipo: 'projeto' | 'edital' | 'ambos' | 'geral';
   filtros: {
     area?: string;
     tipo_projeto?: string;
     status?: string;
-    inscricoes_abertas?: boolean;
     categoria?: string;
   };
 } {
   const p = pergunta.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
 
-  // Detectar tipo de busca
   let tipo: 'projeto' | 'edital' | 'ambos' | 'geral' = 'ambos';
   if (p.includes('projeto') || p.includes('extensao') || p.includes('pesquisa') || p.includes('ensino') || p.includes('inovacao')) {
     tipo = 'projeto';
@@ -39,10 +34,8 @@ function detectarIntencao(pergunta: string): {
     tipo = 'edital';
   }
 
-  // Detectar filtros
   const filtros: ReturnType<typeof detectarIntencao>['filtros'] = {};
 
-  // Área
   if (p.includes('tecnologia') || p.includes('informatica') || p.includes('computacao')) {
     filtros.area = 'Tecnologia';
   } else if (p.includes('agronomia') || p.includes('agricultura') || p.includes('agroecologia')) {
@@ -61,7 +54,6 @@ function detectarIntencao(pergunta: string): {
     filtros.area = 'Eletrônica';
   }
 
-  // Tipo de projeto
   if (p.includes('extensao') || p.includes('extensão')) {
     filtros.tipo_projeto = 'extensao';
   } else if (p.includes('pesquisa')) {
@@ -72,9 +64,7 @@ function detectarIntencao(pergunta: string): {
     filtros.tipo_projeto = 'inovacao';
   }
 
-  // Status
   if (p.includes('aberto') || p.includes('inscricao') || p.includes('inscrever')) {
-    filtros.inscricoes_abertas = true;
     filtros.status = 'INSCRICOES_ABERTAS';
   } else if (p.includes('ativo') || p.includes('em andamento') || p.includes('execucao')) {
     filtros.status = 'EM_EXECUCAO';
@@ -82,7 +72,6 @@ function detectarIntencao(pergunta: string): {
     filtros.status = 'ENCERRADO';
   }
 
-  // Categoria de edital
   if (p.includes('bolsa')) {
     filtros.categoria = 'BOLSAS';
   } else if (p.includes('auxilio') || p.includes('auxílio')) {
@@ -94,20 +83,108 @@ function detectarIntencao(pergunta: string): {
   return { tipo, filtros };
 }
 
-/**
- * Busca conteúdo relevante de projetos e editais
- */
+async function buscarRagChunks(pergunta: string): Promise<Array<{
+  conteudo: string;
+  documento: { titulo: string; tipo: string };
+}>> {
+  // Buscar chunks de documentos ativos
+  const chunks = await prisma.ragChunk.findMany({
+    where: {
+      documento: {
+        ativo: true,
+      },
+    },
+    include: {
+      documento: {
+        select: {
+          titulo: true,
+          tipo: true,
+          conteudo: true,
+        },
+      },
+    },
+    take: 20,
+  });
+
+  if (chunks.length === 0) return [];
+
+  // Busca por palavras-chave simples (melhorar com pgvector no futuro)
+  const palavrasChave = pergunta
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .split(/\s+/)
+    .filter((p) => p.length > 3);
+
+  // Pontuação por relevância
+  const scored = chunks.map((chunk) => {
+    const conteudoLower = chunk.conteudo.toLowerCase();
+    let score = 0;
+
+    for (const palavra of palavrasChave) {
+      if (conteudoLower.includes(palavra)) {
+        score += 1;
+      }
+    }
+
+    // Bonus para títulos que contenham palavras-chave
+    const tituloLower = chunk.documento.titulo.toLowerCase();
+    for (const palavra of palavrasChave) {
+      if (tituloLower.includes(palavra)) {
+        score += 2;
+      }
+    }
+
+    return { ...chunk, score };
+  });
+
+  // Retornar os mais relevantes (score > 0, top 5)
+  return scored
+    .filter((c) => c.score > 0)
+    .sort((a, b) => b.score - a.score)
+    .slice(0, 5);
+}
+
+async function buscarResumoPortal(): Promise<string> {
+  const [totalProjetos, projetosAtivos, projetosAbertos, totalEditais, editaisAbertos] = await Promise.all([
+    prisma.projeto.count({ where: { review_status: 'PUBLICADO', deleted_at: null } }),
+    prisma.projeto.count({ where: { review_status: 'PUBLICADO', deleted_at: null, status: 'EM_EXECUCAO' } }),
+    prisma.projeto.count({ where: { review_status: 'PUBLICADO', deleted_at: null, status: 'INSCRICOES_ABERTAS' } }),
+    prisma.edital.count({ where: { review_status: 'PUBLICADO', deleted_at: null } }),
+    prisma.edital.count({ where: { review_status: 'PUBLICADO', deleted_at: null, status: 'ABERTO' } }),
+  ]);
+
+  return [
+    `\n=== RESUMO DO PORTAL ===`,
+    `- Total de projetos: ${totalProjetos}`,
+    `- Projetos em execução: ${projetosAtivos}`,
+    `- Projetos com inscrições abertas: ${projetosAbertos}`,
+    `- Total de editais: ${totalEditais}`,
+    `- Editais abertos: ${editaisAbertos}`,
+  ].join('\n');
+}
+
 async function buscarContexto(pergunta: string): Promise<string> {
-  // Verificar cache compartilhado
   const cacheKey = getCacheKey(pergunta);
   const cached = cache.get<string>(cacheKey);
-  if (cached) return cached;
+  const resumoPortal = await buscarResumoPortal();
+
+  if (cached) return cached + resumoPortal;
 
   const { tipo, filtros } = detectarIntencao(pergunta);
 
   const partes: string[] = [];
 
-  // Buscar projetos
+  // Buscar documentos RAG relevantes
+  const ragChunks = await buscarRagChunks(pergunta);
+  if (ragChunks.length > 0) {
+    partes.push('=== DOCUMENTOS INSTITUCIONAIS ===');
+    ragChunks.forEach((chunk, i) => {
+      partes.push(`\n[Fonte: ${chunk.documento.titulo} (${chunk.documento.tipo})]`);
+      partes.push(chunk.conteudo);
+    });
+  }
+
   if (tipo === 'projeto' || tipo === 'ambos' || tipo === 'geral') {
     const where: any = {
       review_status: 'PUBLICADO',
@@ -120,9 +197,6 @@ async function buscarContexto(pergunta: string): Promise<string> {
     if (filtros.tipo_projeto) {
       where.tipo = { contains: filtros.tipo_projeto, mode: 'insensitive' };
     }
-    if (filtros.inscricoes_abertas) {
-      where.inscricoes_abertas = true;
-    }
     if (filtros.status) {
       where.status = filtros.status;
     }
@@ -132,7 +206,7 @@ async function buscarContexto(pergunta: string): Promise<string> {
       take: 10,
       orderBy: [
         { destaque: 'desc' },
-        { inscricoes_abertas: 'desc' },
+        { status: 'asc' },
         { updatedAt: 'desc' },
       ],
       select: {
@@ -143,7 +217,6 @@ async function buscarContexto(pergunta: string): Promise<string> {
         resumoCurto: true,
         coordenador: true,
         status: true,
-        inscricoes_abertas: true,
         vagasBolsista: true,
         vagasVoluntario: true,
         inscricao_fim: true,
@@ -167,7 +240,7 @@ async function buscarContexto(pergunta: string): Promise<string> {
         } else if (p.descricao) {
           partes.push(`- Descrição: ${p.descricao.slice(0, 200)}`);
         }
-        if (p.inscricoes_abertas) {
+        if (p.status === 'INSCRICOES_ABERTAS') {
           partes.push(`- **INSCRIÇÕES ABERTAS** (${p.vagasBolsista} bolsista, ${p.vagasVoluntario} voluntário)`);
           if (p.inscricao_fim) {
             partes.push(`- Prazo: ${p.inscricao_fim.toLocaleDateString('pt-BR')}`);
@@ -177,7 +250,6 @@ async function buscarContexto(pergunta: string): Promise<string> {
     }
   }
 
-  // Buscar editais
   if (tipo === 'edital' || tipo === 'ambos' || tipo === 'geral') {
     const where: any = {
       review_status: 'PUBLICADO',
@@ -201,7 +273,7 @@ async function buscarContexto(pergunta: string): Promise<string> {
         status: true,
         resumoSimples: true,
         resumo: true,
-        inscricao_fim: true,
+        dataEncerramento: true,
         quemPode: true,
         beneficios: true,
       },
@@ -224,19 +296,18 @@ async function buscarContexto(pergunta: string): Promise<string> {
         if (e.beneficios) {
           partes.push(`- Benefícios: ${e.beneficios.slice(0, 150)}`);
         }
-        if (e.inscricao_fim) {
-          partes.push(`- Inscrições até: ${e.inscricao_fim.toLocaleDateString('pt-BR')}`);
+        if (e.dataEncerramento) {
+          partes.push(`- Inscrições até: ${e.dataEncerramento.toLocaleDateString('pt-BR')}`);
         }
       });
     }
   }
 
-  // Se não encontrou nada, buscar destaques
   if (partes.length === 0) {
     const projetosDestaque = await prisma.projeto.findMany({
       where: { review_status: 'PUBLICADO', deleted_at: null, destaque: true },
       take: 5,
-      select: { nome: true, area: true, tipo: true, status: true, inscricoes_abertas: true },
+      select: { nome: true, area: true, tipo: true, status: true },
     });
 
     const editaisAbertos = await prisma.edital.findMany({
@@ -246,15 +317,15 @@ async function buscarContexto(pergunta: string): Promise<string> {
     });
 
     const projetosAbertos = await prisma.projeto.findMany({
-      where: { review_status: 'PUBLICADO', deleted_at: null, inscricoes_abertas: true },
+      where: { review_status: 'PUBLICADO', deleted_at: null, status: 'INSCRICOES_ABERTAS' },
       take: 5,
-      select: { nome: true, area: true, tipo: true, status: true, inscricoes_abertas: true },
+      select: { nome: true, area: true, tipo: true, status: true },
     });
 
     if (projetosDestaque.length > 0) {
       partes.push('=== PROJETOS EM DESTAQUE ===');
       projetosDestaque.forEach((p) => {
-        partes.push(`- **${p.nome}** (${p.area}, ${p.tipo || 'Não definido'}) — ${p.status}${p.inscricoes_abertas ? ' ✅ INSCRIÇÕES ABERTAS' : ''}`);
+        partes.push(`- **${p.nome}** (${p.area}, ${p.tipo || 'Não definido'}) — ${p.status}${p.status === 'INSCRICOES_ABERTAS' ? ' ✅ INSCRIÇÕES ABERTAS' : ''}`);
       });
     }
 
@@ -273,26 +344,9 @@ async function buscarContexto(pergunta: string): Promise<string> {
     }
   }
 
-  // Adicionar estatísticas gerais
-  const [totalProjetos, projetosAtivos, projetosAbertos, totalEditais, editaisAbertos] = await Promise.all([
-    prisma.projeto.count({ where: { review_status: 'PUBLICADO', deleted_at: null } }),
-    prisma.projeto.count({ where: { review_status: 'PUBLICADO', deleted_at: null, status: 'EM_EXECUCAO' } }),
-    prisma.projeto.count({ where: { review_status: 'PUBLICADO', deleted_at: null, inscricoes_abertas: true } }),
-    prisma.edital.count({ where: { review_status: 'PUBLICADO', deleted_at: null } }),
-    prisma.edital.count({ where: { review_status: 'PUBLICADO', deleted_at: null, status: 'ABERTO' } }),
-  ]);
-
-  partes.push(`\n=== RESUMO DO PORTAL ===`);
-  partes.push(`- Total de projetos: ${totalProjetos}`);
-  partes.push(`- Projetos em execução: ${projetosAtivos}`);
-  partes.push(`- Projetos com inscrições abertas: ${projetosAbertos}`);
-  partes.push(`- Total de editais: ${totalEditais}`);
-  partes.push(`- Editais abertos: ${editaisAbertos}`);
-
   const resultado = partes.join('\n');
 
-  // Salvar no cache compartilhado (5 min TTL)
-  cache.set(cacheKey, resultado, 5 * 60 * 1000);
+  cache.set(cacheKey, resultado, 2 * 60 * 1000);
 
   return resultado;
 }
@@ -310,21 +364,29 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'DEEPSEEK_API_KEY não configurada' }, { status: 500 });
   }
 
-  // Buscar contexto relevante
   const contexto = await buscarContexto(message);
 
   const systemPrompt = `Você é a IFizinha, assistente virtual do Portal Conecta do IFPR Campus Ivaiporã.
 
+SOBRE VOCÊ:
+- Nome: IFizinha
+- Personality: Jovem, acolhedora, simpática e prestativa
+- Função: Ajudar estudantes, professores e servidores com informações do portal
+- Fale na primeira pessoa do singular ("Eu posso te ajudar...")
+- Use linguagem informal mas educada
+- Trate o estudante por "você"
+
 REGRAS INEGOCIÁVEIS:
-1. Responda SOMENTE com base no CONTEXTO fornecido abaixo (projetos e editais do portal).
+1. Responda SOMENTE com base no CONTEXTO fornecido abaixo (projetos, editais e documentos institucionais).
 2. Se a resposta não estiver no contexto, diga que não encontrou essa informação no portal e sugira acessar as páginas de projetos ou editais.
-3. NUNCA invente informações sobre projetos ou editais que não estão no contexto.
-4. Use linguagem jovem, amigável e direta. Trate o estudante por "você".
+3. NUNCA invente informações sobre projetos, editais ou documentos que não estão no contexto.
+4. Use linguagem jovem, amigável e direta.
 5. Seja útil e ofereça links quando apropriado.
 6. Para inscrições, oriente a acessar a página do projeto.
 7. Para editais, oriente a acessar a página do edital.
 8. Nunca responda sobre assuntos fora do portal (política, notícias externas, etc).
 9. Quando perguntarem sobre "quantos projetos" ou "quais projetos", use os dados do RESUMO DO PORTAL.
+10. Quando houver DOCUMENTOS INSTITUCIONAIS no contexto, cite a fonte ao responder.
 
 TIPOS DE PROJETO:
 - **Extensão**: Projetos que levam conhecimento para a comunidade

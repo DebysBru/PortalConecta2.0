@@ -2,7 +2,9 @@
 
 import { prisma } from '@/lib/prisma';
 import { slugify } from '@/lib/utils';
+import { cache } from '@/lib/cache';
 import { derivarEventosEdital, derivarEventosProjeto } from '@/lib/evento-helpers';
+import { LIMPEZA_TABLES } from '@/lib/limpeza-tables';
 import {
   CategoriaEdital, StatusEdital, StatusProjeto, StatusPost,
   TipoEvento, UserRole,
@@ -103,6 +105,7 @@ export async function createEdital(
 
     // Derivar eventos automaticamente
     await derivarEventosEdital(edital.id).catch(console.error);
+    cache.invalidate('chat:');
 
     return { ok: true, data: { id: edital.id, slug: edital.slug } };
   } catch (e) {
@@ -126,6 +129,7 @@ export async function updateEdital(
 
     // Re-derivar eventos quando datas mudam
     await derivarEventosEdital(id).catch(console.error);
+    cache.invalidate('chat:');
 
     return { ok: true };
   } catch (e) {
@@ -136,6 +140,7 @@ export async function updateEdital(
 export async function deleteEdital(id: string): Promise<ActionResult> {
   try {
     await prisma.edital.delete({ where: { id } });
+    cache.invalidate('chat:');
     return { ok: true };
   } catch (e) {
     return { ok: false, error: String(e) };
@@ -226,6 +231,7 @@ export async function createProjeto(data: ProjetoFormData): Promise<ActionResult
 
     // Derivar eventos automaticamente
     await derivarEventosProjeto(projeto.id).catch(console.error);
+    cache.invalidate('chat:');
 
     return { ok: true, data: { id: projeto.id, slug: projeto.slug } };
   } catch (e) {
@@ -270,6 +276,7 @@ export async function updateProjeto(id: string, data: Partial<ProjetoFormData>):
 
     // Re-derivar eventos quando dados mudam
     await derivarEventosProjeto(id).catch(console.error);
+    cache.invalidate('chat:');
 
     return { ok: true };
   } catch (e) {
@@ -280,6 +287,7 @@ export async function updateProjeto(id: string, data: Partial<ProjetoFormData>):
 export async function deleteProjeto(id: string): Promise<ActionResult> {
   try {
     await prisma.projeto.delete({ where: { id } });
+    cache.invalidate('chat:');
     return { ok: true };
   } catch (e) {
     return { ok: false, error: String(e) };
@@ -314,8 +322,25 @@ export async function listPosts(userEmail?: string, userRole?: string) {
   });
 }
 
-export async function createPost(data: PostFormData, authorEmail: string): Promise<ActionResult<{ id: string }>> {
+export async function createPost(data: PostFormData, authorEmail: string, userRole?: string): Promise<ActionResult<{ id: string }>> {
   try {
+    if (userRole === 'PROFESSOR') {
+      const projeto = await prisma.projeto.findUnique({
+        where: { id: data.projetoId },
+        select: {
+          coordenadorEmail: true,
+          admins: { select: { email: true } },
+          coordenadores: { include: { user: { select: { email: true } } } },
+        },
+      });
+      if (!projeto) return { ok: false, error: 'Projeto não encontrado' };
+      const isCoordinator =
+        projeto.coordenadorEmail === authorEmail ||
+        projeto.admins.some((a) => a.email === authorEmail) ||
+        projeto.coordenadores.some((c) => c.user.email === authorEmail);
+      if (!isCoordinator) return { ok: false, error: 'Acesso negado: você não é coordenador deste projeto' };
+    }
+
     const author = await ensureUser(authorEmail);
     const slug = slugify(data.titulo);
     const post = await prisma.post.create({
@@ -339,8 +364,29 @@ export async function createPost(data: PostFormData, authorEmail: string): Promi
   }
 }
 
-export async function updatePost(id: string, data: Partial<PostFormData>): Promise<ActionResult> {
+export async function updatePost(id: string, data: Partial<PostFormData>, userEmail?: string, userRole?: string): Promise<ActionResult> {
   try {
+    if (userRole === 'PROFESSOR' && userEmail) {
+      const post = await prisma.post.findUnique({
+        where: { id },
+        select: {
+          projeto: {
+            select: {
+              coordenadorEmail: true,
+              admins: { select: { email: true } },
+              coordenadores: { include: { user: { select: { email: true } } } },
+            },
+          },
+        },
+      });
+      if (!post) return { ok: false, error: 'Post não encontrado' };
+      const isCoordinator =
+        post.projeto.coordenadorEmail === userEmail ||
+        post.projeto.admins.some((a) => a.email === userEmail) ||
+        post.projeto.coordenadores.some((c) => c.user.email === userEmail);
+      if (!isCoordinator) return { ok: false, error: 'Acesso negado: você não é coordenador do projeto deste post' };
+    }
+
     await prisma.post.update({
       where: { id },
       data: {
@@ -354,8 +400,29 @@ export async function updatePost(id: string, data: Partial<PostFormData>): Promi
   }
 }
 
-export async function deletePost(id: string): Promise<ActionResult> {
+export async function deletePost(id: string, userEmail?: string, userRole?: string): Promise<ActionResult> {
   try {
+    if (userRole === 'PROFESSOR' && userEmail) {
+      const post = await prisma.post.findUnique({
+        where: { id },
+        select: {
+          projeto: {
+            select: {
+              coordenadorEmail: true,
+              admins: { select: { email: true } },
+              coordenadores: { include: { user: { select: { email: true } } } },
+            },
+          },
+        },
+      });
+      if (!post) return { ok: false, error: 'Post não encontrado' };
+      const isCoordinator =
+        post.projeto.coordenadorEmail === userEmail ||
+        post.projeto.admins.some((a) => a.email === userEmail) ||
+        post.projeto.coordenadores.some((c) => c.user.email === userEmail);
+      if (!isCoordinator) return { ok: false, error: 'Acesso negado: você não é coordenador do projeto deste post' };
+    }
+
     await prisma.post.delete({ where: { id } });
     return { ok: true };
   } catch (e) {
@@ -497,4 +564,157 @@ export async function inviteUser(email: string, role: UserRole, projetoId?: stri
   } catch (e) {
     return { ok: false, error: String(e) };
   }
+}
+
+// ── Limpeza de banco (master only) ──────────────────────────────────────────
+
+export async function getLimpezaStats(): Promise<Record<string, number>> {
+  const stats: Record<string, number> = {};
+  for (const table of LIMPEZA_TABLES) {
+    try {
+      stats[table.key] = await (prisma as any)[table.model].count();
+    } catch {
+      stats[table.key] = 0;
+    }
+  }
+  return stats;
+}
+
+export async function limparTabelas(
+  tables: string[],
+  confirmEmail: string
+): Promise<ActionResult<{ deleted: Record<string, number> }>> {
+  try {
+    const masterEmail = process.env.ADMIN_EMAILS?.split(',')[0]?.trim() || 'bru.mkt2024@gmail.com';
+    if (confirmEmail !== masterEmail) {
+      return { ok: false, error: 'Email de confirmação não confere' };
+    }
+
+    const deleted: Record<string, number> = {};
+    const validTables = LIMPEZA_TABLES.filter((t) => tables.includes(t.key));
+
+    for (const table of validTables) {
+      try {
+        const result = await (prisma as any)[table.model].deleteMany({});
+        deleted[table.key] = result.count;
+      } catch (e) {
+        deleted[table.key] = -1;
+      }
+    }
+
+    cache.invalidate('chat:');
+
+    return { ok: true, data: { deleted } };
+  } catch (e) {
+    return { ok: false, error: String(e) };
+  }
+}
+
+// ── RAG (Retrieval-Augmented Generation) ─────────────────────────────────────
+
+export async function listRagDocuments() {
+  const docs = await prisma.ragDocumento.findMany({
+    orderBy: { created_at: 'desc' },
+    include: { _count: { select: { chunks: true } } },
+  });
+  return { ok: true, data: docs };
+}
+
+export async function createRagDocument(data: {
+  titulo: string;
+  conteudo: string;
+  tipo: string;
+  ref_id?: string;
+}): Promise<ActionResult> {
+  try {
+    // Gerar hash do conteúdo para idempotência
+    const crypto = await import('crypto');
+    const content_hash = crypto.createHash('md5').update(data.conteudo).digest('hex');
+
+    // Verificar se já existe documento com mesmo hash
+    const existing = await prisma.ragDocumento.findFirst({ where: { content_hash } });
+    if (existing) {
+      return { ok: false, error: 'Documento já existe (mesmo conteúdo)' };
+    }
+
+    const doc = await prisma.ragDocumento.create({
+      data: {
+        titulo: data.titulo,
+        conteudo: data.conteudo,
+        tipo: data.tipo,
+        ref_id: data.ref_id || null,
+        content_hash,
+        metadata: JSON.stringify({ source: 'upload', uploaded_at: new Date().toISOString() }),
+      },
+    });
+
+    // Criar chunks do conteúdo
+    const chunks = chunkText(data.conteudo, 500);
+    for (let i = 0; i < chunks.length; i++) {
+      await prisma.ragChunk.create({
+        data: {
+          documento_id: doc.id,
+          chunk_index: i,
+          conteudo: chunks[i],
+          metadata: JSON.stringify({ chunk_total: chunks.length }),
+        },
+      });
+    }
+
+    cache.invalidate('chat:');
+
+    return { ok: true, data: { id: doc.id, chunks: chunks.length } };
+  } catch (e) {
+    return { ok: false, error: String(e) };
+  }
+}
+
+export async function deleteRagDocument(docId: string): Promise<ActionResult> {
+  try {
+    await prisma.ragDocumento.delete({ where: { id: docId } });
+    cache.invalidate('chat:');
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: String(e) };
+  }
+}
+
+export async function toggleRagDocument(docId: string): Promise<ActionResult<{ ativo: boolean }>> {
+  try {
+    const doc = await prisma.ragDocumento.findUnique({ where: { id: docId } });
+    if (!doc) return { ok: false, error: 'Documento não encontrado' };
+
+    const updated = await prisma.ragDocumento.update({
+      where: { id: docId },
+      data: { ativo: !doc.ativo },
+    });
+
+    return { ok: true, data: { ativo: updated.ativo } };
+  } catch (e) {
+    return { ok: false, error: String(e) };
+  }
+}
+
+function chunkText(text: string, maxTokens: number): string[] {
+  const words = text.split(/\s+/);
+  const chunks: string[] = [];
+  let currentChunk: string[] = [];
+  let currentLength = 0;
+
+  for (const word of words) {
+    if (currentLength + word.length > maxTokens && currentChunk.length > 0) {
+      chunks.push(currentChunk.join(' '));
+      currentChunk = [word];
+      currentLength = word.length;
+    } else {
+      currentChunk.push(word);
+      currentLength += word.length + 1;
+    }
+  }
+
+  if (currentChunk.length > 0) {
+    chunks.push(currentChunk.join(' '));
+  }
+
+  return chunks.length > 0 ? chunks : [text];
 }
