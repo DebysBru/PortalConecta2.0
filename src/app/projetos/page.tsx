@@ -26,7 +26,6 @@ export default async function ProjetosPage() {
       corPrimaria: true,
       descricao: true,
       destaque: true,
-      inscricoes_abertas: true,
     },
   }), 5 * 60 * 1000);
 

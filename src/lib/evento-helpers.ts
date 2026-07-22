@@ -32,7 +32,7 @@ export async function derivarEventosEdital(editalId: string) {
       titulo: true,
       slug: true,
       inscricao_inicio: true,
-      inscricao_fim: true,
+      dataEncerramento: true,
       dataResultadoParcial: true,
       prazoRecurso: true,
       dataResultadoFinal: true,
@@ -70,11 +70,11 @@ export async function derivarEventosEdital(editalId: string) {
   }
 
   // Fim das inscrições (23:59)
-  if (edital.inscricao_fim) {
+  if (edital.dataEncerramento) {
     eventosParaCriar.push({
       titulo: `Prazo Final — ${edital.titulo}`,
       descricao: `Último dia para inscrição no edital "${edital.titulo}".`,
-      data: paraHorarioSP(edital.inscricao_fim, 'prazo'),
+      data: paraHorarioSP(edital.dataEncerramento, 'prazo'),
       tipo: 'PRAZO_EDITAL',
       editalSlug: edital.slug,
       authorId: edital.authorId,
@@ -135,7 +135,7 @@ export async function derivarEventosProjeto(projetoId: string) {
       id: true,
       nome: true,
       slug: true,
-      inscricoes_abertas: true,
+      status: true,
       inscricao_inicio: true,
       inscricao_fim: true,
       coordenadorEmail: true,
@@ -162,7 +162,7 @@ export async function derivarEventosProjeto(projetoId: string) {
     where: { editalSlug: projeto.slug },
   });
 
-  if (!projeto.inscricoes_abertas) return 0;
+  if (projeto.status !== 'INSCRICOES_ABERTAS') return 0;
 
   const eventosParaCriar: Array<{
     titulo: string;

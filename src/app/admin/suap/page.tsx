@@ -11,6 +11,7 @@ import {
   syncEditaisAction,
   getSuapStatusAction,
 } from '@/actions/suap';
+import { useAuth } from '@/contexts/AuthContext';
 
 // ─── Tipos ─────────────────────────────────────────────────────────────────────
 
@@ -58,6 +59,7 @@ type SyncType = 'projetos' | 'editais';
 // ─── Componente Principal ──────────────────────────────────────────────────────
 
 export default function SuapSyncPage() {
+  const { isMasterAdmin } = useAuth();
   const [statusData, setStatusData] = useState<StatusData | null>(null);
   const [loadingStatus, setLoadingStatus] = useState(true);
   const [syncing, setSyncing] = useState<SyncType | null>(null);
@@ -66,6 +68,15 @@ export default function SuapSyncPage() {
   const [testingConn, setTestingConn] = useState(false);
 
   const [isPending, startTransition] = useTransition();
+
+  if (!isMasterAdmin) {
+    return (
+      <div className="flex flex-col items-center justify-center py-24 gap-3">
+        <AlertCircle className="w-8 h-8 text-red-400" />
+        <p className="text-gray-500">Acesso restrito ao Administrador Master.</p>
+      </div>
+    );
+  }
 
   const fetchStatus = useCallback(async () => {
     try {

@@ -21,7 +21,7 @@ const EMPTY_FORM: EditalFormData = {
 };
 
 export default function AdminEditaisPage() {
-  const { user } = useAuth();
+  const { user, userRole, isMasterAdmin } = useAuth();
   const [editais, setEditais] = useState<Edital[]>([]);
   const [panelOpen, setPanelOpen] = useState(false);
   const [editing, setEditing] = useState<Edital | null>(null);
@@ -30,6 +30,17 @@ export default function AdminEditaisPage() {
   const [error, setError] = useState('');
   const [isPending, startTransition] = useTransition();
   const [generatingAI, setGeneratingAI] = useState(false);
+
+  const isMaster = userRole === 'ADMIN' || isMasterAdmin;
+
+  if (!isMaster) {
+    return (
+      <div className="flex flex-col items-center justify-center py-24 gap-3">
+        <AlertCircle className="w-8 h-8 text-red-400" />
+        <p className="text-gray-500">Acesso restrito a administradores.</p>
+      </div>
+    );
+  }
 
   const load = () => listEditais().then(setEditais).catch(console.error);
   useEffect(() => { load(); }, []);

@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import { Sparkles, Mail, Lock, AlertCircle, User, KeyRound, LogIn, Link2, CheckCircle } from 'lucide-react';
 import { useAuth, type SuapProfile } from '@/contexts/AuthContext';
 import Image from 'next/image';
@@ -453,6 +454,15 @@ export default function AdminLoginPage() {
         <p className="text-white/40 text-xs text-center mt-6">
           Apenas administradores e equipes de projeto autorizados.
         </p>
+
+        <div className="mt-4 text-center space-y-2">
+          <Link href="/esqueci-senha" className="text-white/50 hover:text-white/80 text-xs transition-colors block">
+            Esqueci minha senha
+          </Link>
+          <Link href="/cadastro" className="text-dourado-400 hover:text-dourado-300 text-xs font-semibold block">
+            Criar nova conta
+          </Link>
+        </div>
       </div>
     </div>
   );

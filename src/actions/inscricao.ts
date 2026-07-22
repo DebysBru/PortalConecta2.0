@@ -49,7 +49,6 @@ export async function verificarInscricoesAbertas(projetoId: string) {
       id: true,
       nome: true,
       status: true,
-      inscricoes_abertas: true,
       inscricao_inicio: true,
       inscricao_fim: true,
       vagasBolsista: true,
@@ -59,7 +58,7 @@ export async function verificarInscricoesAbertas(projetoId: string) {
   });
 
   if (!projeto) return { aberto: false, erro: 'Projeto não encontrado' };
-  if (!projeto.inscricoes_abertas && projeto.status !== 'INSCRICOES_ABERTAS') {
+  if (projeto.status !== 'INSCRICOES_ABERTAS') {
     return { aberto: false, erro: 'Inscrições não estão abertas para este projeto' };
   }
 

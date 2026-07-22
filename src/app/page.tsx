@@ -13,17 +13,15 @@ import { ProjetosGrid } from '@/components/sections/ProjetosGrid';
 import { getDashboardStatsAction } from '@/actions/auth';
 import { getAllSiteConfigAction } from '@/actions/site-config';
 import { db } from '@/lib/prisma';
-import { withCache } from '@/lib/cache';
 
 export const dynamic = 'force-dynamic';
-export const revalidate = 300; // Revalidar a cada 5 minutos
 
 export default async function HomePage() {
-  // Buscar dados do banco com cache (5 min TTL)
+  // Buscar dados do banco (cache revalidate a cada 5 min)
   const [stats, siteConfig, editaisDestaque, proximosEventos] = await Promise.all([
-    withCache('home:stats', () => getDashboardStatsAction(), 5 * 60 * 1000),
-    withCache('home:siteConfig', () => getAllSiteConfigAction(), 5 * 60 * 1000),
-    withCache('home:editais', () => db.edital.findMany({
+    getDashboardStatsAction(),
+    getAllSiteConfigAction(),
+    db.edital.findMany({
       where: {
         review_status: 'PUBLICADO',
         deleted_at: null,
@@ -31,34 +29,14 @@ export default async function HomePage() {
       },
       orderBy: { updatedAt: 'desc' },
       take: 3,
-      select: {
-        id: true,
-        titulo: true,
-        slug: true,
-        categoria: true,
-        resumoSimples: true,
-        resumo: true,
-        dataEncerramento: true,
-        inscricao_fim: true,
-        status: true,
-        destaque: true,
-        visualizacoes: true,
-      },
-    }), 5 * 60 * 1000),
-    withCache('home:eventos', () => db.evento.findMany({
+    }),
+    db.evento.findMany({
       where: {
         data: { gte: new Date() },
       },
       orderBy: { data: 'asc' },
       take: 4,
-      select: {
-        id: true,
-        titulo: true,
-        data: true,
-        tipo: true,
-        local: true,
-      },
-    }), 5 * 60 * 1000),
+    }),
   ]);
 
   const statsConfig = [
@@ -121,7 +99,7 @@ export default async function HomePage() {
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             {editaisDestaque.map((edital) => {
-              const daysLeft = edital.inscricao_fim ? getDaysUntil(edital.inscricao_fim) : null;
+              const daysLeft = edital.dataEncerramento ? getDaysUntil(edital.dataEncerramento) : null;
               const isUrgent = daysLeft !== null && daysLeft <= 7 && daysLeft > 0;
 
               return (
@@ -164,10 +142,10 @@ export default async function HomePage() {
                       {edital.resumoSimples || edital.resumo || 'Sem descrição disponível'}
                     </p>
 
-                    {edital.inscricao_fim && (
+                    {edital.dataEncerramento && (
                       <div className="flex items-center gap-1.5 text-xs text-gray-400 mt-auto pt-3 border-t border-gray-50">
                         <Clock className="w-3.5 h-3.5" />
-                        Encerra: {formatDateShort(edital.inscricao_fim)}
+                        Encerra: {formatDateShort(edital.dataEncerramento)}
                       </div>
                     )}
 

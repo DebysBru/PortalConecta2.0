@@ -43,42 +43,42 @@ model VerificationToken {
 }
 
 model User {
-  id                 String               @id @default(cuid())
-  name               String?
-  email              String               @unique
-  emailVerified      DateTime?
-  image              String?
-  role               UserRole             @default(ESTUDANTE)
+  id                  String               @id @default(cuid())
+  name                String?
+  email               String               @unique
+  emailVerified       DateTime?
+  image               String?
+  role                UserRole             @default(ESTUDANTE)
   // Dados de perfil estudante
-  curso              String?
-  turma              String?
-  semestre           String?
-  matricula          String?              @unique
-  phone              String?
+  curso               String?
+  turma               String?
+  semestre            String?
+  matricula           String?              @unique
+  phone               String?
   // Integração SUAP
-  suapUsername       String?              @unique // matrícula SUAP (ex: 20251IVA10030013)
-  suapNome           String? // nome completo do SUAP
-  suapEmail          String? // email institucional SUAP
-  suapFoto           String? // URL da foto do perfil no SUAP
-  googleLinked       Boolean              @default(false)
+  suapUsername        String?              @unique // matrícula SUAP (ex: 20251IVA10030013)
+  suapNome            String? // nome completo do SUAP
+  suapEmail           String? // email institucional SUAP
+  suapFoto            String? // URL da foto do perfil no SUAP
+  googleLinked        Boolean              @default(false)
   // Relações
-  accounts           Account[]
-  sessions           Session[]
-  editais            Edital[]
-  posts              Post[]
-  eventos            Evento[]
-  projetosAdmin      Projeto[]            @relation("ProjectAdmins")
-  permissions        UserPermission[]
-  inscricoes         Inscricao[]
-  coordenadoProjetos ProjectCoordinator[] @relation("Coordinator")
-  createdAt          DateTime             @default(now())
-  updatedAt          DateTime             @default(now()) @updatedAt
-  ChatSessao         ChatSessao[]
-  IaRevisao          IaRevisao[]
-  AuditLog           AuditLog[]
-  alertasInteresse   AlertaInteresse[]
-  favoritos          Favorito[]
-  notificacoes       Notificacao[]
+  accounts            Account[]
+  sessions            Session[]
+  editais             Edital[]
+  posts               Post[]
+  eventos             Evento[]
+  projetosAdmin       Projeto[]            @relation("ProjectAdmins")
+  permissions         UserPermission[]
+  inscricoes          Inscricao[]
+  coordenadoProjetos  ProjectCoordinator[] @relation("Coordinator")
+  createdAt           DateTime             @default(now())
+  updatedAt           DateTime             @default(now()) @updatedAt
+  ChatSessao          ChatSessao[]
+  IaRevisao           IaRevisao[]
+  AuditLog            AuditLog[]
+  alertasInteresse    AlertaInteresse[]
+  favoritos           Favorito[]
+  notificacoes        Notificacao[]
   editalResumoVersoes EditalResumoVersao[]
 }
 
@@ -89,19 +89,18 @@ enum UserRole {
 }
 
 model Edital {
-  id                    String          @id @default(cuid())
-  suapId                Int?            @unique // ID do edital no SUAP
+  id                    String               @id @default(cuid())
+  suapId                Int?                 @unique // ID do edital no SUAP
   suapSyncedAt          DateTime? // Última sincronização com SUAP
   titulo                String
-  slug                  String          @unique
+  slug                  String               @unique
   numero                String? // Ex: "01/2025"
   ano                   Int?
   categoria             CategoriaEdital
   setorResponsavel      String?
   publicoAlvo           String?
-  resumoSimples         String?         @db.Text // "A IFizinha explica" (derivado, revisado)
-  resumoTecnico         String?         @db.Text
-  resumo                String?         @db.Text // Compatibilidade antiga
+  resumoSimples         String?              @db.Text // "A IFizinha explica" (derivado, revisado)
+  resumo                String?              @db.Text // Resumo do edital
   pdfPath               String? // Storage path do PDF original
   pdfFilename           String?
   arquivoPdfUrl         String? // URL para download
@@ -109,7 +108,6 @@ model Edital {
   dataPublicacao        DateTime?
   dataInicio            DateTime? // Data de início das inscrições
   inscricao_inicio      DateTime?
-  inscricao_fim         DateTime?
   dataEncerramento      DateTime?
   dataResultado         DateTime? // Data de divulgação do resultado
   dataResultadoParcial  DateTime?
@@ -117,25 +115,25 @@ model Edital {
   dataResultadoFinal    DateTime?
   localInscricao        String?
   linkInscricao         String?
-  documentosNecessarios Json            @default("[]")
-  criteriosSelecao      String?         @db.Text
-  beneficios            String?         @db.Text
-  quemPode              String?         @db.Text
-  quemNaoPode           String?         @db.Text
+  documentosNecessarios Json                 @default("[]")
+  criteriosSelecao      String?              @db.Text
+  beneficios            String?              @db.Text
+  quemPode              String?              @db.Text
+  quemNaoPode           String?              @db.Text
   contatoDuvidas        String?
-  observacoes           String?         @db.Text
+  observacoes           String?              @db.Text
   fonteOficial          String?
-  status                StatusEdital    @default(EM_BREVE)
-  source                DataSource      @default(MANUAL)
-  review_status         ReviewStatus    @default(RASCUNHO)
+  status                StatusEdital         @default(EM_BREVE)
+  source                DataSource           @default(MANUAL)
+  review_status         ReviewStatus         @default(RASCUNHO)
   extraction_confidence Float? // 0..1, da extração por IA
-  traducaoIFizinha      Json            @default("{}")
-  visualizacoes         Int             @default(0)
-  destaque              Boolean         @default(false)
+  traducaoIFizinha      Json                 @default("{}")
+  visualizacoes         Int                  @default(0)
+  destaque              Boolean              @default(false)
   authorId              String
-  author                User            @relation(fields: [authorId], references: [id])
-  createdAt             DateTime        @default(now())
-  updatedAt             DateTime        @updatedAt
+  author                User                 @relation(fields: [authorId], references: [id])
+  createdAt             DateTime             @default(now())
+  updatedAt             DateTime             @updatedAt
   deleted_at            DateTime?
   tags                  EditalTag[]
   explicacoes           EditalExplicacao[]
@@ -205,7 +203,7 @@ model Projeto {
   alunos                 String?              @db.Text
   observacao             String?              @db.Text
   status                 StatusProjeto        @default(ATIVO)
-  inscricoes_abertas     Boolean              @default(false)
+  inscricoes_abertas     Boolean              @default(false) // coordenador pode abrir/fechar
   inscricao_inicio       DateTime?
   inscricao_fim          DateTime?
   formulario_extra       Json                 @default("[]") // campos complementares do form
@@ -503,10 +501,10 @@ model AuditLog {
 // Tags de projetos (com origem IA vs manual)
 model ProjetoTag {
   projeto_id String
-  projeto    Projeto @relation(fields: [projeto_id], references: [id], onDelete: Cascade)
+  projeto    Projeto    @relation(fields: [projeto_id], references: [id], onDelete: Cascade)
   tag        String
   origem     DataSource @default(MANUAL)
-  aprovada   Boolean @default(false)
+  aprovada   Boolean    @default(false)
 
   @@id([projeto_id, tag])
 }
@@ -535,10 +533,10 @@ model ProjetoFaq {
 // Tags de editais (com origem IA vs manual)
 model EditalTag {
   edital_id String
-  edital    Edital @relation(fields: [edital_id], references: [id], onDelete: Cascade)
+  edital    Edital     @relation(fields: [edital_id], references: [id], onDelete: Cascade)
   tag       String
   origem    DataSource @default(MANUAL)
-  aprovada  Boolean @default(false)
+  aprovada  Boolean    @default(false)
 
   @@id([edital_id, tag])
 }
@@ -547,7 +545,7 @@ model EditalTag {
 model EditalExplicacao {
   id        String  @id @default(cuid())
   edital_id String
-  edital    Edital @relation(fields: [edital_id], references: [id], onDelete: Cascade)
+  edital    Edital  @relation(fields: [edital_id], references: [id], onDelete: Cascade)
   pergunta  String
   resposta  String  @db.Text
   ordem     Int     @default(0)
@@ -558,14 +556,14 @@ model EditalExplicacao {
 
 // Versionamento de resumos do edital
 model EditalResumoVersao {
-  id           String   @id @default(cuid())
+  id           String     @id @default(cuid())
   edital_id    String
-  edital       Edital  @relation(fields: [edital_id], references: [id], onDelete: Cascade)
-  resumo       String   @db.Text
+  edital       Edital     @relation(fields: [edital_id], references: [id], onDelete: Cascade)
+  resumo       String     @db.Text
   gerado_por   DataSource
   revisado_por String?
-  revisor      User?    @relation(fields: [revisado_por], references: [id], onDelete: SetNull)
-  created_at   DateTime @default(now())
+  revisor      User?      @relation(fields: [revisado_por], references: [id], onDelete: SetNull)
+  created_at   DateTime   @default(now())
 
   @@index([edital_id])
 }
@@ -575,7 +573,7 @@ model AlertaInteresse {
   id         String   @id @default(cuid())
   user_id    String
   user       User     @relation(fields: [user_id], references: [id], onDelete: Cascade)
-  canal      String   // 'email' | 'portal' | 'whatsapp'
+  canal      String // 'email' | 'portal' | 'whatsapp'
   categorias String[] @default([])
   ativo      Boolean  @default(true)
   created_at DateTime @default(now())
@@ -586,8 +584,8 @@ model AlertaInteresse {
 // Favoritos do estudante
 model Favorito {
   user_id     String
-  user        User    @relation(fields: [user_id], references: [id], onDelete: Cascade)
-  entidade    String  // 'edital' | 'projeto'
+  user        User     @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  entidade    String // 'edital' | 'projeto'
   entidade_id String
   created_at  DateTime @default(now())
 
@@ -607,4 +605,15 @@ model Notificacao {
 
   @@index([user_id])
   @@index([lida])
+}
+
+// Log de uploads RAG
+model RagUploadLog {
+  id         String   @id @default(cuid())
+  filename   String
+  docId      String
+  status     String   @default("processing") // processing, done, error
+  chunks     Int      @default(0)
+  error      String?  @db.Text
+  created_at DateTime @default(now())
 }

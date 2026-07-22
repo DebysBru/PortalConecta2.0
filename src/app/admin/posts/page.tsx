@@ -49,7 +49,7 @@ function AdminPostsContent() {
   const handleDelete = (id: string) => {
     if (!confirm('Excluir este post?')) return;
     startTransition(async () => {
-      const r = await deletePost(id);
+      const r = await deletePost(id, user?.email ?? undefined, userRole ?? undefined);
       if (r.ok) load(); else setError(r.error);
     });
   };
@@ -57,7 +57,9 @@ function AdminPostsContent() {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault(); setError('');
     startTransition(async () => {
-      const r = editing ? await updatePost(editing.id, form) : await createPost(form, user!.email!);
+      const r = editing
+        ? await updatePost(editing.id, form, user?.email ?? undefined, userRole ?? undefined)
+        : await createPost(form, user?.email ?? '', userRole ?? undefined);
       if (r.ok) { setPanelOpen(false); load(); } else setError(r.error);
     });
   };

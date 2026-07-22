@@ -63,10 +63,10 @@ export default function ProfessorProjetosPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!editing) return;
+    if (!editing || !user?.email) return;
     setError('');
     startTransition(async () => {
-      const result = await updateMyProjeto(editing.id, form);
+      const result = await updateMyProjeto(editing.id, form, user.email ?? undefined);
       if (result.ok) {
         setPanelOpen(false);
         load();

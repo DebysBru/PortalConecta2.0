@@ -15,7 +15,6 @@ export async function GET(request: Request) {
       id: true,
       nome: true,
       status: true,
-      inscricoes_abertas: true,
       inscricao_inicio: true,
       inscricao_fim: true,
       vagasBolsista: true,
@@ -27,8 +26,7 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: 'Projeto não encontrado' }, { status: 404 });
   }
 
-  // Verificar se inscrições estão abertas (pelo flag OU pelo status)
-  const inscricoesAbertas = projeto.inscricoes_abertas || projeto.status === 'INSCRICOES_ABERTAS';
+  const inscricoesAbertas = projeto.status === 'INSCRICOES_ABERTAS';
 
   return NextResponse.json({ projeto: { ...projeto, inscricoes_abertas: inscricoesAbertas } });
 }

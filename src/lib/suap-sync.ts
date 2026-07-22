@@ -9,6 +9,7 @@
  */
 
 import { prisma } from '@/lib/prisma';
+import { cache } from '@/lib/cache';
 import {
   fetchProjetosFromSuap,
   fetchEditaisFromSuap,
@@ -167,6 +168,7 @@ export async function syncProjetos(options?: { dryRun?: boolean }): Promise<Sync
   }
 
   await logSync('projetos', result.erros === 0 ? 'success' : 'partial', result);
+  cache.invalidate('chat:');
   return result;
 }
 
@@ -303,6 +305,7 @@ export async function syncEditais(options?: { dryRun?: boolean }): Promise<SyncR
   }
 
   await logSync('editais', result.erros === 0 ? 'success' : 'partial', result);
+  cache.invalidate('chat:');
   return result;
 }
 

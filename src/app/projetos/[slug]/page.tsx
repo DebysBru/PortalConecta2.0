@@ -91,7 +91,7 @@ export default async function ProjetoPage({ params }: { params: Params }) {
                 <span className="bg-white/20 text-white text-sm font-medium px-3 py-1 rounded-full">
                   {projeto.area}
                 </span>
-                {projeto.inscricoes_abertas && (
+                {projeto.status === 'INSCRICOES_ABERTAS' && (
                   <span className="bg-green-500 text-white text-sm font-medium px-3 py-1 rounded-full">
                     Inscrições Abertas
                   </span>
@@ -333,7 +333,7 @@ export default async function ProjetoPage({ params }: { params: Params }) {
             {/* CTA */}
             <div className="rounded-2xl p-5 text-white" style={{ background: `linear-gradient(135deg, ${projeto.corPrimaria} 0%, ${projeto.corPrimaria}cc 100%)` }}>
               <h3 className="font-bold mb-2">Quer participar?</h3>
-              {(projeto.inscricoes_abertas || projeto.status === 'INSCRICOES_ABERTAS') ? (
+              {projeto.status === 'INSCRICOES_ABERTAS' ? (
                 <>
                   <p className="text-sm text-white/80 mb-4">Inscrições abertas! Preencha o formulário agora.</p>
                   <Link

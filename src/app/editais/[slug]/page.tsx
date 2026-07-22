@@ -42,10 +42,8 @@ export default async function EditalDetalhePage({ params }: { params: { slug: st
       categoria: true,
       resumoSimples: true,
       resumo: true,
-      resumoTecnico: true,
       dataEncerramento: true,
       inscricao_inicio: true,
-      inscricao_fim: true,
       dataResultadoParcial: true,
       prazoRecurso: true,
       dataResultadoFinal: true,
@@ -211,12 +209,12 @@ export default async function EditalDetalhePage({ params }: { params: { slug: st
                 </div>
               </div>
             )}
-            {edital.inscricao_fim && (
+            {edital.dataEncerramento && (
               <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-xl">
                 <div className="w-2 h-2 bg-red-500 rounded-full" />
                 <div>
                   <p className="text-xs text-gray-500">Fim inscrições</p>
-                  <p className="text-sm font-medium text-gray-900">{formatDate(edital.inscricao_fim)}</p>
+                  <p className="text-sm font-medium text-gray-900">{formatDate(edital.dataEncerramento)}</p>
                 </div>
               </div>
             )}
