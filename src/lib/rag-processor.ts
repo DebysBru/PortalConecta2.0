@@ -19,7 +19,7 @@ interface ProcessedDocument {
 
 /**
  * Processa um documento com IA para organizar conteúdo e gerar tags
- * Usa ~500 tokens por documento (muito economico)
+ * Usa ~1000 tokens por documento
  */
 export async function processDocumentWithAI(
   titulo: string,
@@ -30,18 +30,37 @@ export async function processDocumentWithAI(
     return processWithoutAI(titulo, conteudoRaw);
   }
 
-  // Limitar input para economizar tokens (max ~2000 palavras)
+  // Limitar input para ~4000 palavras
   const palavras = conteudoRaw.split(/\s+/);
-  const conteudoLimitado = palavras.slice(0, 2000).join(' ');
+  const conteudoLimitado = palavras.slice(0, 4000).join(' ');
 
-  const prompt = `Analise este documento institucional do IFPR Campus Ivaiporã e retorne um JSON com:
+  const prompt = `Você é um assistente que processa documentos institucionais do IFPR Campus Ivaiporã para alimentar um chatbot.
 
-1. "resumo": Resumo em 2-3 frases do conteudo principal
-2. "tags": Array de 5-10 tags relevantes (minusculas, sem acento, ex: "edital", "bolsa", "inscricao")
-3. "links": Array de URLs encontradas no texto (se houver)
-4. "sections": Array de secoes com titulo, conteudo resumido (2-3 frases) e tags especificas
+Analise o documento abaixo e retorne UM JSON válido com exatamente esta estrutura:
 
-IMPORTANTE: Retorne APENAS o JSON valido, sem texto adicional.
+{
+  "resumo": "Resumo completo e claro do documento em 3-4 frases. Descreva O QUE é o documento, PARA QUE serve e os PONTOS PRINCIPAIS. NÃO corta a frase no meio.",
+  "tags": ["tag1", "tag2", ...],
+  "links": ["url1", "url2", ...],
+  "sections": [
+    {"titulo": "Nome da Seção", "conteudo": "Resumo da seção em 2-3 frases", "tags": ["tag1"]}
+  ]
+}
+
+REGRAS PARA TAGS:
+- Tags devem ser palavras-chave relevantes para BUSCA (minusculas, sem acento)
+- Exemplos bons: "edital", "bolsa", "monitoria", "inscricao", "prazo", "selecao", "requisito"
+- Exemplos ruins: "o", "de", "para", "com" (palavras comuns não servem)
+- Retorne 5-15 tags que realmente ajudem a encontrar este documento
+
+REGRAS PARA SEÇÕES:
+- Identifique as seções principais do documento (títulos, tópicos)
+- Cada seção deve ter um título claro e um resumo
+
+REGRAS GERAIS:
+- NÃO invente informações que não estejam no documento
+- Retorne APENAS o JSON, sem texto antes ou depois
+- O resumo DEVE ser uma frase completa (não termine com "...")
 
 Documento: ${titulo}
 
@@ -58,8 +77,8 @@ ${conteudoLimitado}`;
       body: JSON.stringify({
         model: 'deepseek-chat',
         messages: [{ role: 'user', content: prompt }],
-        temperature: 0.3, // Baixo para respostas consistentes
-        max_tokens: 500, // Limitado para economia
+        temperature: 0.3,
+        max_tokens: 1000,
         response_format: { type: 'json_object' },
       }),
     });

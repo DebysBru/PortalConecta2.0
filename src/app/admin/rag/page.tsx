@@ -466,12 +466,14 @@ export default function AdminRagPage() {
               {/* Conteúdo */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">Conteúdo Extraído</label>
-                <div className="bg-gray-50 rounded-xl p-4 max-h-60 overflow-y-auto">
+                <div className="bg-gray-50 rounded-xl p-4 max-h-96 overflow-y-auto">
                   <pre className="text-sm text-gray-700 whitespace-pre-wrap font-mono">
-                    {selectedDoc.conteudo.slice(0, 3000)}
-                    {selectedDoc.conteudo.length > 3000 && '\n\n... (truncado)'}
+                    {selectedDoc.conteudo}
                   </pre>
                 </div>
+                <p className="text-xs text-gray-400 mt-1">
+                  {selectedDoc.conteudo.length.toLocaleString()} caracteres
+                </p>
               </div>
 
               {/* Chunks */}
