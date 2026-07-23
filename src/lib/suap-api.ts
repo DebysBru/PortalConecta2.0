@@ -74,8 +74,7 @@ async function getSuapTokenFresh(): Promise<string> {
 
   if (!username || !password || password === 'sua-senha-suap-aqui') {
     throw new Error(
-      'SUAP: configure SUAP_USERNAME e SUAP_PASSWORD no .env. ' +
-      'Nota: fora da rede IFPR, o login pode ser bloqueado por IP.'
+      'SUAP: configure um token na página de sincronização ou defina SUAP_USERNAME e SUAP_PASSWORD no .env'
     );
   }
 
@@ -122,7 +121,7 @@ async function getSuapTokenFresh(): Promise<string> {
       `SUAP: credenciais inválidas (${res.status}). ` +
       `Username: "${username}". ` +
       `Detalhe: ${detail}\n` +
-      `Solução: Use um token manual - acesse suap.ifpr.edu.br/api/docs/ → Authorize → POST /api/token/pair`
+      `Solução: Acesse a página de sincronização SUAP e cole um token válido.`
     );
   }
 
@@ -132,11 +131,28 @@ async function getSuapTokenFresh(): Promise<string> {
 }
 
 /**
+ * Lê token salvo na pasta do projeto
+ */
+async function getSavedToken(): Promise<string | null> {
+  try {
+    const { readFile } = await import('fs/promises');
+    const { join } = await import('path');
+    const tokenFile = join(process.cwd(), '.suap-token.json');
+    const data = await readFile(tokenFile, 'utf-8');
+    const { token } = JSON.parse(data);
+    return token;
+  } catch {
+    return null;
+  }
+}
+
+/**
  * Obtém access token JWT para a API do SUAP.
  *
  * Ordem de tentativa:
- *  1. SUAP_API_TOKEN no .env (token colado manualmente — para uso fora da rede IFPR)
- *  2. SUAP_USERNAME + SUAP_PASSWORD via /api/token/pair (funciona na rede IFPR / VPN)
+ *  1. .suap-token.json na pasta do projeto (salvo pela UI)
+ *  2. SUAP_API_TOKEN no .env (token manual)
+ *  3. SUAP_USERNAME + SUAP_PASSWORD via /api/token/pair
  */
 async function getSuapToken(): Promise<string> {
   // ── 1. Token manual (funciona fora da rede IFPR) ────────────────────────────
@@ -206,7 +222,33 @@ async function getSuapToken(): Promise<string> {
 export async function suapGet<T>(path: string): Promise<T> {
   const url = path.startsWith('http') ? path : `${SUAP_BASE}${path}`;
 
-  // Tenta com token manual primeiro
+  // 1. Tentar token salvo via UI
+  const savedToken = await getSavedToken();
+  if (savedToken) {
+    try {
+      const res = await fetch(url, {
+        headers: {
+          Authorization: `Bearer ${savedToken}`,
+          Accept: 'application/json',
+          'User-Agent': BROWSER_UA,
+        },
+        cache: 'no-store',
+      });
+
+      if (res.ok) {
+        return res.json() as T;
+      }
+
+      // Se 401, token expirado
+      if (res.status === 401) {
+        console.log('[SUAP] Token salvo expirado, tentando login automático...');
+      }
+    } catch {
+      // Erro de rede — tenta próximo método
+    }
+  }
+
+  // 2. Tentar token manual do .env
   const manualToken = process.env.SUAP_API_TOKEN;
   if (manualToken && manualToken !== 'cole-seu-token-pessoal-aqui') {
     try {
@@ -223,16 +265,15 @@ export async function suapGet<T>(path: string): Promise<T> {
         return res.json() as T;
       }
 
-      // Se 401, token expirado — tenta login automático
       if (res.status === 401) {
         console.log('[SUAP] Token manual expirado, tentando login automático...');
       }
     } catch {
-      // Erro de rede — tenta login automático
+      // Erro de rede
     }
   }
 
-  // Login automático via username/password
+  // 3. Login automático via username/password
   const token = await getSuapTokenFresh();
 
   const res = await fetch(url, {

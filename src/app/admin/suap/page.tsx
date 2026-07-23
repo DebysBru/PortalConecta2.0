@@ -66,6 +66,9 @@ export default function SuapSyncPage() {
   const [lastResult, setLastResult] = useState<{ type: SyncType; result: SyncResult } | null>(null);
   const [showRaw, setShowRaw] = useState(false);
   const [testingConn, setTestingConn] = useState(false);
+  const [tokenInput, setTokenInput] = useState('');
+  const [savingToken, setSavingToken] = useState(false);
+  const [tokenMessage, setTokenMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
   const [isPending, startTransition] = useTransition();
 
@@ -130,6 +133,41 @@ export default function SuapSyncPage() {
     setTestingConn(true);
     await fetchStatus();
     setTestingConn(false);
+  };
+
+  const handleSaveToken = async () => {
+    if (!tokenInput.trim()) {
+      setTokenMessage({ type: 'error', text: 'Cole o token no campo abaixo' });
+      return;
+    }
+
+    if (!tokenInput.startsWith('eyJ')) {
+      setTokenMessage({ type: 'error', text: 'Token inválido. Deve começar com "eyJ"' });
+      return;
+    }
+
+    setSavingToken(true);
+    try {
+      const response = await fetch('/api/admin/suap/token', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token: tokenInput.trim() }),
+      });
+
+      const result = await response.json();
+
+      if (result.ok) {
+        setTokenMessage({ type: 'success', text: 'Token salvo! Clique em "Testar" para verificar a conexão.' });
+        setTokenInput('');
+        await fetchStatus();
+      } else {
+        setTokenMessage({ type: 'error', text: result.error || 'Erro ao salvar token' });
+      }
+    } catch {
+      setTokenMessage({ type: 'error', text: 'Erro ao salvar token' });
+    } finally {
+      setSavingToken(false);
+    }
   };
 
   const suap = statusData?.suap;
@@ -215,50 +253,113 @@ export default function SuapSyncPage() {
         )}
       </div>
 
-      {/* Guia quando conexão falha (bloqueio de IP fora da rede IFPR) */}
+      {/* Guia quando conexão falha */}
       {configurado && !suap?.conexao?.ok && (
         <div className="bg-blue-50 border border-blue-200 rounded-2xl p-5">
-          <p className="font-semibold text-blue-900 mb-1 flex items-center gap-2">
+          <p className="font-semibold text-blue-900 mb-3 flex items-center gap-2">
             <AlertCircle className="w-4 h-4" />
-            Por que o 403? — Bloqueio de IP da rede IFPR
+            Autenticação SUAP
           </p>
-          <p className="text-sm text-blue-800 mb-3">
-            O SUAP só aceita chamadas de API vindas de dentro da rede IFPR. Fora do campus/VPN,
-            você precisa usar um <strong>token pessoal</strong> obtido diretamente no browser.
+
+          <p className="text-sm text-blue-800 mb-4">
+            O SUAP bloqueia login via API de IPs externos. Você precisa obter um <strong>token pessoal</strong> válido por 24h.
           </p>
-          <p className="text-sm font-semibold text-blue-900 mb-2">Como obter o token (2 minutos):</p>
-          <ol className="text-sm text-blue-800 space-y-2 list-decimal list-inside mb-3">
-            <li>
-              Acesse{' '}
-              <a href="https://suap.ifpr.edu.br/api/docs/" target="_blank" rel="noopener noreferrer"
-                className="underline font-medium">
-                suap.ifpr.edu.br/api/docs/
-              </a>
-              {' '}enquanto logada no SUAP
-            </li>
-            <li>Clique no botão <strong>&quot;Authorize&quot;</strong> (cadeado verde no topo)</li>
-            <li>Na seção <strong>tokenAuth</strong>, clique em <strong>&quot;Try it out&quot;</strong> em <code className="bg-blue-100 px-1 rounded">POST /api/token/pair</code></li>
-            <li>Preencha seu login e senha e clique <strong>Execute</strong></li>
-            <li>Copie o valor do campo <strong>&quot;access&quot;</strong> da resposta (começa com <code className="bg-blue-100 px-1 rounded">eyJ...</code>)</li>
-            <li>
-              Cole no <code className="bg-blue-100 px-1 rounded">.env.local</code>:
-              <pre className="bg-blue-100 rounded-lg p-2 mt-1 text-xs font-mono">{`SUAP_API_TOKEN=eyJ... (cole aqui)`}</pre>
-            </li>
-            <li>Reinicie o servidor e clique Testar novamente</li>
-          </ol>
-          <p className="text-xs text-blue-700">
-            ⚡ Token válido por 24h. Para produção (Vercel), o token username+senha funciona automaticamente
-            pois o Vercel usa IPs que podem ser liberados pelo IFPR.
+
+          {/* Campo para colar o token */}
+          <div className="bg-white rounded-xl p-4 mb-4 border border-blue-200">
+            <label className="block text-sm font-semibold text-gray-700 mb-2">
+              1. Cole seu token aqui:
+            </label>
+            <div className="flex gap-2">
+              <input
+                type="text"
+                value={tokenInput}
+                onChange={(e) => setTokenInput(e.target.value)}
+                placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+                className="flex-1 px-4 py-2 rounded-lg border border-gray-200 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-azul-eletrico"
+              />
+              <button
+                onClick={handleSaveToken}
+                disabled={savingToken || !tokenInput.trim()}
+                className="px-4 py-2 bg-azul-eletrico text-white rounded-lg text-sm font-medium hover:bg-azul-eletrico/90 transition-colors disabled:opacity-50"
+              >
+                {savingToken ? 'Salvando...' : 'Salvar Token'}
+              </button>
+            </div>
+            {tokenMessage && (
+              <p className={`text-xs mt-2 ${tokenMessage.type === 'success' ? 'text-green-600' : 'text-red-600'}`}>
+                {tokenMessage.text}
+              </p>
+            )}
+          </div>
+
+          {/* Instruções para obter o token */}
+          <div className="bg-blue-100/50 rounded-xl p-4">
+            <p className="text-sm font-semibold text-blue-900 mb-2">2. Como obter o token (2 minutos):</p>
+            <ol className="text-sm text-blue-800 space-y-2 list-decimal list-inside">
+              <li>
+                Abra{' '}
+                <a href="https://suap.ifpr.edu.br/api/docs/" target="_blank" rel="noopener noreferrer"
+                  className="underline font-medium hover:text-blue-900">
+                  suap.ifpr.edu.br/api/docs/
+                </a>
+                {' '}em outra aba (precisa estar logado no SUAP)
+              </li>
+              <li>Clique no botão verde <strong>&quot;Authorize&quot;</strong> no topo da página</li>
+              <li>Na seção <strong>tokenAuth</strong>, clique <strong>&quot;Try it out&quot;</strong></li>
+              <li>Preencha:
+                <ul className="ml-6 mt-1 space-y-1 list-disc text-xs">
+                  <li><strong>username:</strong> <code className="bg-blue-100 px-1 rounded">20251IVA10030013</code></li>
+                  <li><strong>password:</strong> <code className="bg-blue-100 px-1 rounded">sua senha do SUAP</code></li>
+                </ul>
+              </li>
+              <li>Clique <strong>&quot;Execute&quot;</strong></li>
+              <li>Copie o valor do campo <strong>&quot;access&quot;</strong> (começa com <code className="bg-blue-100 px-1 rounded">eyJ...</code>)</li>
+              <li>Cole no campo acima e clique <strong>&quot;Salvar Token&quot;</strong></li>
+            </ol>
+          </div>
+
+          <p className="text-xs text-blue-700 mt-3">
+            ⚡ Token válido por 24h. Quando expirar, repita o processo acima.
           </p>
         </div>
       )}
 
       {!configurado && (
         <div className="bg-orange-50 border border-orange-200 rounded-2xl p-5">
-          <p className="font-semibold text-orange-800 mb-2 flex items-center gap-2">
+          <p className="font-semibold text-orange-800 mb-3 flex items-center gap-2">
             <AlertCircle className="w-4 h-4" />
-            Como configurar o SUAP
+            Configure o SUAP
           </p>
+
+          {/* Campo para colar o token */}
+          <div className="bg-white rounded-xl p-4 mb-4 border border-orange-200">
+            <label className="block text-sm font-semibold text-gray-700 mb-2">
+              Cole seu token SUAP:
+            </label>
+            <div className="flex gap-2">
+              <input
+                type="text"
+                value={tokenInput}
+                onChange={(e) => setTokenInput(e.target.value)}
+                placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+                className="flex-1 px-4 py-2 rounded-lg border border-gray-200 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-azul-eletrico"
+              />
+              <button
+                onClick={handleSaveToken}
+                disabled={savingToken || !tokenInput.trim()}
+                className="px-4 py-2 bg-azul-eletrico text-white rounded-lg text-sm font-medium hover:bg-azul-eletrico/90 transition-colors disabled:opacity-50"
+              >
+                {savingToken ? 'Salvando...' : 'Salvar'}
+              </button>
+            </div>
+            {tokenMessage && (
+              <p className={`text-xs mt-2 ${tokenMessage.type === 'success' ? 'text-green-600' : 'text-red-600'}`}>
+                {tokenMessage.text}
+              </p>
+            )}
+          </div>
+
           <ol className="text-sm text-orange-700 space-y-2 list-decimal list-inside">
             <li>
               Acesse{' '}
@@ -266,15 +367,11 @@ export default function SuapSyncPage() {
                 className="underline font-medium">
                 suap.ifpr.edu.br/api/docs/
               </a>
+              (precisa estar logado)
             </li>
-            <li>Use o botão <strong>Authorize</strong> → <code className="bg-orange-100 px-1 rounded">POST /api/token/pair</code> com seu login SUAP</li>
-            <li>Copie o token <strong>&quot;access&quot;</strong> da resposta</li>
-            <li>
-              Adicione ao <code className="bg-orange-100 px-1 rounded">.env.local</code>:
-              <pre className="bg-orange-100 rounded-lg p-3 mt-1 text-xs font-mono whitespace-pre">{
-`SUAP_API_TOKEN=eyJ...seu-token-aqui`}</pre>
-            </li>
-            <li>Reinicie o servidor (<code className="bg-orange-100 px-1 rounded">npm run dev</code>)</li>
+            <li>Clique <strong>&quot;Authorize&quot;</strong> → <code className="bg-orange-100 px-1 rounded">POST /api/token/pair</code></li>
+            <li>Use seu login SUAP → copie o campo <strong>&quot;access&quot;</strong></li>
+            <li>Cole no campo acima e clique &quot;Salvar&quot;</li>
           </ol>
         </div>
       )}
