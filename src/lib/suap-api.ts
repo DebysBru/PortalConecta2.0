@@ -79,6 +79,8 @@ async function getSuapTokenFresh(): Promise<string> {
     );
   }
 
+  console.log(`[SUAP] Tentando login com username: ${username}`);
+
   const res = await fetch(`${SUAP_BASE}/api/token/pair`, {
     method: 'POST',
     headers: {
@@ -89,18 +91,26 @@ async function getSuapTokenFresh(): Promise<string> {
     cache: 'no-store',
   });
 
+  const bodyText = await res.text();
+  console.log(`[SUAP] Resposta login (${res.status}):`, bodyText.slice(0, 500));
+
   if (!res.ok) {
-    const body = await res.text();
-    let detail = body;
+    let detail = bodyText;
     try {
-      const json = JSON.parse(body) as Record<string, unknown>;
-      detail = String(json.detail ?? json.message ?? json.error ?? body);
+      const json = JSON.parse(bodyText) as Record<string, unknown>;
+      detail = String(json.detail ?? json.message ?? json.error ?? bodyText);
     } catch { /* mantém texto */ }
 
     if (res.status === 401) {
       throw new Error(
-        `SUAP: usuário ou senha incorretos (401). Verifique SUAP_USERNAME e SUAP_PASSWORD. ` +
-        `Detalhe: ${detail}`
+        `SUAP: credenciais inválidas (401). ` +
+        `Username usado: "${username}". ` +
+        `Detalhe: ${detail}\n` +
+        `Possíveis causas:\n` +
+        `1. Conta inativa no SUAP\n` +
+        `2. Senha incorreta (verifique em suap.ifpr.edu.br)\n` +
+        `3. Username no formato errado (tente: ${username.replace(/^[^@]+/, '****')})\n` +
+        `Solução: Use um token manual - acesse suap.ifpr.edu.br/api/docs/ → Authorize → POST /api/token/pair`
       );
     }
     if (res.status === 403) {
