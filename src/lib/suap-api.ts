@@ -66,14 +66,64 @@ interface JwtCache {
 let _jwtCache: JwtCache | null = null;
 
 /**
+ * Obtém token via username/password (força login fresco, sem cache)
+ */
+async function getSuapTokenFresh(): Promise<string> {
+  const username = process.env.SUAP_USERNAME;
+  const password = process.env.SUAP_PASSWORD;
+
+  if (!username || !password || password === 'sua-senha-suap-aqui') {
+    throw new Error(
+      'SUAP: configure SUAP_USERNAME e SUAP_PASSWORD no .env. ' +
+      'Nota: fora da rede IFPR, o login pode ser bloqueado por IP.'
+    );
+  }
+
+  const res = await fetch(`${SUAP_BASE}/api/token/pair`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'User-Agent': BROWSER_UA,
+    },
+    body: JSON.stringify({ username, password }),
+    cache: 'no-store',
+  });
+
+  if (!res.ok) {
+    const body = await res.text();
+    let detail = body;
+    try {
+      const json = JSON.parse(body) as Record<string, unknown>;
+      detail = String(json.detail ?? json.message ?? json.error ?? body);
+    } catch { /* mantém texto */ }
+
+    if (res.status === 401) {
+      throw new Error(
+        `SUAP: usuário ou senha incorretos (401). Verifique SUAP_USERNAME e SUAP_PASSWORD. ` +
+        `Detalhe: ${detail}`
+      );
+    }
+    if (res.status === 403) {
+      throw new Error(
+        `SUAP: acesso bloqueado (403) — IP fora da rede IFPR. ` +
+        `Use um token manual: acesse https://suap.ifpr.edu.br/api/docs/ → ` +
+        `Authorize → POST /api/token/pair → copie o campo "access" → cole no .env como SUAP_API_TOKEN`
+      );
+    }
+    throw new Error(`SUAP auth falhou (${res.status}): ${detail}`);
+  }
+
+  const data = await res.json() as { access: string; refresh: string };
+  console.log('[SUAP] Login automático bem-sucedido!');
+  return data.access;
+}
+
+/**
  * Obtém access token JWT para a API do SUAP.
  *
  * Ordem de tentativa:
  *  1. SUAP_API_TOKEN no .env (token colado manualmente — para uso fora da rede IFPR)
  *  2. SUAP_USERNAME + SUAP_PASSWORD via /api/token/pair (funciona na rede IFPR / VPN)
- *
- * NOTA: O nginx do SUAP bloqueia requisições de IPs externos à rede IFPR.
- * Fora do campus/VPN, use SUAP_API_TOKEN com o token copiado do browser.
  */
 async function getSuapToken(): Promise<string> {
   // ── 1. Token manual (funciona fora da rede IFPR) ────────────────────────────
@@ -141,8 +191,36 @@ async function getSuapToken(): Promise<string> {
 // ─── HTTP helpers ─────────────────────────────────────────────────────────────
 
 export async function suapGet<T>(path: string): Promise<T> {
-  const token = await getSuapToken();
   const url = path.startsWith('http') ? path : `${SUAP_BASE}${path}`;
+
+  // Tenta com token manual primeiro
+  const manualToken = process.env.SUAP_API_TOKEN;
+  if (manualToken && manualToken !== 'cole-seu-token-pessoal-aqui') {
+    try {
+      const res = await fetch(url, {
+        headers: {
+          Authorization: `Bearer ${manualToken}`,
+          Accept: 'application/json',
+          'User-Agent': BROWSER_UA,
+        },
+        cache: 'no-store',
+      });
+
+      if (res.ok) {
+        return res.json() as T;
+      }
+
+      // Se 401, token expirado — tenta login automático
+      if (res.status === 401) {
+        console.log('[SUAP] Token manual expirado, tentando login automático...');
+      }
+    } catch {
+      // Erro de rede — tenta login automático
+    }
+  }
+
+  // Login automático via username/password
+  const token = await getSuapTokenFresh();
 
   const res = await fetch(url, {
     headers: {
@@ -286,10 +364,15 @@ export async function testSuapConnection(): Promise<{ ok: boolean; message: stri
       message: `Conectado! ${total} projeto(s) encontrado(s)${campus ? ` — ex: ${campus}` : ''}.`,
     };
   } catch (err) {
-    return {
-      ok: false,
-      message: err instanceof Error ? err.message : 'Erro desconhecido',
-    };
+    const msg = err instanceof Error ? err.message : 'Erro desconhecido';
+    // Melhorar mensagem para 403/401
+    if (msg.includes('403') || msg.includes('bloqueado')) {
+      return {
+        ok: false,
+        message: 'IP bloqueado pelo SUAP. Use um token manual: acesse suap.ifpr.edu.br/api/docs/ → Authorize → POST /api/token/pair → copie "access" → cole no .env como SUAP_API_TOKEN',
+      };
+    }
+    return { ok: false, message: msg };
   }
 }
 
