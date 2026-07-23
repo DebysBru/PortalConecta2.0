@@ -170,7 +170,7 @@ export default function AdminRagPage() {
             className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-xl font-medium text-sm hover:bg-green-700 transition-colors"
           >
             <FileUp className="w-4 h-4" />
-            Upload PDF
+            Upload Documento
           </button>
         </div>
       </div>
@@ -255,7 +255,7 @@ export default function AdminRagPage() {
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-2xl w-full max-w-lg">
             <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
-              <h2 className="font-bold text-gray-900">Upload de PDF</h2>
+              <h2 className="font-bold text-gray-900">Upload de Documento</h2>
               <button onClick={() => setShowPdfUpload(false)} className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-400">
                 <span className="sr-only">Fechar</span>
                 <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -287,11 +287,11 @@ export default function AdminRagPage() {
                 </select>
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Arquivo PDF</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Arquivo</label>
                 <input
                   ref={fileInputRef}
                   type="file"
-                  accept=".pdf"
+                  accept=".pdf,.docx,.doc,.txt,.md"
                   onChange={(e) => setPdfFile(e.target.files?.[0] || null)}
                   className="hidden"
                 />
@@ -303,7 +303,7 @@ export default function AdminRagPage() {
                   {pdfFile ? (
                     <p className="text-sm text-gray-700 font-medium">{pdfFile.name}</p>
                   ) : (
-                    <p className="text-sm text-gray-500">Clique para selecionar um PDF</p>
+                    <p className="text-sm text-gray-500">PDF, DOCX, DOC, TXT ou MD</p>
                   )}
                 </button>
               </div>
@@ -318,7 +318,7 @@ export default function AdminRagPage() {
                 className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-xl text-sm font-medium hover:bg-green-700 transition-colors disabled:opacity-50"
               >
                 <Upload className="w-4 h-4" />
-                {saving ? 'Enviando...' : 'Enviar PDF'}
+                {saving ? 'Enviando...' : 'Enviar'}
               </button>
             </div>
           </div>
