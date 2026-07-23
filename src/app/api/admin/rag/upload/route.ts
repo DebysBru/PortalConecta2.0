@@ -9,9 +9,13 @@ const ALLOWED_TYPES: Record<string, string> = {
   'application/msword': 'doc',
   'text/plain': 'txt',
   'text/markdown': 'md',
+  'text/csv': 'csv',
+  'application/csv': 'csv',
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': 'xlsx',
+  'application/vnd.ms-excel': 'xls',
 };
 
-const ALLOWED_EXTENSIONS = ['.pdf', '.docx', '.doc', '.txt', '.md'];
+const ALLOWED_EXTENSIONS = ['.pdf', '.docx', '.doc', '.txt', '.md', '.csv', '.xlsx', '.xls'];
 
 export async function POST(request: NextRequest) {
   try {
@@ -72,6 +76,25 @@ export async function POST(request: NextRequest) {
       case 'txt':
       case 'md':
         conteudo = buffer.toString('utf-8');
+        break;
+
+      case 'csv':
+      case 'xlsx':
+      case 'xls':
+        const XLSX = require('xlsx');
+        const workbook = XLSX.read(buffer, { type: 'buffer' });
+        const allText: string[] = [];
+
+        for (const sheetName of workbook.SheetNames) {
+          const sheet = workbook.Sheets[sheetName];
+          // Converter para CSV primeiro, depois para texto legível
+          const csvData = XLSX.utils.sheet_to_csv(sheet);
+          if (csvData.trim()) {
+            allText.push(`--- Planilha: ${sheetName} ---\n${csvData}`);
+          }
+        }
+
+        conteudo = allText.join('\n\n');
         break;
     }
 
