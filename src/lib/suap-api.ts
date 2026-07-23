@@ -81,7 +81,8 @@ async function getSuapTokenFresh(): Promise<string> {
 
   console.log(`[SUAP] Tentando login com username: ${username}`);
 
-  const res = await fetch(`${SUAP_BASE}/api/token/pair`, {
+  // Tentar com campo "username"
+  let res = await fetch(`${SUAP_BASE}/api/token/pair`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -91,8 +92,24 @@ async function getSuapTokenFresh(): Promise<string> {
     cache: 'no-store',
   });
 
-  const bodyText = await res.text();
-  console.log(`[SUAP] Resposta login (${res.status}):`, bodyText.slice(0, 500));
+  let bodyText = await res.text();
+  console.log(`[SUAP] Tentativa 1 (username) - Status: ${res.status}`);
+
+  // Se 401, tentar com campo "login"
+  if (!res.ok && res.status === 401) {
+    console.log(`[SUAP] Tentando com campo "login"...`);
+    res = await fetch(`${SUAP_BASE}/api/token/pair`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'User-Agent': BROWSER_UA,
+      },
+      body: JSON.stringify({ login: username, password }),
+      cache: 'no-store',
+    });
+    bodyText = await res.text();
+    console.log(`[SUAP] Tentativa 2 (login) - Status: ${res.status}`);
+  }
 
   if (!res.ok) {
     let detail = bodyText;
@@ -101,26 +118,12 @@ async function getSuapTokenFresh(): Promise<string> {
       detail = String(json.detail ?? json.message ?? json.error ?? bodyText);
     } catch { /* mantém texto */ }
 
-    if (res.status === 401) {
-      throw new Error(
-        `SUAP: credenciais inválidas (401). ` +
-        `Username usado: "${username}". ` +
-        `Detalhe: ${detail}\n` +
-        `Possíveis causas:\n` +
-        `1. Conta inativa no SUAP\n` +
-        `2. Senha incorreta (verifique em suap.ifpr.edu.br)\n` +
-        `3. Username no formato errado (tente: ${username.replace(/^[^@]+/, '****')})\n` +
-        `Solução: Use um token manual - acesse suap.ifpr.edu.br/api/docs/ → Authorize → POST /api/token/pair`
-      );
-    }
-    if (res.status === 403) {
-      throw new Error(
-        `SUAP: acesso bloqueado (403) — IP fora da rede IFPR. ` +
-        `Use um token manual: acesse https://suap.ifpr.edu.br/api/docs/ → ` +
-        `Authorize → POST /api/token/pair → copie o campo "access" → cole no .env como SUAP_API_TOKEN`
-      );
-    }
-    throw new Error(`SUAP auth falhou (${res.status}): ${detail}`);
+    throw new Error(
+      `SUAP: credenciais inválidas (${res.status}). ` +
+      `Username: "${username}". ` +
+      `Detalhe: ${detail}\n` +
+      `Solução: Use um token manual - acesse suap.ifpr.edu.br/api/docs/ → Authorize → POST /api/token/pair`
+    );
   }
 
   const data = await res.json() as { access: string; refresh: string };
