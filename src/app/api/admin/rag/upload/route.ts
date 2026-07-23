@@ -35,27 +35,11 @@ export async function POST(request: NextRequest) {
         reject(new Error('Erro ao parse PDF'));
       });
 
-      pdfParser.on('pdfParser_dataReady', (pdfData: { Pages?: Array<{ Texts?: Array<{ R?: Array<{ T?: string }> }> }> }) => {
-        const textParts: string[] = [];
-        if (pdfData.Pages) {
-          for (const page of pdfData.Pages) {
-            if (page.Texts) {
-              for (const text of page.Texts) {
-                if (text.R) {
-                  for (const r of text.R) {
-                    if (r.T) {
-                      // Decodificar URL encoding
-                      textParts.push(decodeURIComponent(r.T));
-                    }
-                  }
-                }
-              }
-              textParts.push('\n'); // Quebra de página
-            }
-          }
-        }
-        console.log('PDF parsed:', { pages: pdfData.Pages?.length, textLength: textParts.join(' ').length });
-        resolve(textParts.join(' '));
+      pdfParser.on('pdfParser_dataReady', () => {
+        // Usar getRawTextContent que funciona melhor
+        const rawText = pdfParser.getRawTextContent();
+        console.log('PDF raw text length:', rawText?.length);
+        resolve(rawText || '');
       });
 
       pdfParser.parseBuffer(buffer);
@@ -63,10 +47,10 @@ export async function POST(request: NextRequest) {
 
     const numPages = 1;
 
-    console.log('PDF content check:', { length:conteudo.length, trimmed: conteudo.trim().length });
+    console.log('PDF content check:', { length: conteudo.length, trimmed: conteudo.trim().length, sample: JSON.stringify(conteudo.slice(0, 200)) });
 
     if (!conteudo || conteudo.trim().length === 0) {
-      return NextResponse.json({ error: 'Não foi possível extrair texto do PDF', debug: { length: conteudo.length } }, { status: 400 });
+      return NextResponse.json({ error: 'Não foi possível extrair texto do PDF (pode ser imagem/scanned)', debug: { length: conteudo.length, sample: conteudo.slice(0, 50) } }, { status: 400 });
     }
 
     // Gerar hash para idempotência
