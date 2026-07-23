@@ -409,7 +409,7 @@ export default function AdminRagPage() {
                   {selectedDoc.tipo}
                 </span>
                 <span className="text-sm text-gray-500">
-                  {selectedDoc._count.chunks} chunks
+                  {selectedDoc.chunks?.length || 0} chunks
                 </span>
               </div>
 
