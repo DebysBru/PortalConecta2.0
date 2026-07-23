@@ -11,12 +11,12 @@ export async function POST(request: NextRequest) {
     const tipo = formData.get('tipo') as string;
 
     if (!file || !titulo) {
-      return NextResponse.json({ error: 'Arquivo e título são obrigatórios' }, { status: 400 });
+      return NextResponse.json({ error: 'Arquivo e título são obrigatórios', debug: { hasFile: !!file, titulo } }, { status: 400 });
     }
 
     // Validar tipo de arquivo
     if (file.type !== 'application/pdf') {
-      return NextResponse.json({ error: 'Apenas arquivos PDF são aceitos' }, { status: 400 });
+      return NextResponse.json({ error: 'Apenas arquivos PDF são aceitos', debug: { type: file.type } }, { status: 400 });
     }
 
     // Ler o arquivo
@@ -31,6 +31,7 @@ export async function POST(request: NextRequest) {
       const pdfParser = new PDFParser();
 
       pdfParser.on('pdfParser_dataError', (errData: unknown) => {
+        console.error('PDF parse error:', errData);
         reject(new Error('Erro ao parse PDF'));
       });
 
@@ -53,16 +54,19 @@ export async function POST(request: NextRequest) {
             }
           }
         }
+        console.log('PDF parsed:', { pages: pdfData.Pages?.length, textLength: textParts.join(' ').length });
         resolve(textParts.join(' '));
       });
 
       pdfParser.parseBuffer(buffer);
     });
 
-    const numPages = 1; // pdf2json não retorna easily, mas funciona
+    const numPages = 1;
+
+    console.log('PDF content check:', { length:conteudo.length, trimmed: conteudo.trim().length });
 
     if (!conteudo || conteudo.trim().length === 0) {
-      return NextResponse.json({ error: 'Não foi possível extrair texto do PDF' }, { status: 400 });
+      return NextResponse.json({ error: 'Não foi possível extrair texto do PDF', debug: { length: conteudo.length } }, { status: 400 });
     }
 
     // Gerar hash para idempotência

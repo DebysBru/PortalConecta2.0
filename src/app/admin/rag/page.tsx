@@ -110,6 +110,7 @@ export default function AdminRagPage() {
       });
 
       const result = await response.json();
+      console.log('RAG upload response:', result);
 
       if (result.ok) {
         setPdfForm({ titulo: '', tipo: 'outro' });
@@ -117,7 +118,9 @@ export default function AdminRagPage() {
         setShowPdfUpload(false);
         await loadDocs();
       } else {
-        setError(result.error || 'Erro ao enviar PDF');
+        const errorMsg = result.error || 'Erro ao enviar PDF';
+        const debugInfo = result.debug ? ` (${JSON.stringify(result.debug)})` : '';
+        setError(errorMsg + debugInfo);
       }
     } catch (e) {
       setError('Erro ao enviar arquivo');
