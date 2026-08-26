@@ -4,6 +4,7 @@ import './globals.css';
 import { AuthProvider } from '@/contexts/AuthContext';
 import { PublicWrapper } from '@/components/layout/PublicWrapper';
 import { ChatWidget } from '@/components/chat/ChatWidget';
+import { Providers } from './providers';
 
 const inter = Inter({ subsets: ['latin'], variable: '--font-inter' });
 
@@ -29,10 +30,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="pt-BR">
       <body className={`${inter.variable} font-sans antialiased flex flex-col min-h-screen`}>
-        <AuthProvider>
+        <Providers>
           <PublicWrapper>{children}</PublicWrapper>
           <ChatWidget />
-        </AuthProvider>
+        </Providers>
       </body>
     </html>
   );

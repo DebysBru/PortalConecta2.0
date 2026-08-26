@@ -45,14 +45,17 @@ export default function EsqueciSenhaPage() {
     setSuccess('');
     setSubmitting(true);
 
+    // Mensagem de sucesso sempre igual, exista ou não conta com esse e-mail —
+    // revelar "não encontramos uma conta" permite enumerar quais e-mails
+    // estão cadastrados no sistema (achado S16).
     try {
       await sendPasswordResetEmail(auth, email, {
         url: `${window.location.origin}/admin/login`,
       });
-      setSuccess('E-mail de recuperação enviado! Verifique sua caixa de entrada.');
+      setSuccess('Se existir uma conta com este e-mail, você vai receber um link de recuperação em instantes. Verifique sua caixa de entrada.');
     } catch (err: any) {
       if (err.code === 'auth/user-not-found') {
-        setError('Não encontramos uma conta com este e-mail.');
+        setSuccess('Se existir uma conta com este e-mail, você vai receber um link de recuperação em instantes. Verifique sua caixa de entrada.');
       } else if (err.code === 'auth/invalid-email') {
         setError('E-mail inválido.');
       } else {

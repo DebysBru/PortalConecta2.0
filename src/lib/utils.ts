@@ -104,3 +104,46 @@ export function getCategoryColor(categoria: string): string {
   };
   return colors[categoria] ?? 'bg-gray-100 text-gray-600';
 }
+
+/**
+ * Traduz erros do Prisma para mensagens amigáveis ao usuário
+ */
+export function translatePrismaError(error: unknown): string {
+  const msg = String(error);
+
+  // Erros de constraint/unique
+  if (msg.includes('Unique constraint') || msg.includes('unique constraint')) {
+    if (msg.includes('email')) return 'Este e-mail já está cadastrado.';
+    if (msg.includes('slug')) return 'Já existe um registro com este nome.';
+    if (msg.includes('protocolo')) return 'Erro ao gerar protocolo. Tente novamente.';
+    return 'Já existe um registro com estes dados.';
+  }
+
+  // Erros de foreign key
+  if (msg.includes('Foreign key constraint') || msg.includes('foreign key constraint')) {
+    return 'Não é possível excluir: existem dados vinculados a este registro.';
+  }
+
+  // Erros de record not found
+  if (msg.includes('Record to delete does not exist') || msg.includes('Record to update does not exist')) {
+    return 'Registro não encontrado. Pode ter sido excluído por outro usuário.';
+  }
+
+  // Erros de conexão
+  if (msg.includes('Connection refused') || msg.includes('ECONNREFUSED')) {
+    return 'Erro de conexão com o servidor. Tente novamente em alguns instantes.';
+  }
+
+  // Erros de timeout
+  if (msg.includes('Timeout') || msg.includes('ETIMEDOUT')) {
+    return 'Tempo limite excedido. Tente novamente.';
+  }
+
+  // Erros de validação do Prisma
+  if (msg.includes('Invalid value')) {
+    return 'Dados inválidos. Verifique os campos preenchidos.';
+  }
+
+  // Erro genérico
+  return 'Erro interno. Tente novamente ou entre em contato com o suporte.';
+}

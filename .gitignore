@@ -43,3 +43,6 @@ prisma/generated
 # IDE
 .vscode/
 .idea/
+
+# agent-local MCP config (contains SUPABASE_ACCESS_TOKEN in plaintext)
+.agents/mcp_config.json

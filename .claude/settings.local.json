@@ -16,5 +16,8 @@
       "Bash(dir src\\\\app\\\\api\\\\auth /b)",
       "mcp__2f3ed6b8-d860-4005-a0a6-3f3f903655e0__execute_sql"
     ]
-  }
+  },
+  "enabledMcpjsonServers": [
+    "supabase"
+  ]
 }

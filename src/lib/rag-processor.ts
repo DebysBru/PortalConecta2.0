@@ -114,7 +114,7 @@ ${conteudoLimitado}`;
 function processWithoutAI(titulo: string, conteudo: string): ProcessedDocument {
   // Extrair links
   const urlRegex = /https?:\/\/[^\s]+/g;
-  const links = [...new Set(conteudo.match(urlRegex) || [])];
+  const links = Array.from(new Set(conteudo.match(urlRegex) || []));
 
   // Gerar tags por palavras-chave
   const palavrasChave = [
@@ -143,7 +143,7 @@ function processWithoutAI(titulo: string, conteudo: string): ProcessedDocument {
 
   return {
     resumo: paragrafos[0]?.slice(0, 200) || titulo,
-    tags: [...new Set(tags)].slice(0, 10),
+    tags: Array.from(new Set(tags)).slice(0, 10),
     links,
     sections,
   };

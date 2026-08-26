@@ -1,13 +1,23 @@
 'use server';
 
 import { prisma } from '@/lib/prisma';
+import { translatePrismaError } from '@/lib/utils';
+import { verifySessionToken } from '@/lib/auth-helpers';
 
 /**
- * Busca inscrições de um estudante por email
+ * Busca inscrições do estudante logado.
+ * `idToken` é o ID token do Firebase (`user.getIdToken()` no cliente),
+ * verificado no servidor via `verifySessionToken` — antes esta função
+ * recebia um `email` comum e confiava nele (achado S3 do RELATORIO_TESTES.md:
+ * qualquer chamada direta podia passar o e-mail de outra pessoa e ler suas
+ * inscrições).
  */
-export async function getMinhasInscricoes(email: string) {
+export async function getMinhasInscricoes(idToken: string) {
+  const auth = await verifySessionToken(idToken);
+  if (!auth.ok) return [];
+
   const inscricoes = await prisma.inscricao.findMany({
-    where: { email },
+    where: { email: auth.email },
     orderBy: { created_at: 'desc' },
     select: {
       id: true,
@@ -38,11 +48,16 @@ export async function getMinhasInscricoes(email: string) {
 }
 
 /**
- * Exporta inscrições do estudante em CSV
+ * Exporta inscrições do estudante logado em CSV
  */
-export async function exportMinhasInscricoesCSV(email: string): Promise<string> {
+export async function exportMinhasInscricoesCSV(idToken: string): Promise<string> {
+  const headers = ['Protocolo', 'Projeto', 'Tipo Interesse', 'Status', 'Data'];
+
+  const auth = await verifySessionToken(idToken);
+  if (!auth.ok) return headers.join(',');
+
   const inscricoes = await prisma.inscricao.findMany({
-    where: { email },
+    where: { email: auth.email },
     orderBy: { created_at: 'desc' },
     select: {
       protocolo: true,
@@ -53,7 +68,6 @@ export async function exportMinhasInscricoesCSV(email: string): Promise<string> 
     },
   });
 
-  const headers = ['Protocolo', 'Projeto', 'Tipo Interesse', 'Status', 'Data'];
   const rows = inscricoes.map((i) => [
     i.protocolo,
     i.projeto.nome,
@@ -67,14 +81,17 @@ export async function exportMinhasInscricoesCSV(email: string): Promise<string> 
 }
 
 /**
- * Solicita exclusão de dados (LGPD)
+ * Solicita exclusão de dados (LGPD) do estudante logado
  * Marca inscrições como "desistente" (não deleta por audit trail)
  */
-export async function solicitarExclusaoDados(email: string, motivo?: string) {
+export async function solicitarExclusaoDados(idToken: string, motivo?: string) {
+  const auth = await verifySessionToken(idToken);
+  if (!auth.ok) return { ok: false, error: auth.error };
+
   try {
     // Atualizar todas as inscrições do usuário para desistente
     const result = await prisma.inscricao.updateMany({
-      where: { email },
+      where: { email: auth.email },
       data: {
         status: 'desistente',
         observacao_interna: `Exclusão solicitada via "Meus dados" em ${new Date().toLocaleDateString('pt-BR')}${motivo ? `. Motivo: ${motivo}` : ''}`,
@@ -87,7 +104,7 @@ export async function solicitarExclusaoDados(email: string, motivo?: string) {
         acao: 'solicitacao_exclusao_dados',
         entidade: 'inscricao',
         detalhes: {
-          email,
+          email: auth.email,
           inscricoes_afetadas: result.count,
           motivo: motivo || 'Não informado',
         },
@@ -96,6 +113,6 @@ export async function solicitarExclusaoDados(email: string, motivo?: string) {
 
     return { ok: true, count: result.count };
   } catch (e) {
-    return { ok: false, error: String(e) };
+    return { ok: false, error: translatePrismaError(e) };
   }
 }

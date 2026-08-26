@@ -1,5 +1,32 @@
 import { db } from '@/lib/prisma';
 import { UserRole } from '@prisma/client';
+import { getAdminAuth } from '@/lib/firebase-admin';
+
+/**
+ * Verifica o ID token do Firebase no servidor (via firebase-admin) e retorna
+ * o e-mail/uid REAIS do dono da sessão — nunca um valor que o cliente afirma
+ * ser seu.
+ *
+ * Antes desta função, várias actions de autoatendimento (`meus-dados.ts`,
+ * `perfil.ts`) recebiam um `email`/`userId` como parâmetro comum e confiavam
+ * nele — qualquer chamada direta à Server Action podia passar o e-mail de
+ * outra pessoa e ler/exportar/excluir os dados dela (achados S3/S18/S20/S26
+ * do RELATORIO_TESTES.md). Isso não é "só" checar um papel (como
+ * `requireAdminEmail` faz em outros arquivos) — é provar posse da conta, o
+ * que exige verificar a assinatura do token, não só olhar um campo de texto.
+ */
+export async function verifySessionToken(
+  idToken?: string
+): Promise<{ ok: true; uid: string; email: string } | { ok: false; error: string }> {
+  if (!idToken) return { ok: false, error: 'Não autenticado' };
+  try {
+    const decoded = await getAdminAuth().verifyIdToken(idToken);
+    if (!decoded.email) return { ok: false, error: 'Sessão sem e-mail associado' };
+    return { ok: true, uid: decoded.uid, email: decoded.email };
+  } catch {
+    return { ok: false, error: 'Sessão inválida ou expirada — faça login novamente' };
+  }
+}
 
 /**
  * Determina o papel de um usuário baseado em seus dados

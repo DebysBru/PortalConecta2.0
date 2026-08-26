@@ -10,6 +10,7 @@
 
 import { prisma } from '@/lib/prisma';
 import { cache } from '@/lib/cache';
+import { sincronizarProjetoSintetico } from '@/lib/projeto-sintetico';
 import {
   fetchProjetosFromSuap,
   fetchEditaisFromSuap,
@@ -152,13 +153,22 @@ export async function syncProjetos(options?: { dryRun?: boolean }): Promise<Sync
       };
 
       if (existente) {
+        // Não seta review_status aqui: se um admin já revisou/despublicou
+        // manualmente este projeto, um re-sync não deve sobrescrever essa
+        // decisão silenciosamente.
         await prisma.projeto.update({ where: { suapId: sp.id }, data });
         result.atualizados++;
         result.detalhes.push(`🔄 Atualizado: "${nome}" (SUAP ID: ${sp.id})`);
+        await sincronizarProjetoSintetico(existente.id).catch(console.error);
       } else {
-        await prisma.projeto.create({ data });
+        // Projeto novo vindo do SUAP: publica direto — não existe hoje um
+        // fluxo de moderação para o admin revisar antes (lacuna documentada
+        // na Etapa 5/10 do plano RAG), então deixar em RASCUNHO faria o
+        // projeto nunca aparecer em lugar nenhum do site.
+        const criado = await prisma.projeto.create({ data: { ...data, review_status: 'PUBLICADO' } });
         result.criados++;
         result.detalhes.push(`➕ Criado: "${nome}" (SUAP ID: ${sp.id})`);
+        await sincronizarProjetoSintetico(criado.id).catch(console.error);
       }
     } catch (err) {
       result.erros++;
@@ -289,11 +299,13 @@ export async function syncEditais(options?: { dryRun?: boolean }): Promise<SyncR
       };
 
       if (existente) {
+        // Não seta review_status aqui — preserva decisão manual de moderação
+        // já feita por um admin (mesmo raciocínio de syncProjetos).
         await prisma.edital.update({ where: { suapId: se.id }, data });
         result.atualizados++;
         result.detalhes.push(`🔄 Atualizado: "${titulo}" (SUAP ID: ${se.id})`);
       } else {
-        await prisma.edital.create({ data });
+        await prisma.edital.create({ data: { ...data, review_status: 'PUBLICADO' } });
         result.criados++;
         result.detalhes.push(`➕ Criado: "${titulo}" (SUAP ID: ${se.id})`);
       }

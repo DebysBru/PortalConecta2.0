@@ -51,7 +51,7 @@ type AuthState = {
 
 const AuthContext = createContext<AuthState | null>(null);
 
-const MASTER_ADMIN_EMAIL = process.env.ADMIN_EMAILS?.split(',')[0]?.trim() || 'bru.mkt2024@gmail.com';
+const MASTER_ADMIN_EMAIL = process.env.ADMIN_EMAILS?.split(',')[0]?.trim();
 
 // ── Helper: extrai e-mail do usuário Firebase (inclui claims de custom token) ──
 async function extractEmail(firebaseUser: FirebaseUser): Promise<string | null> {
@@ -76,6 +76,23 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
       setUser(firebaseUser);
+
+      // Sincroniza o cookie de sessão server-side (src/lib/session.ts) a
+      // cada mudança de estado — login, logout, refresh de token. É o que
+      // permite `admin/layout.tsx`/`professor/layout.tsx` verificarem quem
+      // está logado ANTES de renderizar, em vez de só no client (achado S9).
+      if (firebaseUser) {
+        try {
+          const idToken = await firebaseUser.getIdToken();
+          await fetch('/api/auth/session', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ idToken }),
+          });
+        } catch { /* não bloqueia o login se a criação do cookie falhar */ }
+      } else {
+        fetch('/api/auth/session', { method: 'DELETE' }).catch(() => {});
+      }
 
       if (firebaseUser) {
         const email = await extractEmail(firebaseUser);

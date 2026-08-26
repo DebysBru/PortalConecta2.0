@@ -1,24 +1,39 @@
 'use server';
 
 import { prisma } from '@/lib/prisma';
-import { slugify } from '@/lib/utils';
+import { slugify, translatePrismaError } from '@/lib/utils';
 import { cache } from '@/lib/cache';
 import { derivarEventosEdital, derivarEventosProjeto } from '@/lib/evento-helpers';
 import { LIMPEZA_TABLES } from '@/lib/limpeza-tables';
+import { sincronizarProjetoSintetico, removerProjetoSintetico } from '@/lib/projeto-sintetico';
 import {
   CategoriaEdital, StatusEdital, StatusProjeto, StatusPost,
   TipoEvento, UserRole,
 } from '@prisma/client';
 
-const MASTER_ADMIN_EMAIL = process.env.ADMIN_EMAILS?.split(',')[0]?.trim() || 'bru.mkt2024@gmail.com';
+const MASTER_ADMIN_EMAIL = process.env.ADMIN_EMAILS?.split(',')[0]?.trim();
 
 type ActionResult<T = void> = { ok: true; data?: T } | { ok: false; error: string };
+
+/**
+ * Checagem de autorização no servidor — a maioria das actions deste arquivo
+ * não tinha nenhuma (achado S1 do RELATORIO_TESTES.md, confirmado em revisão
+ * de segurança em 2026-08-26): qualquer chamada direta à Server Action, sem
+ * passar pela UI, conseguia criar/editar/excluir projetos, editais e eventos.
+ * Mesmo padrão já usado em `src/actions/rag.ts`.
+ */
+async function requireAdminEmail(email?: string): Promise<{ ok: true } | { ok: false; error: string }> {
+  if (!email) return { ok: false, error: 'Não autenticado' };
+  const user = await prisma.user.findUnique({ where: { email }, select: { role: true } });
+  if (user?.role !== 'ADMIN') return { ok: false, error: 'Acesso negado: apenas administradores' };
+  return { ok: true };
+}
 
 // ── Auth helpers ──────────────────────────────────────────────────────────────
 
 export async function getUserRole(email: string): Promise<UserRole | null> {
   if (!email) return null;
-  if (email === MASTER_ADMIN_EMAIL) {
+  if (MASTER_ADMIN_EMAIL && email === MASTER_ADMIN_EMAIL) {
     await prisma.user.upsert({
       where: { email },
       update: { role: 'ADMIN' },
@@ -34,7 +49,7 @@ export async function ensureUser(email: string, name?: string): Promise<{ id: st
   const user = await prisma.user.upsert({
     where: { email },
     update: name ? { name } : {},
-    create: { email, name: name ?? email, role: email === MASTER_ADMIN_EMAIL ? 'ADMIN' : 'ESTUDANTE' },
+    create: { email, name: name ?? email, role: MASTER_ADMIN_EMAIL && email === MASTER_ADMIN_EMAIL ? 'ADMIN' : 'ESTUDANTE' },
   });
   return { id: user.id, role: user.role };
 }
@@ -85,6 +100,25 @@ export async function createEdital(
   authorEmail: string,
 ): Promise<ActionResult<{ id: string; slug: string }>> {
   try {
+    const auth = await requireAdminEmail(authorEmail);
+    if (!auth.ok) return auth;
+
+    // Server-side validation
+    const titulo = data.titulo?.trim();
+    const resumo = data.resumo?.trim();
+    if (!titulo || titulo.length < 2) {
+      return { ok: false, error: 'Título do edital é obrigatório (mínimo 2 caracteres)' };
+    }
+    if (!resumo) {
+      return { ok: false, error: 'Resumo é obrigatório' };
+    }
+    if (!data.dataEncerramento) {
+      return { ok: false, error: 'Data de encerramento é obrigatória' };
+    }
+    if (!data.linkOficial?.trim()) {
+      return { ok: false, error: 'Link oficial é obrigatório' };
+    }
+
     const author = await ensureUser(authorEmail);
     const slug = slugify(data.titulo);
     const edital = await prisma.edital.create({
@@ -100,6 +134,12 @@ export async function createEdital(
         destaque: data.destaque ?? false,
         traducaoIFizinha: data.traducaoIFizinha,
         authorId: author.id,
+        // Um admin preenchendo o formulário inteiro no painel já está
+        // publicando o edital — não existe hoje um fluxo de rascunho/revisão
+        // no admin, então deixar em RASCUNHO (default do schema) faria o
+        // edital nunca aparecer em lugar nenhum do site sem nenhuma pista do
+        // motivo (lacuna real encontrada e documentada na Etapa 5 do RAG).
+        review_status: 'PUBLICADO',
       },
     });
 
@@ -109,15 +149,19 @@ export async function createEdital(
 
     return { ok: true, data: { id: edital.id, slug: edital.slug } };
   } catch (e) {
-    return { ok: false, error: String(e) };
+    return { ok: false, error: translatePrismaError(e) };
   }
 }
 
 export async function updateEdital(
   id: string,
   data: Partial<EditalFormData>,
+  callerEmail: string,
 ): Promise<ActionResult> {
   try {
+    const auth = await requireAdminEmail(callerEmail);
+    if (!auth.ok) return auth;
+
     await prisma.edital.update({
       where: { id },
       data: {
@@ -133,17 +177,41 @@ export async function updateEdital(
 
     return { ok: true };
   } catch (e) {
-    return { ok: false, error: String(e) };
+    return { ok: false, error: translatePrismaError(e) };
   }
 }
 
-export async function deleteEdital(id: string): Promise<ActionResult> {
+/** Publica/despublica um edital (ADMIN apenas) — alterna `review_status` entre PUBLICADO e RASCUNHO. */
+export async function toggleEditalPublicacao(id: string, callerEmail: string): Promise<ActionResult<{ review_status: string }>> {
   try {
+    const caller = await prisma.user.findUnique({ where: { email: callerEmail }, select: { role: true } });
+    if (caller?.role !== 'ADMIN') {
+      return { ok: false, error: 'Acesso negado: apenas administradores podem publicar/despublicar' };
+    }
+
+    const edital = await prisma.edital.findUnique({ where: { id }, select: { review_status: true } });
+    if (!edital) return { ok: false, error: 'Edital não encontrado' };
+
+    const review_status = edital.review_status === 'PUBLICADO' ? 'RASCUNHO' : 'PUBLICADO';
+    await prisma.edital.update({ where: { id }, data: { review_status } });
+    cache.invalidate('chat:');
+
+    return { ok: true, data: { review_status } };
+  } catch (e) {
+    return { ok: false, error: translatePrismaError(e) };
+  }
+}
+
+export async function deleteEdital(id: string, callerEmail: string): Promise<ActionResult> {
+  try {
+    const auth = await requireAdminEmail(callerEmail);
+    if (!auth.ok) return auth;
+
     await prisma.edital.delete({ where: { id } });
     cache.invalidate('chat:');
     return { ok: true };
   } catch (e) {
-    return { ok: false, error: String(e) };
+    return { ok: false, error: translatePrismaError(e) };
   }
 }
 
@@ -179,9 +247,42 @@ export async function listProjetos(userEmail?: string, userRole?: string) {
   });
 }
 
+/**
+ * Revoga a promoção automática a PROFESSOR de quem não administra/coordena
+ * mais nenhum projeto — sem isso, `syncProjectAdmins` promove ao adicionar
+ * mas nunca rebaixa ao remover, virando uma escalada de privilégio
+ * permanente (a pessoa continua com acesso a todo o painel /professor
+ * mesmo depois de removida de todo mundo). Nunca mexe em ADMIN.
+ */
+async function revogarProfessorSeSemProjetos(email: string) {
+  const user = await prisma.user.findUnique({ where: { email }, select: { id: true, role: true } });
+  if (!user || user.role !== 'PROFESSOR') return;
+
+  const aindaAdministraAlgo = await prisma.projeto.findFirst({
+    where: {
+      OR: [
+        { admins: { some: { id: user.id } } },
+        { coordenadorEmail: email },
+        { coordenadores: { some: { user_id: user.id } } },
+      ],
+    },
+    select: { id: true },
+  });
+
+  if (!aindaAdministraAlgo) {
+    await prisma.user.update({ where: { id: user.id }, data: { role: 'ESTUDANTE' } });
+  }
+}
+
 async function syncProjectAdmins(projetoId: string, emailsStr: string) {
   const emails = emailsStr.split(',').map(e => e.trim().toLowerCase()).filter(Boolean);
-  
+
+  const projetoAntes = await prisma.projeto.findUnique({
+    where: { id: projetoId },
+    select: { admins: { select: { email: true } } },
+  });
+  const emailsAntigos = projetoAntes?.admins.map((a) => a.email) ?? [];
+
   for (const email of emails) {
     const user = await prisma.user.findUnique({ where: { email } });
     if (!user) {
@@ -199,11 +300,33 @@ async function syncProjectAdmins(projetoId: string, emailsStr: string) {
       }
     }
   });
+
+  const removidos = emailsAntigos.filter((email) => !emails.includes(email));
+  for (const email of removidos) {
+    await revogarProfessorSeSemProjetos(email);
+  }
 }
 
-export async function createProjeto(data: ProjetoFormData): Promise<ActionResult<{ id: string; slug: string }>> {
+export async function createProjeto(data: ProjetoFormData, callerEmail: string): Promise<ActionResult<{ id: string; slug: string }>> {
   try {
-    const slug = slugify(data.nome);
+    const auth = await requireAdminEmail(callerEmail);
+    if (!auth.ok) return auth;
+
+    // Server-side validation
+    const nome = data.nome?.trim();
+    const coordenador = data.coordenador?.trim();
+    const area = data.area?.trim();
+    if (!nome || nome.length < 2) {
+      return { ok: false, error: 'Nome do projeto é obrigatório (mínimo 2 caracteres)' };
+    }
+    if (!coordenador) {
+      return { ok: false, error: 'Coordenador é obrigatório' };
+    }
+    if (!area) {
+      return { ok: false, error: 'Área é obrigatória' };
+    }
+
+    const slug = slugify(nome);
     const { adminEmails, ...dbData } = data;
     const projeto = await prisma.projeto.create({
       data: {
@@ -223,6 +346,10 @@ export async function createProjeto(data: ProjetoFormData): Promise<ActionResult
         instagram: dbData.instagram ?? null,
         site: dbData.site ?? null,
         destaque: dbData.destaque ?? false,
+        // Mesma decisão do createEdital: sem fluxo de revisão no admin hoje,
+        // deixar em RASCUNHO (default do schema) faz o projeto nunca aparecer
+        // publicamente sem aviso nenhum.
+        review_status: 'PUBLICADO',
       },
     });
     if (adminEmails !== undefined) {
@@ -232,17 +359,21 @@ export async function createProjeto(data: ProjetoFormData): Promise<ActionResult
     // Derivar eventos automaticamente
     await derivarEventosProjeto(projeto.id).catch(console.error);
     cache.invalidate('chat:');
+    await sincronizarProjetoSintetico(projeto.id).catch(console.error);
 
     return { ok: true, data: { id: projeto.id, slug: projeto.slug } };
   } catch (e) {
-    return { ok: false, error: String(e) };
+    return { ok: false, error: translatePrismaError(e) };
   }
 }
 
-export async function updateProjeto(id: string, data: Partial<ProjetoFormData>): Promise<ActionResult> {
+export async function updateProjeto(id: string, data: Partial<ProjetoFormData>, callerEmail: string): Promise<ActionResult> {
   try {
+    const auth = await requireAdminEmail(callerEmail);
+    if (!auth.ok) return auth;
+
     const { adminEmails } = data;
-    
+
     // Create an explicit update payload to prevent mass assignment
     // and avoid Prisma rejecting unknown fields sent by the client.
     const updateData: any = {};
@@ -277,20 +408,61 @@ export async function updateProjeto(id: string, data: Partial<ProjetoFormData>):
     // Re-derivar eventos quando dados mudam
     await derivarEventosProjeto(id).catch(console.error);
     cache.invalidate('chat:');
+    await sincronizarProjetoSintetico(id).catch(console.error);
 
     return { ok: true };
   } catch (e) {
-    return { ok: false, error: String(e) };
+    return { ok: false, error: translatePrismaError(e) };
   }
 }
 
-export async function deleteProjeto(id: string): Promise<ActionResult> {
+/** Publica/despublica um projeto (ADMIN apenas) — alterna `review_status` entre PUBLICADO e RASCUNHO. */
+export async function toggleProjetoPublicacao(id: string, callerEmail: string): Promise<ActionResult<{ review_status: string }>> {
   try {
+    const caller = await prisma.user.findUnique({ where: { email: callerEmail }, select: { role: true } });
+    if (caller?.role !== 'ADMIN') {
+      return { ok: false, error: 'Acesso negado: apenas administradores podem publicar/despublicar' };
+    }
+
+    const projeto = await prisma.projeto.findUnique({ where: { id }, select: { review_status: true } });
+    if (!projeto) return { ok: false, error: 'Projeto não encontrado' };
+
+    const review_status = projeto.review_status === 'PUBLICADO' ? 'RASCUNHO' : 'PUBLICADO';
+    await prisma.projeto.update({ where: { id }, data: { review_status } });
+    cache.invalidate('chat:');
+    await sincronizarProjetoSintetico(id).catch(console.error);
+
+    return { ok: true, data: { review_status } };
+  } catch (e) {
+    return { ok: false, error: translatePrismaError(e) };
+  }
+}
+
+export async function deleteProjeto(id: string, callerEmail: string): Promise<ActionResult> {
+  try {
+    const auth = await requireAdminEmail(callerEmail);
+    if (!auth.ok) return auth;
+
+    const projetoAntes = await prisma.projeto.findUnique({
+      where: { id },
+      select: { coordenadorEmail: true, admins: { select: { email: true } } },
+    });
+    const emailsAfetados = [
+      ...(projetoAntes?.coordenadorEmail ? [projetoAntes.coordenadorEmail] : []),
+      ...(projetoAntes?.admins.map((a) => a.email) ?? []),
+    ];
+
     await prisma.projeto.delete({ where: { id } });
     cache.invalidate('chat:');
+    await removerProjetoSintetico(id);
+
+    for (const email of emailsAfetados) {
+      await revogarProfessorSeSemProjetos(email);
+    }
+
     return { ok: true };
   } catch (e) {
-    return { ok: false, error: String(e) };
+    return { ok: false, error: translatePrismaError(e) };
   }
 }
 
@@ -322,9 +494,17 @@ export async function listPosts(userEmail?: string, userRole?: string) {
   });
 }
 
-export async function createPost(data: PostFormData, authorEmail: string, userRole?: string): Promise<ActionResult<{ id: string }>> {
+export async function createPost(data: PostFormData, authorEmail: string): Promise<ActionResult<{ id: string }>> {
   try {
-    if (userRole === 'PROFESSOR') {
+    // Role sempre lido do servidor — nunca confiar num `userRole` vindo do
+    // cliente. Antes desta correção, quando `userRecord` era `null` (email
+    // inexistente/não autenticado), a checagem inteira caía pro fallback
+    // `userRole` fornecido pelo cliente — bastava mandar `userRole: 'ADMIN'`
+    // pra pular a checagem de coordenador (mesma classe do achado S2).
+    const userRecord = await prisma.user.findUnique({ where: { email: authorEmail }, select: { role: true } });
+    if (!userRecord) return { ok: false, error: 'Usuário não encontrado' };
+
+    if (userRecord.role === 'PROFESSOR') {
       const projeto = await prisma.projeto.findUnique({
         where: { id: data.projetoId },
         select: {
@@ -339,6 +519,8 @@ export async function createPost(data: PostFormData, authorEmail: string, userRo
         projeto.admins.some((a) => a.email === authorEmail) ||
         projeto.coordenadores.some((c) => c.user.email === authorEmail);
       if (!isCoordinator) return { ok: false, error: 'Acesso negado: você não é coordenador deste projeto' };
+    } else if (userRecord.role !== 'ADMIN') {
+      return { ok: false, error: 'Acesso negado' };
     }
 
     const author = await ensureUser(authorEmail);
@@ -360,13 +542,17 @@ export async function createPost(data: PostFormData, authorEmail: string, userRo
     });
     return { ok: true, data: { id: post.id } };
   } catch (e) {
-    return { ok: false, error: String(e) };
+    return { ok: false, error: translatePrismaError(e) };
   }
 }
 
-export async function updatePost(id: string, data: Partial<PostFormData>, userEmail?: string, userRole?: string): Promise<ActionResult> {
+export async function updatePost(id: string, data: Partial<PostFormData>, userEmail: string): Promise<ActionResult> {
   try {
-    if (userRole === 'PROFESSOR' && userEmail) {
+    // Role sempre lido do servidor — ver comentário em createPost.
+    const userRecord = await prisma.user.findUnique({ where: { email: userEmail }, select: { role: true } });
+    if (!userRecord) return { ok: false, error: 'Usuário não encontrado' };
+
+    if (userRecord.role === 'PROFESSOR') {
       const post = await prisma.post.findUnique({
         where: { id },
         select: {
@@ -385,6 +571,8 @@ export async function updatePost(id: string, data: Partial<PostFormData>, userEm
         post.projeto.admins.some((a) => a.email === userEmail) ||
         post.projeto.coordenadores.some((c) => c.user.email === userEmail);
       if (!isCoordinator) return { ok: false, error: 'Acesso negado: você não é coordenador do projeto deste post' };
+    } else if (userRecord.role !== 'ADMIN') {
+      return { ok: false, error: 'Acesso negado' };
     }
 
     await prisma.post.update({
@@ -400,9 +588,13 @@ export async function updatePost(id: string, data: Partial<PostFormData>, userEm
   }
 }
 
-export async function deletePost(id: string, userEmail?: string, userRole?: string): Promise<ActionResult> {
+export async function deletePost(id: string, userEmail: string): Promise<ActionResult> {
   try {
-    if (userRole === 'PROFESSOR' && userEmail) {
+    // Role sempre lido do servidor — ver comentário em createPost.
+    const userRecord = await prisma.user.findUnique({ where: { email: userEmail }, select: { role: true } });
+    if (!userRecord) return { ok: false, error: 'Usuário não encontrado' };
+
+    if (userRecord.role === 'PROFESSOR') {
       const post = await prisma.post.findUnique({
         where: { id },
         select: {
@@ -421,6 +613,8 @@ export async function deletePost(id: string, userEmail?: string, userRole?: stri
         post.projeto.admins.some((a) => a.email === userEmail) ||
         post.projeto.coordenadores.some((c) => c.user.email === userEmail);
       if (!isCoordinator) return { ok: false, error: 'Acesso negado: você não é coordenador do projeto deste post' };
+    } else if (userRecord.role !== 'ADMIN') {
+      return { ok: false, error: 'Acesso negado' };
     }
 
     await prisma.post.delete({ where: { id } });
@@ -449,6 +643,18 @@ export async function listEventos() {
 
 export async function createEvento(data: EventoFormData, authorEmail: string): Promise<ActionResult<{ id: string }>> {
   try {
+    const auth = await requireAdminEmail(authorEmail);
+    if (!auth.ok) return auth;
+
+    // Server-side validation
+    const titulo = data.titulo?.trim();
+    if (!titulo || titulo.length < 2) {
+      return { ok: false, error: 'Título do evento é obrigatório (mínimo 2 caracteres)' };
+    }
+    if (!data.data) {
+      return { ok: false, error: 'Data do evento é obrigatória' };
+    }
+
     const author = await ensureUser(authorEmail);
     const evento = await prisma.evento.create({
       data: {
@@ -469,8 +675,11 @@ export async function createEvento(data: EventoFormData, authorEmail: string): P
   }
 }
 
-export async function updateEvento(id: string, data: Partial<EventoFormData>): Promise<ActionResult> {
+export async function updateEvento(id: string, data: Partial<EventoFormData>, callerEmail: string): Promise<ActionResult> {
   try {
+    const auth = await requireAdminEmail(callerEmail);
+    if (!auth.ok) return auth;
+
     await prisma.evento.update({
       where: { id },
       data: {
@@ -485,8 +694,11 @@ export async function updateEvento(id: string, data: Partial<EventoFormData>): P
   }
 }
 
-export async function deleteEvento(id: string): Promise<ActionResult> {
+export async function deleteEvento(id: string, callerEmail: string): Promise<ActionResult> {
   try {
+    const auth = await requireAdminEmail(callerEmail);
+    if (!auth.ok) return auth;
+
     await prisma.evento.delete({ where: { id } });
     return { ok: true };
   } catch (e) {
@@ -503,8 +715,20 @@ export async function listUsuarios() {
   });
 }
 
-export async function updateUserRole(userId: string, role: UserRole, projetoId?: string): Promise<ActionResult> {
+export async function updateUserRole(userId: string, role: UserRole, projetoId: string | undefined, callerEmail: string): Promise<ActionResult> {
   try {
+    // Antes só protegia contra auto-promoção (e só se `callerEmail` fosse
+    // passado — era opcional, então omiti-lo pulava até essa checagem).
+    // Não existia NENHUMA verificação de que o chamador é admin — qualquer
+    // chamada direta promovia qualquer usuário a ADMIN.
+    const auth = await requireAdminEmail(callerEmail);
+    if (!auth.ok) return auth;
+
+    const caller = await prisma.user.findUnique({ where: { email: callerEmail }, select: { id: true } });
+    if (caller && caller.id === userId) {
+      return { ok: false, error: 'Você não pode alterar seu próprio papel.' };
+    }
+
     if (role === 'PROFESSOR' && !projetoId) {
       return { ok: false, error: 'Um projeto deve ser selecionado para o Professor.' };
     }
@@ -528,8 +752,18 @@ export async function updateUserRole(userId: string, role: UserRole, projetoId?:
   }
 }
 
-export async function deleteUser(userId: string): Promise<ActionResult> {
+export async function deleteUser(userId: string, callerEmail: string): Promise<ActionResult> {
   try {
+    // Mesmo problema de updateUserRole: sem checagem de que o chamador é
+    // admin, só uma auto-proteção que podia ser pulada omitindo o parâmetro.
+    const auth = await requireAdminEmail(callerEmail);
+    if (!auth.ok) return auth;
+
+    const caller = await prisma.user.findUnique({ where: { email: callerEmail }, select: { id: true } });
+    if (caller && caller.id === userId) {
+      return { ok: false, error: 'Você não pode excluir sua própria conta.' };
+    }
+
     await prisma.user.delete({ where: { id: userId } });
     return { ok: true };
   } catch (e) {
@@ -537,8 +771,11 @@ export async function deleteUser(userId: string): Promise<ActionResult> {
   }
 }
 
-export async function inviteUser(email: string, role: UserRole, projetoId?: string): Promise<ActionResult> {
+export async function inviteUser(email: string, role: UserRole, projetoId: string | undefined, callerEmail: string): Promise<ActionResult> {
   try {
+    const auth = await requireAdminEmail(callerEmail);
+    if (!auth.ok) return auth;
+
     if (role === 'PROFESSOR' && !projetoId) {
       return { ok: false, error: 'Um projeto deve ser selecionado para o Professor.' };
     }
@@ -585,8 +822,10 @@ export async function limparTabelas(
   confirmEmail: string
 ): Promise<ActionResult<{ deleted: Record<string, number> }>> {
   try {
-    const masterEmail = process.env.ADMIN_EMAILS?.split(',')[0]?.trim() || 'bru.mkt2024@gmail.com';
-    if (confirmEmail !== masterEmail) {
+    if (!MASTER_ADMIN_EMAIL) {
+      return { ok: false, error: 'ADMIN_EMAILS não configurado. Limpeza indisponível.' };
+    }
+    if (confirmEmail !== MASTER_ADMIN_EMAIL) {
       return { ok: false, error: 'Email de confirmação não confere' };
     }
 
@@ -610,111 +849,7 @@ export async function limparTabelas(
   }
 }
 
-// ── RAG (Retrieval-Augmented Generation) ─────────────────────────────────────
-
-export async function listRagDocuments() {
-  const docs = await prisma.ragDocumento.findMany({
-    orderBy: { created_at: 'desc' },
-    include: { _count: { select: { chunks: true } } },
-  });
-  return { ok: true, data: docs };
-}
-
-export async function createRagDocument(data: {
-  titulo: string;
-  conteudo: string;
-  tipo: string;
-  ref_id?: string;
-}): Promise<ActionResult<{ id: string; chunks: number }>> {
-  try {
-    // Gerar hash do conteúdo para idempotência
-    const crypto = await import('crypto');
-    const content_hash = crypto.createHash('md5').update(data.conteudo).digest('hex');
-
-    // Verificar se já existe documento com mesmo hash
-    const existing = await prisma.ragDocumento.findFirst({ where: { content_hash } });
-    if (existing) {
-      return { ok: false, error: 'Documento já existe (mesmo conteúdo)' };
-    }
-
-    const doc = await prisma.ragDocumento.create({
-      data: {
-        titulo: data.titulo,
-        conteudo: data.conteudo,
-        tipo: data.tipo,
-        ref_id: data.ref_id || null,
-        content_hash,
-        metadata: JSON.stringify({ source: 'upload', uploaded_at: new Date().toISOString() }),
-      },
-    });
-
-    // Criar chunks do conteúdo
-    const chunks = chunkText(data.conteudo, 500);
-    for (let i = 0; i < chunks.length; i++) {
-      await prisma.ragChunk.create({
-        data: {
-          documento_id: doc.id,
-          chunk_index: i,
-          conteudo: chunks[i],
-          metadata: JSON.stringify({ chunk_total: chunks.length }),
-        },
-      });
-    }
-
-    cache.invalidate('chat:');
-
-    return { ok: true, data: { id: doc.id, chunks: chunks.length } };
-  } catch (e) {
-    return { ok: false, error: String(e) };
-  }
-}
-
-export async function deleteRagDocument(docId: string): Promise<ActionResult> {
-  try {
-    await prisma.ragDocumento.delete({ where: { id: docId } });
-    cache.invalidate('chat:');
-    return { ok: true };
-  } catch (e) {
-    return { ok: false, error: String(e) };
-  }
-}
-
-export async function toggleRagDocument(docId: string): Promise<ActionResult<{ ativo: boolean }>> {
-  try {
-    const doc = await prisma.ragDocumento.findUnique({ where: { id: docId } });
-    if (!doc) return { ok: false, error: 'Documento não encontrado' };
-
-    const updated = await prisma.ragDocumento.update({
-      where: { id: docId },
-      data: { ativo: !doc.ativo },
-    });
-
-    return { ok: true, data: { ativo: updated.ativo } };
-  } catch (e) {
-    return { ok: false, error: String(e) };
-  }
-}
-
-function chunkText(text: string, maxTokens: number): string[] {
-  const words = text.split(/\s+/);
-  const chunks: string[] = [];
-  let currentChunk: string[] = [];
-  let currentLength = 0;
-
-  for (const word of words) {
-    if (currentLength + word.length > maxTokens && currentChunk.length > 0) {
-      chunks.push(currentChunk.join(' '));
-      currentChunk = [word];
-      currentLength = word.length;
-    } else {
-      currentChunk.push(word);
-      currentLength += word.length + 1;
-    }
-  }
-
-  if (currentChunk.length > 0) {
-    chunks.push(currentChunk.join(' '));
-  }
-
-  return chunks.length > 0 ? chunks : [text];
-}
+// RAG legado (RagDocumento/RagChunk) removido daqui em 2026-08-26: eram
+// funções mortas (nenhuma página chamava), sem nenhuma checagem de
+// autorização, operando em tabelas já substituídas por documentos_kb/
+// chunks_kb (ver src/actions/rag.ts) desde a Etapa 2 do plano RAG.

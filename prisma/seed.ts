@@ -16,10 +16,21 @@ function slugify(text: string): string {
 async function main() {
   console.log('🌱 Iniciando seed do Portal Conecta IFPR...');
 
-  // Usuário admin seed
+  // Usuário admin master (Ronan Lopes)
+  const masterAdmin = await prisma.user.upsert({
+    where: { email: 'ronan.lopes@ifpr.edu.br' },
+    update: { role: UserRole.ADMIN },
+    create: {
+      email: 'ronan.lopes@ifpr.edu.br',
+      name: 'Ronan Lopes',
+      role: UserRole.ADMIN,
+    },
+  });
+
+  // Usuário admin seed legado
   const admin = await prisma.user.upsert({
     where: { email: 'admin@ifpr.edu.br' },
-    update: {},
+    update: { role: UserRole.ADMIN },
     create: {
       email: 'admin@ifpr.edu.br',
       name: 'Administrador Portal Conecta',

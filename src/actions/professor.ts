@@ -1,9 +1,11 @@
 'use server';
 
 import { prisma } from '@/lib/prisma';
-import { slugify } from '@/lib/utils';
+import { slugify, translatePrismaError } from '@/lib/utils';
 import { enviarAtualizacaoStatus } from '@/lib/email';
 import { cache } from '@/lib/cache';
+import { sincronizarProjetoSintetico } from '@/lib/projeto-sintetico';
+import type { Prisma } from '@prisma/client';
 
 type ActionResult<T = void> = { ok: true; data?: T } | { ok: false; error: string };
 
@@ -174,10 +176,11 @@ export async function updateMyProjeto(projetoId: string, data: MyProjetoFormData
       },
     });
     cache.invalidate('chat:');
+    await sincronizarProjetoSintetico(projetoId).catch(console.error);
 
     return { ok: true };
   } catch (e) {
-    return { ok: false, error: String(e) };
+    return { ok: false, error: translatePrismaError(e) };
   }
 }
 
@@ -209,27 +212,68 @@ export async function toggleInscricoes(projetoId: string, userEmail: string): Pr
         status: newValue ? 'INSCRICOES_ABERTAS' : 'ATIVO',
       },
     });
+    await sincronizarProjetoSintetico(projetoId).catch(console.error);
 
     return { ok: true, data: { inscricoes_abertas: newValue } };
   } catch (e) {
-    return { ok: false, error: String(e) };
+    return { ok: false, error: translatePrismaError(e) };
   }
 }
 
 export async function updateInscricaoStatus(
   inscricaoId: string,
   status: string,
-  observacao?: string
+  observacao: string | undefined,
+  userEmail: string
 ): Promise<ActionResult> {
   try {
     // Buscar inscrição atual antes de atualizar
     const inscricaoAtual = await prisma.inscricao.findUnique({
       where: { id: inscricaoId },
-      include: { projeto: { select: { nome: true } } },
+      include: {
+        projeto: {
+          select: {
+            nome: true,
+            coordenadorEmail: true,
+            admins: { select: { email: true } },
+            coordenadores: { include: { user: { select: { email: true } } } },
+          },
+        },
+      },
     });
 
     if (!inscricaoAtual) {
       return { ok: false, error: 'Inscrição não encontrada' };
+    }
+
+    // Verify caller is coordinator of the project — sempre checado, nunca opcional
+    // (era `userEmail?: string` com essa checagem pulada quando omitido: qualquer
+    // um conseguia alterar o status de qualquer inscrição sem autenticação nenhuma).
+    const isCoordinator =
+      inscricaoAtual.projeto.coordenadorEmail === userEmail ||
+      inscricaoAtual.projeto.admins.some((a) => a.email === userEmail) ||
+      inscricaoAtual.projeto.coordenadores.some((c) => c.user.email === userEmail);
+    if (!isCoordinator) {
+      return { ok: false, error: 'Acesso negado: você não é coordenador deste projeto' };
+    }
+
+    // Seleção por vaga: não deixa selecionar além da quantidade de posições da vaga
+    if (status === 'selecionado' && inscricaoAtual.vaga_id) {
+      const vaga = await prisma.vaga.findUnique({
+        where: { id: inscricaoAtual.vaga_id },
+        select: { titulo: true, quantidade: true },
+      });
+      if (vaga) {
+        const jaSelecionados = await prisma.inscricao.count({
+          where: { vaga_id: inscricaoAtual.vaga_id, status: 'selecionado', id: { not: inscricaoId } },
+        });
+        if (jaSelecionados >= vaga.quantidade) {
+          return {
+            ok: false,
+            error: `A vaga "${vaga.titulo}" já está com todas as ${vaga.quantidade} posição(ões) preenchida(s). Aumente a quantidade da vaga ou coloque este candidato em lista de espera.`,
+          };
+        }
+      }
     }
 
     await prisma.inscricao.update({
@@ -254,7 +298,170 @@ export async function updateInscricaoStatus(
 
     return { ok: true };
   } catch (e) {
-    return { ok: false, error: String(e) };
+    return { ok: false, error: translatePrismaError(e) };
+  }
+}
+
+// ==================== VAGAS ====================
+
+export type VagaFormData = {
+  titulo: string;
+  tipo: 'BOLSISTA' | 'VOLUNTARIO' | 'AMBOS';
+  descricao?: string;
+  requisitos?: string;
+  quantidade: number;
+  valorBolsa?: number;
+  cargaHorariaSemanal?: number;
+  vigenciaMeses?: number;
+  fontePagadora?: string;
+  dataEncerramento?: string;
+};
+
+async function checkCoordenadorDoProjeto(projetoId: string, userEmail: string): Promise<{ ok: true } | { ok: false; error: string }> {
+  const projeto = await prisma.projeto.findUnique({
+    where: { id: projetoId },
+    select: {
+      coordenadorEmail: true,
+      admins: { select: { email: true } },
+      coordenadores: { include: { user: { select: { email: true } } } },
+    },
+  });
+  if (!projeto) return { ok: false, error: 'Projeto não encontrado' };
+
+  const isCoordinator =
+    projeto.coordenadorEmail === userEmail ||
+    projeto.admins.some((a) => a.email === userEmail) ||
+    projeto.coordenadores.some((c) => c.user.email === userEmail);
+
+  return isCoordinator ? { ok: true } : { ok: false, error: 'Acesso negado: você não é coordenador deste projeto' };
+}
+
+/** Lista as vagas do projeto, com o total já selecionado em cada uma. */
+export async function listVagas(projetoId: string, userEmail: string) {
+  const auth = await checkCoordenadorDoProjeto(projetoId, userEmail);
+  if (!auth.ok) return auth;
+
+  const vagas = await prisma.vaga.findMany({
+    where: { projetoId },
+    orderBy: { createdAt: 'desc' },
+  });
+
+  const contagens = await prisma.inscricao.groupBy({
+    by: ['vaga_id'],
+    where: { vaga_id: { in: vagas.map((v) => v.id) }, status: 'selecionado' },
+    _count: true,
+  });
+  const contagemPorVaga = new Map(contagens.map((c) => [c.vaga_id, c._count]));
+
+  return {
+    ok: true,
+    data: vagas.map((v) => ({ ...v, selecionados: contagemPorVaga.get(v.id) ?? 0 })),
+  } as const;
+}
+
+export async function createVaga(projetoId: string, data: VagaFormData, userEmail: string): Promise<ActionResult<{ id: string }>> {
+  try {
+    const auth = await checkCoordenadorDoProjeto(projetoId, userEmail);
+    if (!auth.ok) return auth;
+
+    const titulo = data.titulo?.trim();
+    if (!titulo) return { ok: false, error: 'Título da vaga é obrigatório' };
+    if (!data.quantidade || data.quantidade < 1) return { ok: false, error: 'Quantidade deve ser pelo menos 1' };
+
+    const vaga = await prisma.vaga.create({
+      data: {
+        projetoId,
+        titulo,
+        tipo: data.tipo,
+        descricao: data.descricao?.trim() || null,
+        requisitos: data.requisitos?.trim() || null,
+        quantidade: data.quantidade,
+        valorBolsa: data.valorBolsa ?? null,
+        cargaHorariaSemanal: data.cargaHorariaSemanal ?? null,
+        vigenciaMeses: data.vigenciaMeses ?? null,
+        fontePagadora: data.fontePagadora?.trim() || null,
+        dataAbertura: new Date(),
+        dataEncerramento: data.dataEncerramento ? new Date(data.dataEncerramento) : null,
+        status: 'ABERTA',
+      },
+    });
+    cache.invalidate('chat:');
+
+    return { ok: true, data: { id: vaga.id } };
+  } catch (e) {
+    return { ok: false, error: translatePrismaError(e) };
+  }
+}
+
+export async function updateVaga(
+  vagaId: string,
+  data: Partial<VagaFormData> & { status?: 'ABERTA' | 'EM_SELECAO' | 'ENCERRADA' | 'CANCELADA' },
+  userEmail: string
+): Promise<ActionResult> {
+  try {
+    const vaga = await prisma.vaga.findUnique({ where: { id: vagaId }, select: { projetoId: true } });
+    if (!vaga) return { ok: false, error: 'Vaga não encontrada' };
+
+    const auth = await checkCoordenadorDoProjeto(vaga.projetoId, userEmail);
+    if (!auth.ok) return auth;
+
+    if (data.quantidade !== undefined && data.quantidade < 1) {
+      return { ok: false, error: 'Quantidade deve ser pelo menos 1' };
+    }
+
+    const updateData: Prisma.VagaUpdateInput = {};
+    if (data.titulo !== undefined) updateData.titulo = data.titulo.trim();
+    if (data.tipo !== undefined) updateData.tipo = data.tipo;
+    if (data.descricao !== undefined) updateData.descricao = data.descricao?.trim() || null;
+    if (data.requisitos !== undefined) updateData.requisitos = data.requisitos?.trim() || null;
+    if (data.quantidade !== undefined) updateData.quantidade = data.quantidade;
+    if (data.valorBolsa !== undefined) updateData.valorBolsa = data.valorBolsa;
+    if (data.cargaHorariaSemanal !== undefined) updateData.cargaHorariaSemanal = data.cargaHorariaSemanal;
+    if (data.vigenciaMeses !== undefined) updateData.vigenciaMeses = data.vigenciaMeses;
+    if (data.fontePagadora !== undefined) updateData.fontePagadora = data.fontePagadora?.trim() || null;
+    if (data.dataEncerramento !== undefined) {
+      updateData.dataEncerramento = data.dataEncerramento ? new Date(data.dataEncerramento) : null;
+    }
+    if (data.status !== undefined) updateData.status = data.status;
+
+    await prisma.vaga.update({ where: { id: vagaId }, data: updateData });
+    cache.invalidate('chat:');
+
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: translatePrismaError(e) };
+  }
+}
+
+/**
+ * Exclui uma vaga sem inscrições vinculadas. Se já houver candidatos, o
+ * coordenador deve encerrar a vaga (`updateVaga` com `status: 'ENCERRADA'`)
+ * em vez de excluir, para não perder o vínculo `vaga_id` de quem já se
+ * inscreveu (a FK é `onDelete: SetNull`, então excluir não apaga a inscrição,
+ * mas apaga a informação de qual vaga era).
+ */
+export async function deleteVaga(vagaId: string, userEmail: string): Promise<ActionResult> {
+  try {
+    const vaga = await prisma.vaga.findUnique({ where: { id: vagaId }, select: { projetoId: true } });
+    if (!vaga) return { ok: false, error: 'Vaga não encontrada' };
+
+    const auth = await checkCoordenadorDoProjeto(vaga.projetoId, userEmail);
+    if (!auth.ok) return auth;
+
+    const vinculadas = await prisma.inscricao.count({ where: { vaga_id: vagaId } });
+    if (vinculadas > 0) {
+      return {
+        ok: false,
+        error: `Não é possível excluir: há ${vinculadas} inscrição(ões) vinculada(s) a esta vaga. Encerre a vaga em vez de excluir.`,
+      };
+    }
+
+    await prisma.vaga.delete({ where: { id: vagaId } });
+    cache.invalidate('chat:');
+
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: translatePrismaError(e) };
   }
 }
 
@@ -333,7 +540,7 @@ export async function createPost(projetoId: string, data: PostFormData, userEmai
 
     return { ok: true };
   } catch (e) {
-    return { ok: false, error: String(e) };
+    return { ok: false, error: translatePrismaError(e) };
   }
 }
 
@@ -373,7 +580,7 @@ export async function updatePost(postId: string, data: PostFormData, userEmail: 
 
     return { ok: true };
   } catch (e) {
-    return { ok: false, error: String(e) };
+    return { ok: false, error: translatePrismaError(e) };
   }
 }
 
@@ -404,13 +611,24 @@ export async function deletePost(postId: string, userEmail: string): Promise<Act
 
     return { ok: true };
   } catch (e) {
-    return { ok: false, error: String(e) };
+    return { ok: false, error: translatePrismaError(e) };
   }
 }
 
 // ==================== INSCRIÇÕES ====================
 
-export async function exportInscricoesCSV(projetoId: string): Promise<string> {
+/**
+ * Exporta as inscrições de um projeto em CSV — só o coordenador/admin desse
+ * projeto (achado S11: qualquer chamada exportava CSV de qualquer projeto,
+ * incluindo nome/email/telefone dos inscritos, sem checagem nenhuma).
+ */
+export async function exportInscricoesCSV(
+  projetoId: string,
+  userEmail: string
+): Promise<{ ok: true; csv: string } | { ok: false; error: string }> {
+  const auth = await checkCoordenadorDoProjeto(projetoId, userEmail);
+  if (!auth.ok) return auth;
+
   const inscricoes = await prisma.inscricao.findMany({
     where: { projeto_id: projetoId },
     orderBy: { created_at: 'asc' },
@@ -431,5 +649,5 @@ export async function exportInscricoesCSV(projetoId: string): Promise<string> {
   ]);
 
   const csv = [headers.join(','), ...rows.map((r) => r.map((c) => `"${c}"`).join(','))].join('\n');
-  return csv;
+  return { ok: true, csv };
 }

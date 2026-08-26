@@ -4,13 +4,15 @@ import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
 import {
   User, Mail, Download, AlertCircle, ChevronRight,
-  FileText, Clock, CheckCircle, XCircle, Trash2,
+  FileText, Clock, CheckCircle, XCircle, Trash2, GraduationCap, Save,
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { getMinhasInscricoes, exportMinhasInscricoesCSV, solicitarExclusaoDados } from '@/actions/meus-dados';
+import { getMeuPerfilAluno, updateMeuPerfilAluno, type PerfilAlunoFormData } from '@/actions/perfil';
 import { formatDateShort } from '@/lib/utils';
 
 type Inscricao = Awaited<ReturnType<typeof getMinhasInscricoes>>[number];
+type PerfilAluno = Awaited<ReturnType<typeof getMeuPerfilAluno>>;
 
 const STATUS_COLORS: Record<string, string> = {
   recebida: 'bg-gray-100 text-gray-700',
@@ -30,17 +32,59 @@ export default function MeusDadosPage() {
   const [excluindo, setExcluindo] = useState(false);
   const [sucesso, setSucesso] = useState('');
 
+  const [perfil, setPerfil] = useState<PerfilAluno>(null);
+  const [salvandoPerfil, setSalvandoPerfil] = useState(false);
+  const [perfilSucesso, setPerfilSucesso] = useState('');
+  const [perfilErro, setPerfilErro] = useState('');
+
   useEffect(() => {
-    if (!user?.email) return;
-    getMinhasInscricoes(user.email)
-      .then(setInscricoes)
-      .catch(console.error)
-      .finally(() => setLoading(false));
+    if (!user) return;
+    user.getIdToken().then((idToken) => {
+      getMinhasInscricoes(idToken)
+        .then(setInscricoes)
+        .catch(console.error)
+        .finally(() => setLoading(false));
+      getMeuPerfilAluno(idToken).then(setPerfil).catch(console.error);
+    });
   }, [user]);
 
+  const handleSalvarPerfil = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    if (!user) return;
+    setPerfilSucesso('');
+    setPerfilErro('');
+
+    const form = new FormData(e.currentTarget);
+    const data: PerfilAlunoFormData = {
+      telefone: form.get('telefone') as string,
+      curso: form.get('curso') as string,
+      turma: form.get('turma') as string,
+      semestre: form.get('semestre') as string,
+      matricula: form.get('matricula') as string,
+      experienciasPrevias: form.get('experienciasPrevias') as string,
+      areasInteresse: (form.get('areasInteresse') as string).split(',').map((s) => s.trim()).filter(Boolean),
+      habilidades: (form.get('habilidades') as string).split(',').map((s) => s.trim()).filter(Boolean),
+      curriculoLattes: form.get('curriculoLattes') as string,
+    };
+
+    setSalvandoPerfil(true);
+    const idToken = await user.getIdToken();
+    const result = await updateMeuPerfilAluno(idToken, data);
+    setSalvandoPerfil(false);
+
+    if (result.ok) {
+      setPerfilSucesso('Perfil atualizado com sucesso!');
+      const atualizado = await getMeuPerfilAluno(idToken);
+      setPerfil(atualizado);
+    } else {
+      setPerfilErro(result.error);
+    }
+  };
+
   const handleExport = async () => {
-    if (!user?.email) return;
-    const csv = await exportMinhasInscricoesCSV(user.email);
+    if (!user) return;
+    const idToken = await user.getIdToken();
+    const csv = await exportMinhasInscricoesCSV(idToken);
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -51,16 +95,17 @@ export default function MeusDadosPage() {
   };
 
   const handleExclusao = async () => {
-    if (!user?.email) return;
+    if (!user) return;
     setExcluindo(true);
     try {
-      const result = await solicitarExclusaoDados(user.email, motivo);
+      const idToken = await user.getIdToken();
+      const result = await solicitarExclusaoDados(idToken, motivo);
       if (result.ok) {
         setSucesso(`${result.count} inscrição(ões) marcada(s) como desistente. Seus dados foram anonimizados.`);
         setShowExclusao(false);
         setMotivo('');
         // Recarregar lista
-        const updated = await getMinhasInscricoes(user.email);
+        const updated = await getMinhasInscricoes(idToken);
         setInscricoes(updated);
       }
     } finally {
@@ -103,6 +148,87 @@ export default function MeusDadosPage() {
               <p className="text-sm text-gray-500">{user?.email}</p>
             </div>
           </div>
+        </div>
+
+        {/* Meu Perfil (PerfilAluno) */}
+        <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
+          <div className="px-5 py-4 border-b border-gray-50 flex items-center gap-2">
+            <GraduationCap className="w-4 h-4 text-azul-eletrico" />
+            <h2 className="font-bold text-gray-900">Meu Perfil</h2>
+          </div>
+          <form onSubmit={handleSalvarPerfil} className="p-5 space-y-4">
+            <p className="text-xs text-gray-500 -mt-1">
+              Esses dados agilizam suas próximas inscrições e ajudam coordenadores a te conhecer melhor.
+            </p>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <FieldPerfil label="Telefone">
+                <input name="telefone" type="tel" defaultValue={perfil?.telefone ?? ''} className="input-field" placeholder="(00) 00000-0000" />
+              </FieldPerfil>
+              <FieldPerfil label="Curso">
+                <input name="curso" type="text" defaultValue={perfil?.curso ?? ''} className="input-field" />
+              </FieldPerfil>
+              <FieldPerfil label="Turma">
+                <input name="turma" type="text" defaultValue={perfil?.turma ?? ''} className="input-field" />
+              </FieldPerfil>
+              <FieldPerfil label="Semestre">
+                <input name="semestre" type="text" defaultValue={perfil?.semestre ?? ''} className="input-field" placeholder="Ex: 2026.1" />
+              </FieldPerfil>
+              <FieldPerfil label="Matrícula">
+                <input name="matricula" type="text" defaultValue={perfil?.matricula ?? ''} className="input-field" />
+              </FieldPerfil>
+              <FieldPerfil label="Currículo Lattes">
+                <input name="curriculoLattes" type="url" defaultValue={perfil?.curriculoLattes ?? ''} className="input-field" placeholder="https://lattes.cnpq.br/..." />
+              </FieldPerfil>
+            </div>
+
+            <FieldPerfil label="Experiências prévias">
+              <textarea name="experienciasPrevias" defaultValue={perfil?.experienciasPrevias ?? ''} className="input-field min-h-[70px] resize-none" placeholder="Projetos, estágios ou trabalhos anteriores..." />
+            </FieldPerfil>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <FieldPerfil label="Áreas de interesse" hint="separadas por vírgula">
+                <input
+                  name="areasInteresse"
+                  type="text"
+                  defaultValue={perfil?.areasInteresse.join(', ') ?? ''}
+                  className="input-field"
+                  placeholder="Ex: robótica, meio ambiente, educação"
+                />
+              </FieldPerfil>
+              <FieldPerfil label="Habilidades" hint="separadas por vírgula">
+                <input
+                  name="habilidades"
+                  type="text"
+                  defaultValue={perfil?.habilidades.join(', ') ?? ''}
+                  className="input-field"
+                  placeholder="Ex: Python, edição de vídeo, oratória"
+                />
+              </FieldPerfil>
+            </div>
+
+            {perfilErro && (
+              <div className="flex items-start gap-2 bg-red-50 border border-red-200 rounded-xl p-3 text-red-700 text-sm">
+                <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5" />
+                {perfilErro}
+              </div>
+            )}
+            {perfilSucesso && (
+              <div className="flex items-start gap-2 bg-green-50 border border-green-200 rounded-xl p-3 text-green-700 text-sm">
+                <CheckCircle className="w-4 h-4 flex-shrink-0 mt-0.5" />
+                {perfilSucesso}
+              </div>
+            )}
+
+            <button
+              type="submit"
+              disabled={salvandoPerfil}
+              className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-azul-eletrico text-white text-sm font-semibold hover:bg-azul-eletrico/90 transition-all disabled:opacity-60"
+            >
+              <Save className="w-4 h-4" />
+              {salvandoPerfil ? 'Salvando...' : 'Salvar perfil'}
+            </button>
+          </form>
         </div>
 
         {/* Ações */}
@@ -244,6 +370,18 @@ export default function MeusDadosPage() {
           </>
         )}
       </div>
+    </div>
+  );
+}
+
+function FieldPerfil({ label, hint, children }: { label: string; hint?: string; children: React.ReactNode }) {
+  return (
+    <div>
+      <label className="block text-sm font-medium text-gray-700 mb-1">
+        {label}
+        {hint && <span className="text-gray-400 font-normal ml-1">({hint})</span>}
+      </label>
+      {children}
     </div>
   );
 }

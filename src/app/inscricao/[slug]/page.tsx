@@ -9,6 +9,17 @@ import {
 import { criarInscricao } from '@/actions/inscricao';
 import { formatDate } from '@/lib/utils';
 import { useAuth } from '@/contexts/AuthContext';
+import { TurnstileWidget } from '@/components/ui/turnstile-widget';
+
+type VagaInfo = {
+  id: string;
+  titulo: string;
+  tipo: 'BOLSISTA' | 'VOLUNTARIO' | 'AMBOS';
+  descricao: string | null;
+  quantidade: number;
+  valorBolsa: number | null;
+  cargaHorariaSemanal: number | null;
+};
 
 type ProjetoInfo = {
   id: string;
@@ -18,6 +29,7 @@ type ProjetoInfo = {
   inscricao_fim: Date | null;
   vagasBolsista: number;
   vagasVoluntario: number;
+  vagas: VagaInfo[];
 };
 
 const CURSOS_SUPERIORES = [
@@ -69,6 +81,11 @@ export default function InscricaoPage({ params }: { params: { slug: string } }) 
   const [semestre, setSemestre] = useState<string>('');
   const [turmaCalculada, setTurmaCalculada] = useState('');
 
+  // Vaga escolhida (quando o projeto tem vagas reais cadastradas)
+  const [vagaId, setVagaId] = useState<string>('');
+
+  const [captchaToken, setCaptchaToken] = useState<string | null>(null);
+
   // Calcular turma automaticamente
   React.useEffect(() => {
     if (anoInicio) {
@@ -88,31 +105,48 @@ export default function InscricaoPage({ params }: { params: { slug: string } }) 
       .finally(() => setLoading(false));
   }, [slug]);
 
+  const temVagas = (projeto?.vagas.length ?? 0) > 0;
+  const vagaEscolhida = projeto?.vagas.find((v) => v.id === vagaId);
+
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setError('');
     setSuccess('');
 
+    if (temVagas && !vagaId) {
+      setError('Escolha uma vaga para se inscrever');
+      return;
+    }
+
+    if (process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY && !captchaToken) {
+      setError('Complete a verificação de segurança abaixo.');
+      return;
+    }
+
     const form = new FormData(e.currentTarget);
 
     const data = {
       projetoId: projeto!.id,
+      vagaId: vagaId || undefined,
       nome_completo: form.get('nome_completo') as string,
       email: form.get('email') as string,
       telefone: form.get('telefone') as string,
       curso: form.get('curso') as string,
       turma: turmaCalculada || form.get('turma') as string,
-      semestre: semestre ? `${anoInicio}.${semestre}` : form.get('semestre') as string,
+      semestre: `${anoInicio}.${semestre}`,
       idade: form.get('idade') ? Number(form.get('idade')) : undefined,
       matricula: form.get('matricula') as string,
       genero: form.get('genero') as string,
-      tipo_interesse: form.get('tipo_interesse') as 'BOLSISTA' | 'VOLUNTARIO' | 'AMBOS',
-      disponibilidade: form.get('disponibilidade') as string,
+      tipo_interesse: vagaEscolhida
+        ? vagaEscolhida.tipo
+        : (form.get('tipo_interesse') as 'BOLSISTA' | 'VOLUNTARIO' | 'AMBOS'),
+      disponibilidade: form.getAll('disponibilidade').join(', '),
       experiencia_previa: form.get('experiencia_previa') as string,
       justificativa: form.get('justificativa') as string,
       ciencia_regras: form.get('ciencia_regras') === 'on',
       consentimento_lgpd: form.get('consentimento_lgpd') === 'on',
       userId: user?.uid || undefined,
+      captchaToken: captchaToken ?? undefined,
     };
 
     startTransition(async () => {
@@ -217,18 +251,20 @@ export default function InscricaoPage({ params }: { params: { slug: string } }) 
               Inscrições até: <strong>{projeto?.inscricao_fim ? formatDate(projeto.inscricao_fim) : 'Não definido'}</strong>
             </span>
           </div>
-          <div className="flex gap-4 text-sm">
-            {projeto?.vagasBolsista ? (
-              <span className="text-gray-600">
-                <strong className="text-gray-900">{projeto.vagasBolsista}</strong> vaga(s) bolsista(s)
-              </span>
-            ) : null}
-            {projeto?.vagasVoluntario ? (
-              <span className="text-gray-600">
-                <strong className="text-gray-900">{projeto.vagasVoluntario}</strong> vaga(s) voluntária(s)
-              </span>
-            ) : null}
-          </div>
+          {!temVagas && (
+            <div className="flex gap-4 text-sm">
+              {projeto?.vagasBolsista ? (
+                <span className="text-gray-600">
+                  <strong className="text-gray-900">{projeto.vagasBolsista}</strong> vaga(s) bolsista(s)
+                </span>
+              ) : null}
+              {projeto?.vagasVoluntario ? (
+                <span className="text-gray-600">
+                  <strong className="text-gray-900">{projeto.vagasVoluntario}</strong> vaga(s) voluntária(s)
+                </span>
+              ) : null}
+            </div>
+          )}
         </div>
 
         {/* Formulário */}
@@ -256,7 +292,7 @@ export default function InscricaoPage({ params }: { params: { slug: string } }) 
               </div>
 
               {/* Gênero - Radio buttons */}
-              <Field label="Gênero" required>
+              <Fieldset label="Gênero" required>
                 <div className="flex gap-4">
                   {['Masculino', 'Feminino', 'Outro'].map((g) => (
                     <label key={g} className="flex items-center gap-2 cursor-pointer">
@@ -265,7 +301,7 @@ export default function InscricaoPage({ params }: { params: { slug: string } }) 
                     </label>
                   ))}
                 </div>
-              </Field>
+              </Fieldset>
             </div>
           </div>
 
@@ -349,24 +385,63 @@ export default function InscricaoPage({ params }: { params: { slug: string } }) 
             <h2 className="font-bold text-gray-900 text-lg mb-4">Detalhes da Inscrição</h2>
 
             <div className="space-y-4">
-              {/* Tipo de interesse - Radio buttons */}
-              <Field label="Tipo de interesse" required>
-                <div className="flex gap-4">
-                  {[
-                    { value: 'BOLSISTA', label: 'Bolsista' },
-                    { value: 'VOLUNTARIO', label: 'Voluntário' },
-                    { value: 'AMBOS', label: 'Ambos' },
-                  ].map((opt) => (
-                    <label key={opt.value} className="flex items-center gap-2 cursor-pointer">
-                      <input type="radio" name="tipo_interesse" value={opt.value} required className="w-4 h-4 accent-azul-eletrico" />
-                      <span className="text-sm text-gray-700">{opt.label}</span>
-                    </label>
-                  ))}
-                </div>
-              </Field>
+              {temVagas ? (
+                <Fieldset label="Escolha a vaga" required>
+                  <div className="space-y-2">
+                    {projeto!.vagas.map((v) => (
+                      <label
+                        key={v.id}
+                        className={`flex items-start gap-3 p-3 rounded-xl border cursor-pointer transition-colors ${
+                          vagaId === v.id ? 'border-azul-eletrico bg-blue-50' : 'border-gray-200 hover:bg-gray-50'
+                        }`}
+                      >
+                        <input
+                          type="radio"
+                          name="vaga_escolhida"
+                          value={v.id}
+                          required
+                          checked={vagaId === v.id}
+                          onChange={() => setVagaId(v.id)}
+                          className="w-4 h-4 mt-0.5 accent-azul-eletrico"
+                        />
+                        <div className="flex-1">
+                          <p className="text-sm font-semibold text-gray-900">
+                            {v.titulo}{' '}
+                            <span className="text-xs font-normal text-gray-500">
+                              ({v.tipo === 'AMBOS' ? 'Bolsista ou Voluntário' : v.tipo === 'BOLSISTA' ? 'Bolsista' : 'Voluntário'})
+                            </span>
+                          </p>
+                          {v.descricao && <p className="text-xs text-gray-500 mt-0.5">{v.descricao}</p>}
+                          <p className="text-xs text-gray-400 mt-1">
+                            {v.quantidade} vaga(s)
+                            {v.valorBolsa ? ` · R$ ${v.valorBolsa.toFixed(2)}/mês` : ''}
+                            {v.cargaHorariaSemanal ? ` · ${v.cargaHorariaSemanal}h/semana` : ''}
+                          </p>
+                        </div>
+                      </label>
+                    ))}
+                  </div>
+                </Fieldset>
+              ) : (
+                /* Tipo de interesse - Radio buttons (fallback para projetos sem vagas cadastradas) */
+                <Fieldset label="Tipo de interesse" required>
+                  <div className="flex gap-4">
+                    {[
+                      { value: 'BOLSISTA', label: 'Bolsista' },
+                      { value: 'VOLUNTARIO', label: 'Voluntário' },
+                      { value: 'AMBOS', label: 'Ambos' },
+                    ].map((opt) => (
+                      <label key={opt.value} className="flex items-center gap-2 cursor-pointer">
+                        <input type="radio" name="tipo_interesse" value={opt.value} required className="w-4 h-4 accent-azul-eletrico" />
+                        <span className="text-sm text-gray-700">{opt.label}</span>
+                      </label>
+                    ))}
+                  </div>
+                </Fieldset>
+              )}
 
               {/* Disponibilidade - Checkboxes */}
-              <Field label="Disponibilidade">
+              <Fieldset label="Disponibilidade">
                 <div className="grid grid-cols-2 gap-2">
                   {[
                     'Manhã', 'Tarde', 'Noite',
@@ -378,7 +453,7 @@ export default function InscricaoPage({ params }: { params: { slug: string } }) 
                     </label>
                   ))}
                 </div>
-              </Field>
+              </Fieldset>
 
               <Field label="Experiência prévia">
                 <select name="experiencia_previa" className="input-field">
@@ -419,6 +494,8 @@ export default function InscricaoPage({ params }: { params: { slug: string } }) 
             </div>
           </div>
 
+          <TurnstileWidget onVerify={setCaptchaToken} />
+
           {error && (
             <div className="flex items-start gap-2 bg-red-50 border border-red-200 rounded-xl p-3 text-red-700 text-sm">
               <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5" />
@@ -455,5 +532,16 @@ function Field({ label, required, children }: { label: string; required?: boolea
       </label>
       {children}
     </div>
+  );
+}
+
+function Fieldset({ label, required, children }: { label: string; required?: boolean; children: React.ReactNode }) {
+  return (
+    <fieldset className="border-0 p-0 m-0">
+      <legend className="block text-sm font-medium text-gray-700 mb-1">
+        {label}{required && <span className="text-red-500 ml-0.5">*</span>}
+      </legend>
+      {children}
+    </fieldset>
   );
 }

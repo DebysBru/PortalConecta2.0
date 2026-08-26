@@ -1,256 +1,135 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { createHash } from 'crypto';
-import { processDocumentWithAI, generateChunkTags } from '@/lib/rag-processor';
+import { detectFileType, extractDocument, ALLOWED_EXTENSIONS } from '@/lib/document-extract';
+import { chunkDocument } from '@/lib/chunking';
+import { deactivateOldDocumentVersions } from '@/lib/supabase-vector';
+import { curarDocumentoKb } from '@/lib/kb-worker';
+import { indexarDocumentoKb } from '@/lib/indexador';
 
-const ALLOWED_TYPES: Record<string, string> = {
-  'application/pdf': 'pdf',
-  'application/vnd.openxmlformats-officedocument.wordprocessingml.document': 'docx',
-  'application/msword': 'doc',
-  'text/plain': 'txt',
-  'text/markdown': 'md',
-  'text/csv': 'csv',
-  'application/csv': 'csv',
-  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': 'xlsx',
-  'application/vnd.ms-excel': 'xls',
-};
+const MAX_FILE_SIZE_BYTES = 20 * 1024 * 1024;
 
-const ALLOWED_EXTENSIONS = ['.pdf', '.docx', '.doc', '.txt', '.md', '.csv', '.xlsx', '.xls'];
+async function isAdmin(email: string | null): Promise<boolean> {
+  if (!email) return false;
+  const user = await prisma.user.findUnique({ where: { email }, select: { role: true } });
+  return user?.role === 'ADMIN';
+}
 
 export async function POST(request: NextRequest) {
+  const formData = await request.formData();
+  const file = formData.get('file') as File | null;
+  const titulo = (formData.get('titulo') as string | null)?.trim();
+  const tipo = (formData.get('tipo') as string | null) || 'documento_livre';
+  const adminEmail = formData.get('adminEmail') as string | null;
+
+  if (!(await isAdmin(adminEmail))) {
+    return NextResponse.json({ error: 'Acesso negado: apenas administradores podem cadastrar documentos' }, { status: 403 });
+  }
+
+  if (!file || !titulo) {
+    return NextResponse.json({ error: 'Arquivo e título são obrigatórios' }, { status: 400 });
+  }
+
+  if (file.size > MAX_FILE_SIZE_BYTES) {
+    return NextResponse.json({ error: `Arquivo excede o limite de ${MAX_FILE_SIZE_BYTES / 1024 / 1024}MB` }, { status: 400 });
+  }
+
+  const fileType = detectFileType(file);
+  if (!fileType) {
+    return NextResponse.json(
+      { error: 'Tipo de arquivo não suportado', allowed: ALLOWED_EXTENSIONS.join(', ') },
+      { status: 400 }
+    );
+  }
+
+  const buffer = Buffer.from(await file.arrayBuffer());
+  const hashArquivo = createHash('sha256').update(buffer).digest('hex');
+
+  const existenteAtivo = await prisma.documentoKb.findFirst({ where: { hashArquivo, ativo: true } });
+  if (existenteAtivo) {
+    return NextResponse.json(
+      { error: 'Este arquivo (mesmo conteúdo) já está indexado e ativo', docId: existenteAtivo.id },
+      { status: 409 }
+    );
+  }
+
+  const versaoAnterior = await prisma.documentoKb.findFirst({
+    where: { titulo },
+    orderBy: { versao: 'desc' },
+    select: { versao: true },
+  });
+  const versao = (versaoAnterior?.versao ?? 0) + 1;
+
+  const doc = await prisma.documentoKb.create({
+    data: {
+      titulo,
+      tipo,
+      hashArquivo,
+      versao,
+      status: 'extracting',
+      metadata: { fileType, filename: file.name, sizeBytes: file.size, uploaded_at: new Date().toISOString() },
+    },
+  });
+
+  await prisma.ragUploadLog.create({ data: { filename: file.name, docId: doc.id, status: 'processing' } });
+
   try {
-    const formData = await request.formData();
-    const file = formData.get('file') as File | null;
-    const titulo = formData.get('titulo') as string;
-    const tipo = formData.get('tipo') as string;
+    const extracted = await extractDocument(buffer, fileType);
 
-    if (!file || !titulo) {
-      return NextResponse.json({ error: 'Arquivo e título são obrigatórios' }, { status: 400 });
+    if (!extracted.text.trim()) {
+      const msg = extracted.hasTextLayer === false
+        ? 'PDF sem camada de texto (provavelmente escaneado). OCR ainda não é suportado nesta versão — converta para PDF pesquisável ou envie como .docx/.txt.'
+        : 'Não foi possível extrair texto do arquivo.';
+      await prisma.documentoKb.update({ where: { id: doc.id }, data: { status: 'failed', erro: msg } });
+      await prisma.ragUploadLog.updateMany({ where: { docId: doc.id }, data: { status: 'error', error: msg } });
+      return NextResponse.json({ error: msg }, { status: 400 });
     }
 
-    // Detectar tipo pelo MIME ou extensão
-    const ext = '.' + file.name.split('.').pop()?.toLowerCase();
-    const fileType = ALLOWED_TYPES[file.type] || (ALLOWED_EXTENSIONS.includes(ext) ? ext.slice(1) : null);
+    const chunks = chunkDocument(extracted.text);
 
-    if (!fileType) {
-      return NextResponse.json({
-        error: 'Tipo de arquivo não suportado',
-        allowed: ALLOWED_EXTENSIONS.join(', '),
-      }, { status: 400 });
-    }
-
-    // Ler o arquivo
-    const arrayBuffer = await file.arrayBuffer();
-    const buffer = Buffer.from(arrayBuffer);
-
-    // Extrair texto baseado no tipo
-    let conteudo = '';
-    let numPages = 1;
-
-    switch (fileType) {
-      case 'pdf':
-        const pdfResult = await extractPdfText(buffer);
-        conteudo = pdfResult.text;
-        numPages = pdfResult.pages;
-        break;
-
-      case 'docx':
-        // eslint-disable-next-line @typescript-eslint/no-require-imports
-        const mammoth = require('mammoth');
-        const docxResult = await mammoth.extractRawText({ buffer });
-        conteudo = docxResult.value || '';
-        break;
-
-      case 'doc':
-        // DOC legado - tentar com mammoth (pode não funcionar perfeitamente)
-        try {
-          // eslint-disable-next-line @typescript-eslint/no-require-imports
-          const mammothDoc = require('mammoth');
-          const docResult = await mammothDoc.extractRawText({ buffer });
-          conteudo = docResult.value || '';
-        } catch {
-          return NextResponse.json({ error: 'Formato .doc não suportado. Converta para .docx' }, { status: 400 });
-        }
-        break;
-
-      case 'txt':
-      case 'md':
-        conteudo = buffer.toString('utf-8');
-        break;
-
-      case 'csv':
-      case 'xlsx':
-      case 'xls':
-        const XLSX = require('xlsx');
-        const workbook = XLSX.read(buffer, { type: 'buffer' });
-        const allText: string[] = [];
-
-        for (const sheetName of workbook.SheetNames) {
-          const sheet = workbook.Sheets[sheetName];
-          // Converter para CSV primeiro, depois para texto legível
-          const csvData = XLSX.utils.sheet_to_csv(sheet);
-          if (csvData.trim()) {
-            allText.push(`--- Planilha: ${sheetName} ---\n${csvData}`);
-          }
-        }
-
-        conteudo = allText.join('\n\n');
-        break;
-    }
-
-    if (!conteudo || conteudo.trim().length === 0) {
-      return NextResponse.json({
-        error: 'Não foi possível extrair texto do arquivo. O documento pode ser apenas uma imagem.',
-        debug: { fileType, length: conteudo.length },
-      }, { status: 400 });
-    }
-
-    console.log('Text extracted:', { fileType, length: conteudo.length, pages: numPages });
-
-    // Gerar hash para idempotência
-    const content_hash = createHash('md5').update(conteudo).digest('hex');
-
-    // Verificar se já existe
-    const existing = await prisma.ragDocumento.findFirst({ where: { content_hash } });
-    if (existing) {
-      return NextResponse.json({ error: 'Documento já existe (mesmo conteúdo)' }, { status: 409 });
-    }
-
-    // Processar com IA (organiza, gera tags, resume)
-    const aiResult = await processDocumentWithAI(titulo, conteudo);
-
-    // Criar documento com conteúdo processado
-    const doc = await prisma.ragDocumento.create({
-      data: {
-        titulo,
-        conteudo,
-        resumo: aiResult.resumo,
-        tags: aiResult.tags,
-        links: aiResult.links,
-        tipo: tipo || 'outro',
-        content_hash,
-        processado: true,
-        metadata: JSON.stringify({
-          source: 'upload',
-          fileType,
-          filename: file.name,
-          pages: numPages,
-          uploaded_at: new Date().toISOString(),
-        }),
-      },
+    await prisma.chunkKb.createMany({
+      data: chunks.map((c, i) => ({
+        documentoId: doc.id,
+        documentoVersao: versao,
+        chunkIndex: i,
+        texto: c.texto,
+        secao: c.secao,
+        metadata: { chunk_total: chunks.length },
+      })),
     });
 
-    // Criar chunks com tags específicas
-    const chunks = chunkText(conteudo, 500);
-    for (let i = 0; i < chunks.length; i++) {
-      const chunkTags = generateChunkTags(chunks[i], aiResult.tags);
-      const sectionTitle = findSectionTitle(chunks[i], aiResult.sections);
+    await prisma.documentoKb.update({
+      where: { id: doc.id },
+      data: { status: 'chunking', totalPaginas: extracted.pages, totalChunks: chunks.length },
+    });
 
-      await prisma.ragChunk.create({
-        data: {
-          documento_id: doc.id,
-          chunk_index: i,
-          conteudo: chunks[i],
-          titulo: sectionTitle,
-          tags: chunkTags,
-          metadata: JSON.stringify({
-            chunk_total: chunks.length,
-            page_hint: numPages > 1 ? Math.floor((i / chunks.length) * numPages) : null,
-          }),
-        },
-      });
+    await prisma.ragUploadLog.updateMany({ where: { docId: doc.id }, data: { status: 'done', chunks: chunks.length } });
+
+    if (versao > 1) {
+      await deactivateOldDocumentVersions(titulo, doc.id);
     }
+
+    await curarDocumentoKb(doc.id);
+    await indexarDocumentoKb(doc.id);
+
+    const final = await prisma.documentoKb.findUnique({ where: { id: doc.id }, select: { status: true } });
 
     return NextResponse.json({
       ok: true,
       data: {
         id: doc.id,
         titulo: doc.titulo,
-        resumo: aiResult.resumo,
-        tags: aiResult.tags,
-        links: aiResult.links.length,
+        versao,
         chunks: chunks.length,
-        pages: numPages,
+        pages: extracted.pages,
         fileType,
-        processado: true,
+        status: final?.status ?? 'chunking',
       },
     });
   } catch (e) {
-    console.error('RAG upload error:', e);
-    return NextResponse.json({ error: 'Erro ao processar arquivo' }, { status: 500 });
+    const msg = e instanceof Error ? e.message : 'Erro desconhecido ao processar documento';
+    await prisma.documentoKb.update({ where: { id: doc.id }, data: { status: 'failed', erro: msg } });
+    await prisma.ragUploadLog.updateMany({ where: { docId: doc.id }, data: { status: 'error', error: msg } });
+    return NextResponse.json({ error: msg }, { status: 500 });
   }
-}
-
-async function extractPdfText(buffer: Buffer): Promise<{ text: string; pages: number }> {
-  try {
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const PDFParser = require('pdf2json');
-
-    const text = await new Promise<string>((resolve, reject) => {
-      const pdfParser = new PDFParser();
-
-      pdfParser.on('pdfParser_dataError', (errData: unknown) => {
-        console.error('PDF parse error:', errData);
-        reject(new Error('Erro ao parse PDF'));
-      });
-
-      pdfParser.on('pdfParser_dataReady', () => {
-        const rawText = pdfParser.getRawTextContent();
-        resolve(rawText || '');
-      });
-
-      pdfParser.parseBuffer(buffer);
-    });
-
-    // Contar páginas aproximado
-    const pageMarkers = text.match(/-- \d+ of \d+ --/g);
-    const pages = pageMarkers ? parseInt(pageMarkers[pageMarkers.length - 1]?.match(/\d+ of (\d+)/)?.[1] || '1') : 1;
-
-    return { text, pages };
-  } catch (e) {
-    console.error('PDF extraction failed:', e);
-    return { text: '', pages: 0 };
-  }
-}
-
-function findSectionTitle(
-  chunkContent: string,
-  sections: Array<{ titulo: string; conteudo: string }>
-): string | null {
-  const chunkLower = chunkContent.toLowerCase().slice(0, 100);
-
-  for (const section of sections) {
-    const sectionLower = section.conteudo.toLowerCase().slice(0, 100);
-    if (chunkLower.includes(sectionLower) || sectionLower.includes(chunkLower)) {
-      return section.titulo;
-    }
-  }
-
-  return null;
-}
-
-function chunkText(text: string, maxWords: number): string[] {
-  // Limpar texto: remover múltiplos espaços/quebras
-  const cleanText = text.replace(/\s+/g, ' ').trim();
-  const words = cleanText.split(/\s+/);
-  const chunks: string[] = [];
-  let currentChunk: string[] = [];
-  let currentLength = 0;
-
-  for (const word of words) {
-    if (currentLength + 1 > maxWords && currentChunk.length > 0) {
-      chunks.push(currentChunk.join(' '));
-      currentChunk = [word];
-      currentLength = 1;
-    } else {
-      currentChunk.push(word);
-      currentLength++;
-    }
-  }
-
-  if (currentChunk.length > 0) {
-    chunks.push(currentChunk.join(' '));
-  }
-
-  return chunks.length > 0 ? chunks : [cleanText];
 }

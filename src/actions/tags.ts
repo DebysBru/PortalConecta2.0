@@ -4,6 +4,14 @@ import { prisma } from '@/lib/prisma';
 
 type ActionResult<T = void> = { ok: true; data?: T } | { ok: false; error: string };
 
+/** Sem checagem nenhuma antes (achado S19) — não chamadas por nenhuma página hoje, mas continuam invocáveis diretamente como Server Actions. */
+async function requireAdminEmail(email?: string): Promise<{ ok: true } | { ok: false; error: string }> {
+  if (!email) return { ok: false, error: 'Não autenticado' };
+  const user = await prisma.user.findUnique({ where: { email }, select: { role: true } });
+  if (user?.role !== 'ADMIN') return { ok: false, error: 'Acesso negado: apenas administradores' };
+  return { ok: true };
+}
+
 /**
  * Lista todas as tags do sistema
  */
@@ -86,9 +94,13 @@ Responda APENAS com as tags separadas por vírgula (máximo 5 tags). Exemplo: Te
 export async function adicionarTagsProjeto(
   projetoId: string,
   tags: string[],
-  origem: 'MANUAL' | 'IA' = 'MANUAL'
+  origem: 'MANUAL' | 'IA',
+  callerEmail: string
 ): Promise<ActionResult> {
   try {
+    const auth = await requireAdminEmail(callerEmail);
+    if (!auth.ok) return auth;
+
     // Remover tags existentes
     await prisma.projetoTag.deleteMany({
       where: { projeto_id: projetoId },
@@ -117,9 +129,13 @@ export async function adicionarTagsProjeto(
  */
 export async function aprovarTag(
   projetoId: string,
-  tag: string
+  tag: string,
+  callerEmail: string
 ): Promise<ActionResult> {
   try {
+    const auth = await requireAdminEmail(callerEmail);
+    if (!auth.ok) return auth;
+
     await prisma.projetoTag.update({
       where: {
         projeto_id_tag: { projeto_id: projetoId, tag },
@@ -137,9 +153,13 @@ export async function aprovarTag(
  */
 export async function removerTag(
   projetoId: string,
-  tag: string
+  tag: string,
+  callerEmail: string
 ): Promise<ActionResult> {
   try {
+    const auth = await requireAdminEmail(callerEmail);
+    if (!auth.ok) return auth;
+
     await prisma.projetoTag.delete({
       where: {
         projeto_id_tag: { projeto_id: projetoId, tag },

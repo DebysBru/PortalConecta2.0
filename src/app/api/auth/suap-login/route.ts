@@ -12,6 +12,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getAdminAuth } from '@/lib/firebase-admin';
 import { prisma } from '@/lib/prisma';
 import { createPendingToken } from '@/lib/suap-pending';
+import { rateLimitado, obterIpCliente } from '@/lib/rate-limit';
 
 const SUAP_BASE  = process.env.SUAP_BASE_URL ?? 'https://suap.ifpr.edu.br';
 const BROWSER_UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36';
@@ -34,6 +35,18 @@ export async function POST(req: NextRequest) {
 
     if (!username || !password) {
       return NextResponse.json({ error: 'Informe matrícula e senha.' }, { status: 400 });
+    }
+
+    // Rate limit por IP — este endpoint repassa a senha direto pro SUAP,
+    // então é o alvo óbvio de força bruta contra credenciais institucionais
+    // (achado S13 do RELATORIO_TESTES.md). 5 tentativas / 5 minutos por IP.
+    const ip = obterIpCliente();
+    const limite = await rateLimitado('suap-login', ip, 5, 5 * 60_000);
+    if (!limite.ok) {
+      return NextResponse.json(
+        { error: 'Muitas tentativas de login. Aguarde alguns minutos e tente novamente.' },
+        { status: 429, headers: { 'Retry-After': String(limite.retryAfterSeconds) } },
+      );
     }
 
     // ── 1. Verificar credenciais no SUAP ────────────────────────────────────────

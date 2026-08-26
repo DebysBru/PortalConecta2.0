@@ -10,6 +10,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { createUserWithEmailAndPassword, updateProfile } from 'firebase/auth';
 import { auth } from '@/lib/firebase';
 import { ensureUser } from '@/actions/admin';
+import { TurnstileWidget } from '@/components/ui/turnstile-widget';
 
 export default function CadastroPage() {
   const { user, loading } = useAuth();
@@ -22,6 +23,7 @@ export default function CadastroPage() {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [captchaToken, setCaptchaToken] = useState<string | null>(null);
 
   if (loading) {
     return (
@@ -51,8 +53,25 @@ export default function CadastroPage() {
       return;
     }
 
+    if (process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY && !captchaToken) {
+      setError('Complete a verificação de segurança abaixo.');
+      return;
+    }
+
     setSubmitting(true);
     try {
+      const captchaCheck = await fetch('/api/auth/verify-captcha', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token: captchaToken }),
+      });
+      if (!captchaCheck.ok) {
+        const data = await captchaCheck.json().catch(() => ({}));
+        setError(data.error ?? 'Verificação de segurança falhou.');
+        setSubmitting(false);
+        return;
+      }
+
       const result = await createUserWithEmailAndPassword(auth, email, password);
       await updateProfile(result.user, { displayName: name });
       await ensureUser(email, name);
@@ -154,6 +173,8 @@ export default function CadastroPage() {
                 />
               </div>
             </div>
+
+            <TurnstileWidget onVerify={setCaptchaToken} />
 
             {error && (
               <div className="flex items-start gap-2 bg-red-500/20 border border-red-400/30 rounded-xl p-3 text-red-200 text-xs">

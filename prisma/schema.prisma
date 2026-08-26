@@ -71,6 +71,8 @@ model User {
   permissions         UserPermission[]
   inscricoes          Inscricao[]
   coordenadoProjetos  ProjectCoordinator[] @relation("Coordinator")
+  viceCoordenadoProjetos Projeto[]         @relation("ViceCoordenador")
+  perfilAluno         PerfilAluno?
   createdAt           DateTime             @default(now())
   updatedAt           DateTime             @default(now()) @updatedAt
   ChatSessao          ChatSessao[]
@@ -138,6 +140,7 @@ model Edital {
   tags                  EditalTag[]
   explicacoes           EditalExplicacao[]
   resumoVersoes         EditalResumoVersao[]
+  vagas                 Vaga[]
 
   @@index([deleted_at])
   @@index([source])
@@ -195,6 +198,11 @@ model Projeto {
   coordenador            String
   coordenadorEmail       String?
   coordenadorMatricula   String?
+  viceCoordenadorId      String?
+  viceCoordenador        User?                @relation("ViceCoordenador", fields: [viceCoordenadorId], references: [id], onDelete: SetNull)
+  viceCoordenadorNome    String?
+  viceCoordenadorEmail   String?
+  viceCoordenadorMatricula String?
   cargaHorariaSemanal    Int?
   localRealizacao        String?
   dataInicio             DateTime?
@@ -224,6 +232,7 @@ model Projeto {
   admins                 User[]               @relation("ProjectAdmins")
   coordenadores          ProjectCoordinator[]
   inscricoes             Inscricao[]
+  vagas                  Vaga[]
   tags                   ProjetoTag[]
   cursos                 ProjetoCurso[]
   faq                    ProjetoFaq[]
@@ -358,6 +367,8 @@ model Inscricao {
   protocolo          String   @unique // ex: "PRJ-2026-000123"
   projeto_id         String
   projeto            Projeto  @relation(fields: [projeto_id], references: [id], onDelete: Cascade)
+  vaga_id            String?
+  vaga               Vaga?    @relation(fields: [vaga_id], references: [id], onDelete: SetNull)
   user_id            String?
   user               User?    @relation(fields: [user_id], references: [id], onDelete: SetNull)
   nome_completo      String
@@ -381,6 +392,7 @@ model Inscricao {
   updated_at         DateTime @updatedAt
 
   @@index([projeto_id])
+  @@index([vaga_id])
   @@index([user_id])
   @@index([status])
 }
@@ -624,4 +636,137 @@ model RagUploadLog {
   chunks     Int      @default(0)
   error      String?  @db.Text
   created_at DateTime @default(now())
+}
+
+// ==========================================
+// MÓDULO ALUNO: PERFIL DETALHADO DO ESTUDANTE
+// ==========================================
+model PerfilAluno {
+  id                  String   @id @default(cuid())
+  userId              String   @unique @map("user_id")
+  user                User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  telefone            String?
+  curso               String?
+  turma               String?
+  semestre            String?
+  matricula           String?
+  experienciasPrevias String?  @db.Text @map("experiencias_previas")
+  areasInteresse      String[] @default([]) @map("areas_interesse")
+  habilidades         String[] @default([])
+  curriculoLattes     String?  @map("curriculo_lattes")
+  createdAt           DateTime @default(now()) @map("created_at")
+  updatedAt           DateTime @updatedAt @map("updated_at")
+
+  @@map("perfis_aluno")
+}
+
+// ==========================================
+// MÓDULO COORDENADOR: VAGAS DE PROJETOS
+// ==========================================
+model Vaga {
+  id                  String       @id @default(cuid())
+  projetoId           String       @map("projeto_id")
+  projeto             Projeto      @relation(fields: [projetoId], references: [id], onDelete: Cascade)
+  editalId            String?      @map("edital_id")
+  edital              Edital?      @relation(fields: [editalId], references: [id], onDelete: SetNull)
+  tipo                VagaTipo     @default(BOLSISTA)
+  titulo              String
+  descricao           String?      @db.Text
+  requisitos          String?      @db.Text
+  quantidade          Int          @default(1)
+  valorBolsa          Float?       @map("valor_bolsa")
+  cargaHorariaSemanal Int?         @map("carga_horaria_semanal")
+  vigenciaMeses       Int?         @map("vigencia_meses")
+  fontePagadora       String?      @map("fonte_pagadora")
+  status              StatusVaga   @default(ABERTA)
+  dataAbertura        DateTime?    @map("data_abertura")
+  dataEncerramento    DateTime?    @map("data_encerramento")
+  inscricoes          Inscricao[]
+  createdAt           DateTime     @default(now()) @map("created_at")
+  updatedAt           DateTime     @updatedAt @map("updated_at")
+
+  @@index([projetoId])
+  @@index([editalId])
+  @@index([status])
+  @@map("vagas")
+}
+
+enum StatusVaga {
+  ABERTA
+  EM_SELECAO
+  ENCERRADA
+  CANCELADA
+}
+
+// ==========================================
+// MÓDULO IFIZINHA: KNOWLEDGE BASE COM PGVECTOR
+// ==========================================
+model DocumentoKb {
+  id                  String    @id @default(cuid())
+  titulo              String
+  tipo                String    // 'documento_livre', 'projeto_sintetico', 'edital', 'manual', 'procedimento'
+  refId               String?   @map("ref_id") // ID de projeto ou edital se for derivado
+  storagePath         String?   @map("storage_path")
+  hashArquivo         String    @map("hash_arquivo")
+  versao              Int       @default(1)
+  ativo               Boolean   @default(true)
+  status              String    @default("indexed") // uploaded, extracting, processing, embedding, indexed, failed
+  processadoEm        DateTime? @map("processado_em")
+  totalPaginas        Int?      @map("total_paginas")
+  totalChunks         Int       @default(0) @map("total_chunks")
+  modeloEmbedding     String    @default("gemini-embedding-2") @map("modelo_embedding")
+  embeddingDimensions Int       @default(1536) @map("embedding_dimensions")
+  erro                String?   @db.Text
+  metadata            Json      @default("{}")
+  chunks              ChunkKb[]
+  createdAt           DateTime  @default(now()) @map("created_at")
+  updatedAt           DateTime  @updatedAt @map("updated_at")
+
+  @@index([tipo])
+  @@index([refId])
+  @@index([hashArquivo])
+  @@index([ativo])
+  @@map("documentos_kb")
+}
+
+model ChunkKb {
+  id              String      @id @default(cuid())
+  documentoId     String      @map("documento_id")
+  documento       DocumentoKb @relation(fields: [documentoId], references: [id], onDelete: Cascade)
+  documentoVersao Int         @default(1) @map("documento_versao")
+  chunkIndex      Int         @map("chunk_index")
+  texto           String      @db.Text
+  paginaInicial   Int?        @map("pagina_inicial")
+  paginaFinal     Int?        @map("pagina_final")
+  secao           String?
+  categoria       String?     // 'Ensino', 'Pesquisa', 'Extensão', 'Inovação', 'Institucional'
+  metadata        Json        @default("{}")
+  ativo           Boolean     @default(true)
+  createdAt       DateTime    @default(now()) @map("created_at")
+  // Coluna pgvector — criada e mantida via SQL bruto (prisma/pgvector-setup.sql),
+  // NÃO por `db push`. Declarada como Unsupported só para o Prisma parar de
+  // enxergá-la como "coluna estranha ao schema" e apagá-la ao sincronizar
+  // (foi exatamente isso que aconteceu em 2026-08-26 — corrigido aqui).
+  embedding       Unsupported("vector(1536)")?
+
+  @@index([documentoId])
+  @@index([categoria])
+  @@index([ativo])
+  @@map("chunks_kb")
+}
+
+// ==========================================
+// RATE LIMITING — achado S13 do RELATORIO_TESTES.md
+// ==========================================
+// Contador simples baseado no banco (não em memória) — necessário porque o
+// deploy roda em funções serverless sem estado compartilhado entre
+// instâncias. `chave` identifica o que está sendo limitado (ex.:
+// "suap-login:203.0.113.5", "inscricao:198.51.100.7").
+model RateLimitHit {
+  id       String   @id @default(cuid())
+  chave    String
+  criadoEm DateTime @default(now()) @map("criado_em")
+
+  @@index([chave, criadoEm])
+  @@map("rate_limit_hits")
 }

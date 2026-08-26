@@ -20,6 +20,18 @@ const AUTH_REQUIRED = ['/admin', '/professor'];
 // Rotas de API que precisam de auth
 const API_AUTH_REQUIRED = ['/api/suap/sync', '/api/auth/delete-firebase-user'];
 
+/**
+ * A verificação de sessão de verdade (achado S9 do RELATORIO_TESTES.md)
+ * NÃO acontece aqui — o middleware roda em Edge Runtime, que não suporta o
+ * `firebase-admin` (precisa de APIs do Node). Ela acontece nos layouts
+ * server-side `admin/(protected)/layout.tsx` e `professor/(protected)/layout.tsx`
+ * (rodam em Node, via `src/lib/session.ts` — cookie httpOnly verificado com
+ * `verifySessionCookie`). O route group `(protected)` isola esses layouts
+ * da própria página de login, evitando um redirect-loop.
+ *
+ * Este middleware fica só com o que já fazia bem: headers de segurança e o
+ * corte grosso de rotas públicas vs. que precisam de sessão.
+ */
 export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
@@ -45,14 +57,6 @@ export function middleware(request: NextRequest) {
 
   if (!needsAuth) return NextResponse.next();
 
-  // No middleware server-side, não podemos verificar o token Firebase diretamente.
-  // O Firebase armazena o token em localStorage (client-side), não em cookies.
-  // Por isso, a proteção real é feita no client (AdminShell).
-  // O middleware serve apenas para:
-  // 1. Redirecionar /admin sem token óbvio
-  // 2. Adicionar headers de segurança
-
-  // NextResponse.next() — a verificação real é client-side via AuthContext
   const response = NextResponse.next();
 
   // Headers de segurança
