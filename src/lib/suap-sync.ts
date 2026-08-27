@@ -92,10 +92,12 @@ export async function syncProjetos(options?: { dryRun?: boolean }): Promise<Sync
   let projetosSuap: SuapProjeto[] = [];
 
   try {
-    projetosSuap = await fetchProjetosFromSuap();
+    const { projetos, avisos } = await fetchProjetosFromSuap();
+    projetosSuap = projetos;
     result.total = projetosSuap.length;
     result.dadosBrutos = projetosSuap.slice(0, 3); // primeiros 3 para debug
-    result.detalhes.push(`✅ ${projetosSuap.length} projetos encontrados no SUAP`);
+    result.detalhes.push(`✅ ${projetosSuap.length} projetos encontrados no SUAP (campus ${process.env.SUAP_CAMPUS_SIGLA ?? 'IVAIPODG'})`);
+    result.detalhes.push(...avisos);
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     result.erros++;

@@ -418,13 +418,20 @@ export async function suapGetAll<T>(path: string, pageSize = 100): Promise<T[]> 
 
 // ─── Funções específicas ───────────────────────────────────────────────────────
 
+/** Normaliza sigla de campus para comparação — evita perder o filtro por caixa/espaços diferentes. */
+function normalizaSigla(s?: string | null): string {
+  return (s ?? '').trim().toUpperCase();
+}
+
 /**
- * Busca projetos de PESQUISA e EXTENSÃO do campus IVAIPODG.
- * A API do SUAP não filtra por campus — buscamos todas as páginas em paralelo
- * e filtramos pelo campo campus_sigla no retorno.
+ * Busca projetos de PESQUISA e EXTENSÃO só do campus configurado em
+ * SUAP_CAMPUS_SIGLA (Ivaiporã por padrão). A API do SUAP não filtra por
+ * campus — buscamos todas as páginas em paralelo e filtramos pelo campo
+ * `campus_sigla` no retorno.
  */
-export async function fetchProjetosFromSuap(): Promise<SuapProjeto[]> {
-  const campusSigla = process.env.SUAP_CAMPUS_SIGLA ?? 'IVAIPODG';
+export async function fetchProjetosFromSuap(): Promise<{ projetos: SuapProjeto[]; avisos: string[] }> {
+  const campusSigla = normalizaSigla(process.env.SUAP_CAMPUS_SIGLA ?? 'IVAIPODG');
+  const avisos: string[] = [];
 
   console.log(`[SUAP] Buscando projetos de pesquisa e extensão para campus ${campusSigla}...`);
 
@@ -439,25 +446,46 @@ export async function fetchProjetosFromSuap(): Promise<SuapProjeto[]> {
   const todosExtensao: SuapProjeto[] =
     extensao.status === 'fulfilled' ? extensao.value : [];
 
-  if (pesquisa.status === 'rejected')
+  if (pesquisa.status === 'rejected') {
     console.warn('[SUAP] Pesquisa falhou:', pesquisa.reason);
-  if (extensao.status === 'rejected')
+    avisos.push(`⚠️ Falha ao buscar projetos de pesquisa: ${pesquisa.reason instanceof Error ? pesquisa.reason.message : String(pesquisa.reason)}`);
+  }
+  if (extensao.status === 'rejected') {
     console.warn('[SUAP] Extensão falhou:', extensao.reason);
+    avisos.push(`⚠️ Falha ao buscar projetos de extensão: ${extensao.reason instanceof Error ? extensao.reason.message : String(extensao.reason)}`);
+  }
 
   console.log(`[SUAP] Pesquisa: ${todosPesquisa.length} total | Extensão: ${todosExtensao.length} total`);
 
-  // Filtra por campus e taga a fonte
+  // Filtra por campus (comparação normalizada) e taga a fonte
   const dosCampusPesquisa = todosPesquisa
-    .filter((p) => p.campus_sigla === campusSigla)
+    .filter((p) => normalizaSigla(p.campus_sigla) === campusSigla)
     .map((p) => ({ ...p, _fonte: 'pesquisa' as const }));
 
   const dosCampusExtensao = todosExtensao
-    .filter((p) => p.campus_sigla === campusSigla)
+    .filter((p) => normalizaSigla(p.campus_sigla) === campusSigla)
     .map((p) => ({ ...p, _fonte: 'extensao' as const }));
 
   console.log(`[SUAP] ${campusSigla} → Pesquisa: ${dosCampusPesquisa.length} | Extensão: ${dosCampusExtensao.length}`);
 
-  return [...dosCampusPesquisa, ...dosCampusExtensao];
+  // Diagnóstico: se o total bruto não é zero mas o filtro zerou tudo, a
+  // sigla configurada em SUAP_CAMPUS_SIGLA provavelmente está errada —
+  // lista as siglas reais encontradas para o admin corrigir sem precisar
+  // adivinhar (em vez de só reportar silenciosamente "0 projetos").
+  const totalBruto = todosPesquisa.length + todosExtensao.length;
+  const totalFiltrado = dosCampusPesquisa.length + dosCampusExtensao.length;
+  if (totalBruto > 0 && totalFiltrado === 0) {
+    const siglasEncontradas = Array.from(
+      new Set([...todosPesquisa, ...todosExtensao].map((p) => normalizaSigla(p.campus_sigla)).filter(Boolean))
+    ).sort();
+    avisos.push(
+      `⚠️ Nenhum projeto encontrado para campus "${campusSigla}" (${totalBruto} projetos no total, de outros campi). ` +
+      `Siglas encontradas na API: ${siglasEncontradas.join(', ') || '(nenhuma)'}. ` +
+      `Se a sigla certa for diferente, ajuste SUAP_CAMPUS_SIGLA.`
+    );
+  }
+
+  return { projetos: [...dosCampusPesquisa, ...dosCampusExtensao], avisos };
 }
 
 /** Lista editais — tenta vários endpoints pois a doc não lista explicitamente */
