@@ -57,13 +57,21 @@ export interface SuapEdital {
 // O SUAP bloqueia User-Agents que não são de browser — usamos um realista
 const BROWSER_UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36';
 
-interface JwtCache {
-  access: string;
-  refresh: string;
-  accessExpiresAt: number; // timestamp ms
-}
+// Nenhuma chamada de rede deste arquivo deve poder travar indefinidamente —
+// era exatamente isso que deixava uma sincronização "pendurada" por minutos:
+// sem timeout, uma resposta lenta/pendurada do SUAP (ou de rede) prendia a
+// requisição até o limite da função serverless, sem erro nenhum pro usuário.
+const REQUEST_TIMEOUT_MS = 15_000;
 
-let _jwtCache: JwtCache | null = null;
+async function fetchComTimeout(url: string, init: RequestInit = {}, timeoutMs = REQUEST_TIMEOUT_MS): Promise<Response> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await fetch(url, { ...init, signal: controller.signal });
+  } finally {
+    clearTimeout(timer);
+  }
+}
 
 // ─── OAuth2 client_credentials (Aplicação OAUTH2 cadastrada no SUAP) ──────────
 
@@ -92,7 +100,7 @@ async function getClientCredentialsToken(): Promise<string | null> {
 
   try {
     const basicAuth = Buffer.from(`${clientId}:${clientSecret}`).toString('base64');
-    const res = await fetch(`${SUAP_BASE}/api/oauth2/token/`, {
+    const res = await fetchComTimeout(`${SUAP_BASE}/api/oauth2/token/`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/x-www-form-urlencoded',
@@ -138,7 +146,7 @@ async function getSuapTokenFresh(): Promise<string> {
   console.log(`[SUAP] Tentando login com username: ${username}`);
 
   // Tentar com campo "username"
-  let res = await fetch(`${SUAP_BASE}/api/token/pair`, {
+  let res = await fetchComTimeout(`${SUAP_BASE}/api/token/pair`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -154,7 +162,7 @@ async function getSuapTokenFresh(): Promise<string> {
   // Se 401, tentar com campo "login"
   if (!res.ok && res.status === 401) {
     console.log(`[SUAP] Tentando com campo "login"...`);
-    res = await fetch(`${SUAP_BASE}/api/token/pair`, {
+    res = await fetchComTimeout(`${SUAP_BASE}/api/token/pair`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -203,182 +211,100 @@ async function getSavedToken(): Promise<string | null> {
   }
 }
 
+// ─── HTTP helpers ─────────────────────────────────────────────────────────────
+
 /**
- * Obtém access token JWT para a API do SUAP.
+ * Token que já funcionou de verdade (uma resposta 2xx real) nesta execução —
+ * reaproveitado por todas as chamadas seguintes de `suapGet`/`suapGetAll`
+ * até expirar ou levar um 401.
  *
- * Ordem de tentativa:
- *  1. .suap-token.json na pasta do projeto (salvo pela UI)
- *  2. SUAP_API_TOKEN no .env (token manual)
- *  3. SUAP_USERNAME + SUAP_PASSWORD via /api/token/pair
+ * Antes, CADA chamada a `suapGet` (ou seja, cada página de uma sincronização
+ * paginada) refazia a cascata inteira de autenticação do zero — incluindo,
+ * no pior caso, um login completo por usuário/senha (2 requisições
+ * sequenciais). Com `suapGetAll` disparando várias páginas em paralelo, uma
+ * sincronização de projetos podia multiplicar isso em dezenas de logins
+ * simultâneos contra o SUAP — exatamente o que deixava o sync "pendurado"
+ * por minutos sem terminar nem dar erro.
  */
-async function getSuapToken(): Promise<string> {
-  // ── 1. Token manual (funciona fora da rede IFPR) ────────────────────────────
-  const manualToken = process.env.SUAP_API_TOKEN;
-  if (manualToken && manualToken !== 'cole-seu-token-pessoal-aqui') {
-    return manualToken; // Sem cache — token pode ter sido atualizado no .env
+interface WorkingTokenCache { value: string; source: string; expiresAt: number; }
+let _workingToken: WorkingTokenCache | null = null;
+
+async function fetchComToken(url: string, token: string): Promise<Response | null> {
+  try {
+    return await fetchComTimeout(url, {
+      headers: { Authorization: `Bearer ${token}`, Accept: 'application/json', 'User-Agent': BROWSER_UA },
+      cache: 'no-store',
+    });
+  } catch {
+    return null; // timeout ou erro de rede
   }
-
-  // ── 2. Username + Password (requer rede IFPR ou VPN) ────────────────────────
-  const username = process.env.SUAP_USERNAME;
-  const password = process.env.SUAP_PASSWORD;
-
-  if (!username || !password || password === 'sua-senha-suap-aqui') {
-    throw new Error(
-      'SUAP: configure SUAP_API_TOKEN no .env.local com o token copiado do SUAP. ' +
-      'Como obter: acesse https://suap.ifpr.edu.br/api/docs/ → clique "Authorize" → ' +
-      'use /api/token/pair com seu login → copie o campo "access". ' +
-      'Obs: fora da rede IFPR, as credenciais username/password não funcionam (bloqueio de IP).'
-    );
-  }
-
-  // Usa access token cacheado se ainda válido (5 min de buffer)
-  if (_jwtCache && _jwtCache.accessExpiresAt > Date.now() + 5 * 60_000) {
-    return _jwtCache.access;
-  }
-
-  // Login completo com username + password
-  const res = await fetch(`${SUAP_BASE}/api/token/pair`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'User-Agent': BROWSER_UA,
-    },
-    body: JSON.stringify({ username, password }),
-    cache: 'no-store',
-  });
-
-  if (!res.ok) {
-    const body = await res.text();
-    let detail = body;
-    try {
-      const json = JSON.parse(body) as Record<string, unknown>;
-      detail = String(json.detail ?? json.message ?? json.error ?? body);
-    } catch { /* mantém texto */ }
-
-    if (res.status === 401) {
-      throw new Error(
-        `SUAP: usuário ou senha incorretos (401). ` +
-        `Verifique SUAP_USERNAME e SUAP_PASSWORD no .env.local. Detalhe: ${detail}`
-      );
-    }
-    throw new Error(`SUAP auth falhou (${res.status}): ${detail}`);
-  }
-
-  const data = await res.json() as { access: string; refresh: string };
-  _jwtCache = {
-    access: data.access,
-    refresh: data.refresh,
-    accessExpiresAt: Date.now() + 23 * 60 * 60_000,
-  };
-
-  return _jwtCache.access;
 }
 
-// ─── HTTP helpers ─────────────────────────────────────────────────────────────
+async function getManualTokenValue(): Promise<string | null> {
+  const manualToken = process.env.SUAP_API_TOKEN;
+  return manualToken && manualToken !== 'cole-seu-token-pessoal-aqui' ? manualToken : null;
+}
+
+async function getUsernamePasswordToken(): Promise<string | null> {
+  const username = process.env.SUAP_USERNAME;
+  const password = process.env.SUAP_PASSWORD;
+  if (!username || !password || password === 'sua-senha-suap-aqui') return null;
+  return getSuapTokenFresh();
+}
+
+const TOKEN_PROVIDERS: Array<{ name: string; getToken: () => Promise<string | null> }> = [
+  { name: 'token-salvo', getToken: getSavedToken },
+  { name: 'oauth2-client-credentials', getToken: getClientCredentialsToken },
+  { name: 'token-manual', getToken: getManualTokenValue },
+  { name: 'username-senha', getToken: getUsernamePasswordToken },
+];
 
 export async function suapGet<T>(path: string): Promise<T> {
   const url = path.startsWith('http') ? path : `${SUAP_BASE}${path}`;
 
-  // 1. Tentar token salvo via UI
-  const savedToken = await getSavedToken();
-  if (savedToken) {
+  // Reaproveita o token que já funcionou nesta execução, se ainda válido.
+  if (_workingToken && _workingToken.expiresAt > Date.now()) {
+    const res = await fetchComToken(url, _workingToken.value);
+    if (res?.ok) return res.json() as T;
+    // 401 (expirou/revogado) ou timeout/erro de rede — invalida e re-resolve abaixo.
+    _workingToken = null;
+  }
+
+  const erros: string[] = [];
+  for (const provider of TOKEN_PROVIDERS) {
+    let token: string | null;
     try {
-      const res = await fetch(url, {
-        headers: {
-          Authorization: `Bearer ${savedToken}`,
-          Accept: 'application/json',
-          'User-Agent': BROWSER_UA,
-        },
-        cache: 'no-store',
-      });
-
-      if (res.ok) {
-        return res.json() as T;
-      }
-
-      // Se 401, token expirado
-      if (res.status === 401) {
-        console.log('[SUAP] Token salvo expirado, tentando login automático...');
-      }
-    } catch {
-      // Erro de rede — tenta próximo método
+      token = await provider.getToken();
+    } catch (err) {
+      erros.push(`${provider.name}: ${err instanceof Error ? err.message : String(err)}`);
+      continue;
     }
-  }
+    if (!token) continue;
 
-  // 2. Tentar OAuth2 client_credentials (SUAP_CLIENT_ID + SUAP_CLIENT_SECRET)
-  const clientCredentialsToken = await getClientCredentialsToken();
-  if (clientCredentialsToken) {
-    try {
-      const res = await fetch(url, {
-        headers: {
-          Authorization: `Bearer ${clientCredentialsToken}`,
-          Accept: 'application/json',
-          'User-Agent': BROWSER_UA,
-        },
-        cache: 'no-store',
-      });
+    const res = await fetchComToken(url, token);
+    if (!res) { erros.push(`${provider.name}: timeout/erro de rede`); continue; }
 
-      if (res.ok) {
-        return res.json() as T;
-      }
-
-      if (res.status === 401) {
-        // Token pode ter sido revogado no SUAP antes de expirar — descarta o
-        // cache para forçar uma nova troca na próxima chamada.
-        _clientCredentialsCache = null;
-        console.log('[SUAP] Token OAuth2 client_credentials inválido/expirado, tentando próximo método...');
-      }
-    } catch {
-      // Erro de rede — tenta próximo método
+    if (res.ok) {
+      // 20 min é conservador o bastante pra cobrir uma sincronização inteira
+      // sem re-resolver a cada chamada, mas curto o bastante pra não
+      // carregar um token revogado por muito tempo entre execuções.
+      _workingToken = { value: token, source: provider.name, expiresAt: Date.now() + 20 * 60_000 };
+      return res.json() as T;
     }
-  }
 
-  // 3. Tentar token manual do .env
-  const manualToken = process.env.SUAP_API_TOKEN;
-  if (manualToken && manualToken !== 'cole-seu-token-pessoal-aqui') {
-    try {
-      const res = await fetch(url, {
-        headers: {
-          Authorization: `Bearer ${manualToken}`,
-          Accept: 'application/json',
-          'User-Agent': BROWSER_UA,
-        },
-        cache: 'no-store',
-      });
-
-      if (res.ok) {
-        return res.json() as T;
-      }
-
-      if (res.status === 401) {
-        console.log('[SUAP] Token manual expirado, tentando login automático...');
-      }
-    } catch {
-      // Erro de rede
+    if (provider.name === 'oauth2-client-credentials' && res.status === 401) {
+      _clientCredentialsCache = null; // token pode ter sido revogado antes de expirar
     }
+    erros.push(`${provider.name}: HTTP ${res.status}`);
   }
 
-  // 4. Login automático via username/password
-  const token = await getSuapTokenFresh();
-
-  const res = await fetch(url, {
-    headers: {
-      Authorization: `Bearer ${token}`,
-      Accept: 'application/json',
-      'User-Agent': BROWSER_UA,
-    },
-    cache: 'no-store',
-  });
-
-  if (!res.ok) {
-    const body = await res.text().catch(() => '');
-    throw new Error(`SUAP API (${res.status}): ${url}${body ? ` — ${body.slice(0, 300)}` : ''}`);
-  }
-
-  return res.json() as T;
+  throw new Error(`SUAP: nenhum método de autenticação funcionou para ${url}. ${erros.join(' | ') || 'nenhum método configurado'}`);
 }
 
-/** Busca todas as páginas de um endpoint paginado — paralelo após descobrir o total */
+/** Quantas páginas buscar ao mesmo tempo — SUAP não costuma lidar bem com rajadas grandes. */
+const SUAP_PAGE_CONCURRENCY = 5;
+
+/** Busca todas as páginas de um endpoint paginado — em lotes, após descobrir o total */
 export async function suapGetAll<T>(path: string, pageSize = 100): Promise<T[]> {
   // Separa path de querystring existente
   const [basePath, qs] = path.split('?');
@@ -386,7 +312,9 @@ export async function suapGetAll<T>(path: string, pageSize = 100): Promise<T[]> 
   params.set('page_size', String(pageSize));
   params.set('page', '1');
 
-  // Primeira página — descobre o total
+  // Primeira página — descobre o total. Também é o que resolve e cacheia o
+  // token de autenticação (ver `_workingToken` em suapGet) antes de qualquer
+  // página seguinte ser disparada.
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const first = await suapGet<any>(`${basePath}?${params}`);
 
@@ -397,22 +325,28 @@ export async function suapGetAll<T>(path: string, pageSize = 100): Promise<T[]> 
 
   if (!firstPage.count || results.length >= firstPage.count) return results;
 
-  // Calcula páginas restantes e busca todas em paralelo
   const totalPages = Math.ceil(firstPage.count / pageSize);
   const pageNums = Array.from({ length: totalPages - 1 }, (_, i) => i + 2);
 
-  const remaining = await Promise.all(
-    pageNums.map(async (page) => {
-      const p = new URLSearchParams(qs ?? '');
-      p.set('page_size', String(pageSize));
-      p.set('page', String(page));
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const r = await suapGet<any>(`${basePath}?${p}`);
-      return Array.isArray(r) ? (r as T[]) : ((r as SuapPaginatedResponse<T>).results ?? []);
-    })
-  );
+  const buscarPagina = async (page: number): Promise<T[]> => {
+    const p = new URLSearchParams(qs ?? '');
+    p.set('page_size', String(pageSize));
+    p.set('page', String(page));
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const r = await suapGet<any>(`${basePath}?${p}`);
+    return Array.isArray(r) ? (r as T[]) : ((r as SuapPaginatedResponse<T>).results ?? []);
+  };
 
-  for (const page of remaining) results.push(...page);
+  // Busca em lotes de SUAP_PAGE_CONCURRENCY em vez de disparar todas as
+  // páginas de uma vez — com o token já cacheado isso não é mais sobre
+  // autenticação repetida, é só para não sobrecarregar o SUAP com uma
+  // rajada de dezenas de requisições simultâneas.
+  for (let i = 0; i < pageNums.length; i += SUAP_PAGE_CONCURRENCY) {
+    const lote = pageNums.slice(i, i + SUAP_PAGE_CONCURRENCY);
+    const paginas = await Promise.all(lote.map(buscarPagina));
+    for (const pagina of paginas) results.push(...pagina);
+  }
+
   return results;
 }
 
