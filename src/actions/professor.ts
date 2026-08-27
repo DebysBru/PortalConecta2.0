@@ -5,6 +5,7 @@ import { slugify, translatePrismaError } from '@/lib/utils';
 import { enviarAtualizacaoStatus } from '@/lib/email';
 import { cache } from '@/lib/cache';
 import { sincronizarProjetoSintetico } from '@/lib/projeto-sintetico';
+import { isAdministradorGeral, projetosAcessiveis, temAcessoAoProjeto, whereUsuarioTemAcessoAoProjeto } from '@/lib/permissions';
 import type { Prisma } from '@prisma/client';
 
 type ActionResult<T = void> = { ok: true; data?: T } | { ok: false; error: string };
@@ -26,13 +27,7 @@ export async function getProfessorStats(email: string) {
   if (!user) return { totalProjetos: 0, projetosAtivos: 0, totalInscritos: 0, inscricoesPendentes: 0 };
 
   const projetos = await prisma.projeto.findMany({
-    where: {
-      OR: [
-        { coordenadorEmail: email },
-        { admins: { some: { email } } },
-        { coordenadores: { some: { user_id: user.id } } },
-      ],
-    },
+    where: isAdministradorGeral(email) ? {} : whereUsuarioTemAcessoAoProjeto(email),
     select: { id: true },
   });
 
@@ -65,23 +60,13 @@ export async function getProfessorStats(email: string) {
 }
 
 export async function listMyProjetos(email: string) {
-  return prisma.projeto.findMany({
-    where: {
-      OR: [
-        { coordenadorEmail: email },
-        { admins: { some: { email } } },
-        { coordenadores: { some: { user: { email } } } },
-      ],
-    },
-    orderBy: { updatedAt: 'desc' },
-    include: {
-      _count: { select: { inscricoes: true } },
-    },
-  });
+  return projetosAcessiveis(email);
 }
 
 export async function getProjetoDetalhes(projetoId: string, userEmail: string) {
-  const projeto = await prisma.projeto.findUnique({
+  if (!(await temAcessoAoProjeto(projetoId, userEmail))) return null;
+
+  return prisma.projeto.findUnique({
     where: { id: projetoId },
     include: {
       coordenadores: { include: { user: { select: { id: true, name: true, email: true } } } },
@@ -92,36 +77,12 @@ export async function getProjetoDetalhes(projetoId: string, userEmail: string) {
       _count: { select: { inscricoes: true } },
     },
   });
-
-  if (!projeto) return null;
-
-  const isCoordinator =
-    projeto.coordenadorEmail === userEmail ||
-    projeto.admins.some((a) => a.email === userEmail) ||
-    projeto.coordenadores.some((c) => c.user.email === userEmail);
-
-  if (!isCoordinator) return null;
-
-  return projeto;
 }
 
 export async function listInscricoes(projetoId: string, userEmail: string) {
-  const projeto = await prisma.projeto.findUnique({
-    where: { id: projetoId },
-    include: {
-      admins: { select: { email: true } },
-      coordenadores: { include: { user: { select: { email: true } } } },
-    },
-  });
-
-  if (!projeto) return { ok: false, error: 'Projeto não encontrado' } as const;
-
-  const isCoordinator =
-    projeto.coordenadorEmail === userEmail ||
-    projeto.admins.some((a) => a.email === userEmail) ||
-    projeto.coordenadores.some((c) => c.user.email === userEmail);
-
-  if (!isCoordinator) return { ok: false, error: 'Acesso negado' } as const;
+  if (!(await temAcessoAoProjeto(projetoId, userEmail))) {
+    return { ok: false, error: 'Acesso negado' } as const;
+  }
 
   const inscricoes = await prisma.inscricao.findMany({
     where: { projeto_id: projetoId },
@@ -136,28 +97,12 @@ export async function listInscricoes(projetoId: string, userEmail: string) {
  */
 export async function updateMyProjeto(projetoId: string, data: MyProjetoFormData, userEmail?: string): Promise<ActionResult> {
   try {
-    const projeto = await prisma.projeto.findUnique({
-      where: { id: projetoId },
-      select: {
-        id: true,
-        coordenadorEmail: true,
-        admins: { select: { email: true } },
-        coordenadores: { include: { user: { select: { email: true } } } },
-      },
-    });
-
-    if (!projeto) {
-      return { ok: false, error: 'Projeto não encontrado' };
-    }
-
-    if (userEmail) {
-      const isCoordinator =
-        projeto.coordenadorEmail === userEmail ||
-        projeto.admins.some((a) => a.email === userEmail) ||
-        projeto.coordenadores.some((c) => c.user.email === userEmail);
-      if (!isCoordinator) {
-        return { ok: false, error: 'Acesso negado: você não é coordenador deste projeto' };
-      }
+    // `userEmail` sempre checado — nunca opcional. Ver mesmo raciocínio em
+    // updateInscricaoStatus: torná-lo opcional permitia pular a checagem só
+    // omitindo o parâmetro numa chamada direta à Server Action.
+    if (!userEmail) return { ok: false, error: 'Não autenticado' };
+    if (!(await temAcessoAoProjeto(projetoId, userEmail))) {
+      return { ok: false, error: 'Acesso negado: você não é coordenador deste projeto' };
     }
 
     await prisma.projeto.update({
@@ -186,22 +131,10 @@ export async function updateMyProjeto(projetoId: string, data: MyProjetoFormData
 
 export async function toggleInscricoes(projetoId: string, userEmail: string): Promise<ActionResult<{ inscricoes_abertas: boolean }>> {
   try {
-    const projeto = await prisma.projeto.findUnique({
-      where: { id: projetoId },
-      include: {
-        admins: { select: { email: true } },
-        coordenadores: { include: { user: { select: { email: true } } } },
-      },
-    });
+    if (!(await temAcessoAoProjeto(projetoId, userEmail))) return { ok: false, error: 'Acesso negado' };
 
+    const projeto = await prisma.projeto.findUnique({ where: { id: projetoId }, select: { inscricoes_abertas: true } });
     if (!projeto) return { ok: false, error: 'Projeto não encontrado' };
-
-    const isCoordinator =
-      projeto.coordenadorEmail === userEmail ||
-      projeto.admins.some((a) => a.email === userEmail) ||
-      projeto.coordenadores.some((c) => c.user.email === userEmail);
-
-    if (!isCoordinator) return { ok: false, error: 'Acesso negado' };
 
     const newValue = !projeto.inscricoes_abertas;
 
@@ -230,16 +163,7 @@ export async function updateInscricaoStatus(
     // Buscar inscrição atual antes de atualizar
     const inscricaoAtual = await prisma.inscricao.findUnique({
       where: { id: inscricaoId },
-      include: {
-        projeto: {
-          select: {
-            nome: true,
-            coordenadorEmail: true,
-            admins: { select: { email: true } },
-            coordenadores: { include: { user: { select: { email: true } } } },
-          },
-        },
-      },
+      include: { projeto: { select: { id: true, nome: true } } },
     });
 
     if (!inscricaoAtual) {
@@ -249,11 +173,7 @@ export async function updateInscricaoStatus(
     // Verify caller is coordinator of the project — sempre checado, nunca opcional
     // (era `userEmail?: string` com essa checagem pulada quando omitido: qualquer
     // um conseguia alterar o status de qualquer inscrição sem autenticação nenhuma).
-    const isCoordinator =
-      inscricaoAtual.projeto.coordenadorEmail === userEmail ||
-      inscricaoAtual.projeto.admins.some((a) => a.email === userEmail) ||
-      inscricaoAtual.projeto.coordenadores.some((c) => c.user.email === userEmail);
-    if (!isCoordinator) {
+    if (!(await temAcessoAoProjeto(inscricaoAtual.projeto.id, userEmail))) {
       return { ok: false, error: 'Acesso negado: você não é coordenador deste projeto' };
     }
 
@@ -318,22 +238,8 @@ export type VagaFormData = {
 };
 
 async function checkCoordenadorDoProjeto(projetoId: string, userEmail: string): Promise<{ ok: true } | { ok: false; error: string }> {
-  const projeto = await prisma.projeto.findUnique({
-    where: { id: projetoId },
-    select: {
-      coordenadorEmail: true,
-      admins: { select: { email: true } },
-      coordenadores: { include: { user: { select: { email: true } } } },
-    },
-  });
-  if (!projeto) return { ok: false, error: 'Projeto não encontrado' };
-
-  const isCoordinator =
-    projeto.coordenadorEmail === userEmail ||
-    projeto.admins.some((a) => a.email === userEmail) ||
-    projeto.coordenadores.some((c) => c.user.email === userEmail);
-
-  return isCoordinator ? { ok: true } : { ok: false, error: 'Acesso negado: você não é coordenador deste projeto' };
+  const acesso = await temAcessoAoProjeto(projetoId, userEmail);
+  return acesso ? { ok: true } : { ok: false, error: 'Acesso negado: você não é coordenador deste projeto' };
 }
 
 /** Lista as vagas do projeto, com o total já selecionado em cada uma. */
@@ -476,22 +382,7 @@ export type PostFormData = {
 };
 
 export async function listPosts(projetoId: string, userEmail: string) {
-  const projeto = await prisma.projeto.findUnique({
-    where: { id: projetoId },
-    include: {
-      admins: { select: { email: true } },
-      coordenadores: { include: { user: { select: { email: true } } } },
-    },
-  });
-
-  if (!projeto) return { ok: false, error: 'Projeto não encontrado' } as const;
-
-  const isCoordinator =
-    projeto.coordenadorEmail === userEmail ||
-    projeto.admins.some((a) => a.email === userEmail) ||
-    projeto.coordenadores.some((c) => c.user.email === userEmail);
-
-  if (!isCoordinator) return { ok: false, error: 'Acesso negado' } as const;
+  if (!(await temAcessoAoProjeto(projetoId, userEmail))) return { ok: false, error: 'Acesso negado' } as const;
 
   const posts = await prisma.post.findMany({
     where: { projetoId },
@@ -503,22 +394,7 @@ export async function listPosts(projetoId: string, userEmail: string) {
 
 export async function createPost(projetoId: string, data: PostFormData, userEmail: string): Promise<ActionResult> {
   try {
-    const projeto = await prisma.projeto.findUnique({
-      where: { id: projetoId },
-      include: {
-        admins: { select: { email: true } },
-        coordenadores: { include: { user: { select: { email: true } } } },
-      },
-    });
-
-    if (!projeto) return { ok: false, error: 'Projeto não encontrado' };
-
-    const isCoordinator =
-      projeto.coordenadorEmail === userEmail ||
-      projeto.admins.some((a) => a.email === userEmail) ||
-      projeto.coordenadores.some((c) => c.user.email === userEmail);
-
-    if (!isCoordinator) return { ok: false, error: 'Acesso negado' };
+    if (!(await temAcessoAoProjeto(projetoId, userEmail))) return { ok: false, error: 'Acesso negado' };
 
     const user = await prisma.user.findUnique({ where: { email: userEmail } });
     if (!user) return { ok: false, error: 'Usuário não encontrado' };
@@ -546,26 +422,10 @@ export async function createPost(projetoId: string, data: PostFormData, userEmai
 
 export async function updatePost(postId: string, data: PostFormData, userEmail: string): Promise<ActionResult> {
   try {
-    const post = await prisma.post.findUnique({
-      where: { id: postId },
-      include: {
-        projeto: {
-          include: {
-            admins: { select: { email: true } },
-            coordenadores: { include: { user: { select: { email: true } } } },
-          },
-        },
-      },
-    });
-
+    const post = await prisma.post.findUnique({ where: { id: postId }, select: { projetoId: true } });
     if (!post) return { ok: false, error: 'Post não encontrado' };
 
-    const isCoordinator =
-      post.projeto.coordenadorEmail === userEmail ||
-      post.projeto.admins.some((a) => a.email === userEmail) ||
-      post.projeto.coordenadores.some((c) => c.user.email === userEmail);
-
-    if (!isCoordinator) return { ok: false, error: 'Acesso negado' };
+    if (!(await temAcessoAoProjeto(post.projetoId, userEmail))) return { ok: false, error: 'Acesso negado' };
 
     await prisma.post.update({
       where: { id: postId },
@@ -586,26 +446,10 @@ export async function updatePost(postId: string, data: PostFormData, userEmail: 
 
 export async function deletePost(postId: string, userEmail: string): Promise<ActionResult> {
   try {
-    const post = await prisma.post.findUnique({
-      where: { id: postId },
-      include: {
-        projeto: {
-          include: {
-            admins: { select: { email: true } },
-            coordenadores: { include: { user: { select: { email: true } } } },
-          },
-        },
-      },
-    });
-
+    const post = await prisma.post.findUnique({ where: { id: postId }, select: { projetoId: true } });
     if (!post) return { ok: false, error: 'Post não encontrado' };
 
-    const isCoordinator =
-      post.projeto.coordenadorEmail === userEmail ||
-      post.projeto.admins.some((a) => a.email === userEmail) ||
-      post.projeto.coordenadores.some((c) => c.user.email === userEmail);
-
-    if (!isCoordinator) return { ok: false, error: 'Acesso negado' };
+    if (!(await temAcessoAoProjeto(post.projetoId, userEmail))) return { ok: false, error: 'Acesso negado' };
 
     await prisma.post.delete({ where: { id: postId } });
 

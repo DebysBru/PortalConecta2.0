@@ -65,6 +65,63 @@ interface JwtCache {
 
 let _jwtCache: JwtCache | null = null;
 
+// ─── OAuth2 client_credentials (Aplicação OAUTH2 cadastrada no SUAP) ──────────
+
+interface ClientCredentialsCache {
+  access: string;
+  expiresAt: number; // timestamp ms
+}
+
+let _clientCredentialsCache: ClientCredentialsCache | null = null;
+
+/**
+ * Troca SUAP_CLIENT_ID/SUAP_CLIENT_SECRET (Aplicação OAUTH2 cadastrada em
+ * suap.ifpr.edu.br/api/oauth2/applications/, grant type "Client credentials")
+ * por um access token — sem depender de usuário/senha nem de token manual
+ * pastado a cada 24h. Retorna `null` se as credenciais não estiverem
+ * configuradas ou se a troca falhar (quem chama cai para o próximo método).
+ */
+async function getClientCredentialsToken(): Promise<string | null> {
+  const clientId = process.env.SUAP_CLIENT_ID;
+  const clientSecret = process.env.SUAP_CLIENT_SECRET;
+  if (!clientId || !clientSecret) return null;
+
+  if (_clientCredentialsCache && _clientCredentialsCache.expiresAt > Date.now() + 60_000) {
+    return _clientCredentialsCache.access;
+  }
+
+  try {
+    const basicAuth = Buffer.from(`${clientId}:${clientSecret}`).toString('base64');
+    const res = await fetch(`${SUAP_BASE}/api/oauth2/token/`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+        Authorization: `Basic ${basicAuth}`,
+        'User-Agent': BROWSER_UA,
+      },
+      body: new URLSearchParams({ grant_type: 'client_credentials' }),
+      cache: 'no-store',
+    });
+
+    if (!res.ok) {
+      const body = await res.text().catch(() => '');
+      console.warn(`[SUAP] OAuth2 client_credentials falhou (${res.status}): ${body.slice(0, 300)}`);
+      return null;
+    }
+
+    const data = await res.json() as { access_token: string; expires_in?: number };
+    _clientCredentialsCache = {
+      access: data.access_token,
+      expiresAt: Date.now() + (data.expires_in ?? 3600) * 1000,
+    };
+    console.log('[SUAP] Token via OAuth2 client_credentials obtido com sucesso');
+    return _clientCredentialsCache.access;
+  } catch (err) {
+    console.warn('[SUAP] Erro de rede ao trocar client_credentials por token:', err);
+    return null;
+  }
+}
+
 /**
  * Obtém token via username/password (força login fresco, sem cache)
  */
@@ -248,7 +305,35 @@ export async function suapGet<T>(path: string): Promise<T> {
     }
   }
 
-  // 2. Tentar token manual do .env
+  // 2. Tentar OAuth2 client_credentials (SUAP_CLIENT_ID + SUAP_CLIENT_SECRET)
+  const clientCredentialsToken = await getClientCredentialsToken();
+  if (clientCredentialsToken) {
+    try {
+      const res = await fetch(url, {
+        headers: {
+          Authorization: `Bearer ${clientCredentialsToken}`,
+          Accept: 'application/json',
+          'User-Agent': BROWSER_UA,
+        },
+        cache: 'no-store',
+      });
+
+      if (res.ok) {
+        return res.json() as T;
+      }
+
+      if (res.status === 401) {
+        // Token pode ter sido revogado no SUAP antes de expirar — descarta o
+        // cache para forçar uma nova troca na próxima chamada.
+        _clientCredentialsCache = null;
+        console.log('[SUAP] Token OAuth2 client_credentials inválido/expirado, tentando próximo método...');
+      }
+    } catch {
+      // Erro de rede — tenta próximo método
+    }
+  }
+
+  // 3. Tentar token manual do .env
   const manualToken = process.env.SUAP_API_TOKEN;
   if (manualToken && manualToken !== 'cole-seu-token-pessoal-aqui') {
     try {
@@ -273,7 +358,7 @@ export async function suapGet<T>(path: string): Promise<T> {
     }
   }
 
-  // 3. Login automático via username/password
+  // 4. Login automático via username/password
   const token = await getSuapTokenFresh();
 
   const res = await fetch(url, {

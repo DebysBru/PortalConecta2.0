@@ -51,8 +51,6 @@ type AuthState = {
 
 const AuthContext = createContext<AuthState | null>(null);
 
-const MASTER_ADMIN_EMAIL = process.env.ADMIN_EMAILS?.split(',')[0]?.trim();
-
 // ── Helper: extrai e-mail do usuário Firebase (inclui claims de custom token) ──
 async function extractEmail(firebaseUser: FirebaseUser): Promise<string | null> {
   if (firebaseUser.email) return firebaseUser.email;
@@ -102,9 +100,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             setUserRole(role);
             setSupabaseUserId(id);
           } catch {
-            const fallbackRole: UserRole | null =
-              email === MASTER_ADMIN_EMAIL ? 'ADMIN' : null;
-            setUserRole(fallbackRole);
+            // `ensureUser` (server action) falhou — não há como o cliente
+            // saber o papel real sem o servidor, então não assume ADMIN aqui
+            // (o servidor de qualquer forma sempre revalida em cada action).
+            setUserRole(null);
             setSupabaseUserId(null);
           }
         } else {
@@ -232,9 +231,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setSupabaseUserId(null);
   };
 
-  const isMasterAdmin = user?.email === MASTER_ADMIN_EMAIL;
-  const isAdmin =
-    userRole === 'ADMIN';
+  // `role` já vem calculado ao vivo do servidor (ensureUser → resolveUserRole,
+  // ver src/lib/permissions.ts): só o Administrador Geral (ADMIN_EMAILS) pode
+  // ser ADMIN, então "isMasterAdmin" e "role === ADMIN" são a mesma coisa.
+  // Antes, isMasterAdmin comparava `user?.email` com `process.env.ADMIN_EMAILS`
+  // lido aqui num componente client — essa env var não é NEXT_PUBLIC_, então
+  // no navegador ela sempre vinha `undefined` e isMasterAdmin nunca era
+  // `true` pra ninguém (nem pro próprio Administrador Geral), escondendo RAG,
+  // Sync SUAP, Usuários e Limpar Dados mesmo para quem tinha permissão.
+  const isAdmin = userRole === 'ADMIN';
+  const isMasterAdmin = isAdmin;
 
   return (
     <AuthContext.Provider value={{

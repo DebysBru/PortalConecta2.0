@@ -7,6 +7,12 @@ import { derivarEventosEdital, derivarEventosProjeto } from '@/lib/evento-helper
 import { LIMPEZA_TABLES } from '@/lib/limpeza-tables';
 import { sincronizarProjetoSintetico, removerProjetoSintetico } from '@/lib/projeto-sintetico';
 import {
+  isAdministradorGeral,
+  isCoordenadorOuViceDoProjeto,
+  resolveUserRole,
+  usuarioTemAlgumProjeto,
+} from '@/lib/permissions';
+import {
   CategoriaEdital, StatusEdital, StatusProjeto, StatusPost,
   TipoEvento, UserRole,
 } from '@prisma/client';
@@ -31,27 +37,32 @@ async function requireAdminEmail(email?: string): Promise<{ ok: true } | { ok: f
 
 // ── Auth helpers ──────────────────────────────────────────────────────────────
 
+/**
+ * Papel efetivo do e-mail — SEMPRE recalculado ao vivo (nunca só o campo
+ * `role` salvo no banco): Administrador Geral (ADMIN_EMAILS) é sempre ADMIN;
+ * fora do domínio institucional (@ifpr.edu.br) nunca é PROFESSOR/ADMIN; e
+ * dentro do domínio só é PROFESSOR enquanto coordenar/vice-coordenar (ou
+ * tiver sido explicitamente autorizado em) pelo menos um projeto. Ver
+ * `src/lib/permissions.ts` para a regra completa — é o que fecha o pedido de
+ * "e-mails fora do @ifpr.edu.br só acessam o próprio perfil" e "professor sem
+ * projeto carregado não acessa o painel".
+ */
 export async function getUserRole(email: string): Promise<UserRole | null> {
   if (!email) return null;
-  if (MASTER_ADMIN_EMAIL && email === MASTER_ADMIN_EMAIL) {
-    await prisma.user.upsert({
-      where: { email },
-      update: { role: 'ADMIN' },
-      create: { email, name: 'Administrador Master', role: 'ADMIN' },
-    });
-    return 'ADMIN';
-  }
-  const user = await prisma.user.findUnique({ where: { email }, select: { role: true } });
-  return user?.role ?? null;
+  return resolveUserRole(email);
 }
 
 export async function ensureUser(email: string, name?: string): Promise<{ id: string; role: UserRole }> {
   const user = await prisma.user.upsert({
     where: { email },
     update: name ? { name } : {},
-    create: { email, name: name ?? email, role: MASTER_ADMIN_EMAIL && email === MASTER_ADMIN_EMAIL ? 'ADMIN' : 'ESTUDANTE' },
+    create: { email, name: name ?? email, role: 'ESTUDANTE' },
   });
-  return { id: user.id, role: user.role };
+  // Recalcula o papel ao vivo (ver getUserRole) para que o AuthContext do
+  // cliente já receba ADMIN/PROFESSOR corretos no primeiro login, em vez do
+  // ESTUDANTE default do upsert acima.
+  const role = (await resolveUserRole(email)) ?? user.role;
+  return { id: user.id, role };
 }
 
 // ── Dashboard stats ───────────────────────────────────────────────────────────
@@ -220,6 +231,9 @@ export async function deleteEdital(id: string, callerEmail: string): Promise<Act
 export type ProjetoFormData = {
   nome: string;
   coordenador: string;
+  coordenadorEmail?: string;
+  viceCoordenadorNome?: string;
+  viceCoordenadorEmail?: string;
   area: string;
   descricao?: string;
   dataInicio?: string;
@@ -258,18 +272,7 @@ async function revogarProfessorSeSemProjetos(email: string) {
   const user = await prisma.user.findUnique({ where: { email }, select: { id: true, role: true } });
   if (!user || user.role !== 'PROFESSOR') return;
 
-  const aindaAdministraAlgo = await prisma.projeto.findFirst({
-    where: {
-      OR: [
-        { admins: { some: { id: user.id } } },
-        { coordenadorEmail: email },
-        { coordenadores: { some: { user_id: user.id } } },
-      ],
-    },
-    select: { id: true },
-  });
-
-  if (!aindaAdministraAlgo) {
+  if (!(await usuarioTemAlgumProjeto(email))) {
     await prisma.user.update({ where: { id: user.id }, data: { role: 'ESTUDANTE' } });
   }
 }
@@ -333,6 +336,9 @@ export async function createProjeto(data: ProjetoFormData, callerEmail: string):
         nome: dbData.nome,
         slug,
         coordenador: dbData.coordenador,
+        coordenadorEmail: dbData.coordenadorEmail?.trim().toLowerCase() || null,
+        viceCoordenadorNome: dbData.viceCoordenadorNome?.trim() || null,
+        viceCoordenadorEmail: dbData.viceCoordenadorEmail?.trim().toLowerCase() || null,
         area: dbData.area,
         descricao: dbData.descricao ?? null,
         dataInicio: dbData.dataInicio ? new Date(dbData.dataInicio) : null,
@@ -382,6 +388,9 @@ export async function updateProjeto(id: string, data: Partial<ProjetoFormData>, 
       updateData.slug = slugify(data.nome);
     }
     if (data.coordenador !== undefined) updateData.coordenador = data.coordenador;
+    if (data.coordenadorEmail !== undefined) updateData.coordenadorEmail = data.coordenadorEmail?.trim().toLowerCase() || null;
+    if (data.viceCoordenadorNome !== undefined) updateData.viceCoordenadorNome = data.viceCoordenadorNome?.trim() || null;
+    if (data.viceCoordenadorEmail !== undefined) updateData.viceCoordenadorEmail = data.viceCoordenadorEmail?.trim().toLowerCase() || null;
     if (data.area !== undefined) updateData.area = data.area;
     if (data.descricao !== undefined) updateData.descricao = data.descricao;
     if (data.dataInicio !== undefined) updateData.dataInicio = data.dataInicio ? new Date(data.dataInicio) : null;
@@ -505,19 +514,7 @@ export async function createPost(data: PostFormData, authorEmail: string): Promi
     if (!userRecord) return { ok: false, error: 'Usuário não encontrado' };
 
     if (userRecord.role === 'PROFESSOR') {
-      const projeto = await prisma.projeto.findUnique({
-        where: { id: data.projetoId },
-        select: {
-          coordenadorEmail: true,
-          admins: { select: { email: true } },
-          coordenadores: { include: { user: { select: { email: true } } } },
-        },
-      });
-      if (!projeto) return { ok: false, error: 'Projeto não encontrado' };
-      const isCoordinator =
-        projeto.coordenadorEmail === authorEmail ||
-        projeto.admins.some((a) => a.email === authorEmail) ||
-        projeto.coordenadores.some((c) => c.user.email === authorEmail);
+      const isCoordinator = await isCoordenadorOuViceDoProjeto(data.projetoId, authorEmail);
       if (!isCoordinator) return { ok: false, error: 'Acesso negado: você não é coordenador deste projeto' };
     } else if (userRecord.role !== 'ADMIN') {
       return { ok: false, error: 'Acesso negado' };
@@ -553,23 +550,9 @@ export async function updatePost(id: string, data: Partial<PostFormData>, userEm
     if (!userRecord) return { ok: false, error: 'Usuário não encontrado' };
 
     if (userRecord.role === 'PROFESSOR') {
-      const post = await prisma.post.findUnique({
-        where: { id },
-        select: {
-          projeto: {
-            select: {
-              coordenadorEmail: true,
-              admins: { select: { email: true } },
-              coordenadores: { include: { user: { select: { email: true } } } },
-            },
-          },
-        },
-      });
+      const post = await prisma.post.findUnique({ where: { id }, select: { projetoId: true } });
       if (!post) return { ok: false, error: 'Post não encontrado' };
-      const isCoordinator =
-        post.projeto.coordenadorEmail === userEmail ||
-        post.projeto.admins.some((a) => a.email === userEmail) ||
-        post.projeto.coordenadores.some((c) => c.user.email === userEmail);
+      const isCoordinator = await isCoordenadorOuViceDoProjeto(post.projetoId, userEmail);
       if (!isCoordinator) return { ok: false, error: 'Acesso negado: você não é coordenador do projeto deste post' };
     } else if (userRecord.role !== 'ADMIN') {
       return { ok: false, error: 'Acesso negado' };
@@ -595,23 +578,9 @@ export async function deletePost(id: string, userEmail: string): Promise<ActionR
     if (!userRecord) return { ok: false, error: 'Usuário não encontrado' };
 
     if (userRecord.role === 'PROFESSOR') {
-      const post = await prisma.post.findUnique({
-        where: { id },
-        select: {
-          projeto: {
-            select: {
-              coordenadorEmail: true,
-              admins: { select: { email: true } },
-              coordenadores: { include: { user: { select: { email: true } } } },
-            },
-          },
-        },
-      });
+      const post = await prisma.post.findUnique({ where: { id }, select: { projetoId: true } });
       if (!post) return { ok: false, error: 'Post não encontrado' };
-      const isCoordinator =
-        post.projeto.coordenadorEmail === userEmail ||
-        post.projeto.admins.some((a) => a.email === userEmail) ||
-        post.projeto.coordenadores.some((c) => c.user.email === userEmail);
+      const isCoordinator = await isCoordenadorOuViceDoProjeto(post.projetoId, userEmail);
       if (!isCoordinator) return { ok: false, error: 'Acesso negado: você não é coordenador do projeto deste post' };
     } else if (userRecord.role !== 'ADMIN') {
       return { ok: false, error: 'Acesso negado' };
@@ -733,6 +702,18 @@ export async function updateUserRole(userId: string, role: UserRole, projetoId: 
       return { ok: false, error: 'Um projeto deve ser selecionado para o Professor.' };
     }
 
+    // Só existe um Administrador Geral (ADMIN_EMAILS) — ninguém mais pode
+    // virar ADMIN por aqui, mesmo sendo o próprio Administrador Geral quem
+    // chamou a action. Sem essa checagem, o painel de Usuários permitia criar
+    // administradores adicionais, contrariando o modelo de "um só Admin Geral
+    // + professores restritos aos próprios projetos".
+    if (role === 'ADMIN') {
+      const target = await prisma.user.findUnique({ where: { id: userId }, select: { email: true } });
+      if (!target || !isAdministradorGeral(target.email)) {
+        return { ok: false, error: 'Só existe um Administrador Geral, definido em ADMIN_EMAILS — não é possível promover outro usuário a Administrador.' };
+      }
+    }
+
     await prisma.user.update({ where: { id: userId }, data: { role } });
 
     if (role === 'PROFESSOR' && projetoId) {
@@ -778,6 +759,11 @@ export async function inviteUser(email: string, role: UserRole, projetoId: strin
 
     if (role === 'PROFESSOR' && !projetoId) {
       return { ok: false, error: 'Um projeto deve ser selecionado para o Professor.' };
+    }
+
+    // Mesma regra de updateUserRole: só o Administrador Geral (ADMIN_EMAILS) pode ser ADMIN.
+    if (role === 'ADMIN' && !isAdministradorGeral(email)) {
+      return { ok: false, error: 'Só existe um Administrador Geral, definido em ADMIN_EMAILS — não é possível convidar outro usuário como Administrador.' };
     }
 
     const user = await prisma.user.upsert({

@@ -59,7 +59,7 @@ type SyncType = 'projetos' | 'editais';
 // ─── Componente Principal ──────────────────────────────────────────────────────
 
 export default function SuapSyncPage() {
-  const { isMasterAdmin } = useAuth();
+  const { user, isMasterAdmin } = useAuth();
   const [statusData, setStatusData] = useState<StatusData | null>(null);
   const [loadingStatus, setLoadingStatus] = useState(true);
   const [syncing, setSyncing] = useState<SyncType | null>(null);
@@ -82,9 +82,10 @@ export default function SuapSyncPage() {
   }
 
   const fetchStatus = useCallback(async () => {
+    if (!user?.email) return;
     try {
       setLoadingStatus(true);
-      const raw = await getSuapStatusAction();
+      const raw = await getSuapStatusAction(user.email);
       // Serializa datas (Date → string) para compatibilidade com o tipo StatusData
       const data: StatusData = {
         ...raw,
@@ -100,16 +101,17 @@ export default function SuapSyncPage() {
     } finally {
       setLoadingStatus(false);
     }
-  }, []);
+  }, [user]);
 
   useEffect(() => { fetchStatus(); }, [fetchStatus]);
 
   const handleSync = async (type: SyncType) => {
+    if (!user?.email) return;
     setSyncing(type);
     setLastResult(null);
     try {
       const action = type === 'projetos' ? syncProjetosAction : syncEditaisAction;
-      const result = await action(false);
+      const result = await action(false, user.email);
       setLastResult({ type, result: { ...result, ok: result.erros === 0 } as SyncResult });
       await fetchStatus();
     } finally {
@@ -118,11 +120,12 @@ export default function SuapSyncPage() {
   };
 
   const handleDryRun = async (type: SyncType) => {
+    if (!user?.email) return;
     setSyncing(type);
     setLastResult(null);
     try {
       const action = type === 'projetos' ? syncProjetosAction : syncEditaisAction;
-      const result = await action(true);
+      const result = await action(true, user.email);
       setLastResult({ type, result: { ...result, ok: result.erros === 0 } as SyncResult });
     } finally {
       setSyncing(null);
@@ -146,12 +149,14 @@ export default function SuapSyncPage() {
       return;
     }
 
+    if (!user?.email) return;
+
     setSavingToken(true);
     try {
       const response = await fetch('/api/admin/suap/token', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ token: tokenInput.trim() }),
+        body: JSON.stringify({ token: tokenInput.trim(), adminEmail: user.email }),
       });
 
       const result = await response.json();

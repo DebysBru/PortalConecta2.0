@@ -58,7 +58,7 @@ export function ProfessorShell({ children }: { children: React.ReactNode }) {
       router.replace('/professor/login');
     }
     if (!loading && user && userRole !== 'PROFESSOR' && userRole !== 'ADMIN') {
-      router.replace('/');
+      router.replace('/meus-dados');
     }
   }, [loading, user, userRole, isLoginPage, router]);
 

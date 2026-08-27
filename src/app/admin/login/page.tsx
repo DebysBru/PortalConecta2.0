@@ -14,7 +14,10 @@ export default function AdminLoginPage() {
   const { user, loading, signIn, signInWithGoogle, signInWithSuap, completeSuapGoogleLink } = useAuth();
   const router = useRouter();
 
-  const [tab, setTab] = useState<LoginTab>('suap');
+  // Login SUAP (matrícula/senha) desativado por enquanto — o código continua
+  // aqui (handleSuapLogin, step de vínculo Google) para religar rápido, só a
+  // aba deixou de ser exibida. Ver pedido do usuário em 2026-08-27.
+  const [tab] = useState<LoginTab>('email');
   const [step, setStep] = useState<LoginStep>('login');
 
   // ── SUAP form ──
@@ -263,29 +266,6 @@ export default function AdminLoginPage() {
 
         <div className="bg-white/10 backdrop-blur-md rounded-3xl p-6 border border-white/20 shadow-2xl">
 
-          {/* ── Tabs ── */}
-          <div className="flex gap-1 bg-white/10 rounded-xl p-1 mb-5">
-            <button
-              onClick={() => { setTab('suap'); setError(''); }}
-              className={`flex-1 py-2 rounded-lg text-sm font-semibold transition-all ${
-                tab === 'suap'
-                  ? 'bg-white text-gray-900 shadow-sm'
-                  : 'text-white/70 hover:text-white'
-              }`}
-            >
-              🏫 Login SUAP
-            </button>
-            <button
-              onClick={() => { setTab('email'); setError(''); }}
-              className={`flex-1 py-2 rounded-lg text-sm font-semibold transition-all ${
-                tab === 'email'
-                  ? 'bg-white text-gray-900 shadow-sm'
-                  : 'text-white/70 hover:text-white'
-              }`}
-            >
-              ✉️ E-mail
-            </button>
-          </div>
 
           {/* ── SUAP Tab ── */}
           {tab === 'suap' && (

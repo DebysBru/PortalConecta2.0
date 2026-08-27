@@ -18,13 +18,15 @@ export default async function AdminProtectedLayout({ children }: { children: Rea
   const session = await getVerifiedServerSession();
   if (!session) redirect('/admin/login');
 
-  // AdminShell (client) permite ADMIN e PROFESSOR — cada página dentro de
-  // /admin/* já faz sua própria restrição mais específica quando precisa
-  // (ex.: admin/editais só libera pra `isMaster`). Aqui só fechamos o
-  // buraco do achado S9: alguém sem sessão nenhuma (ESTUDANTE ou nem
-  // logado) não deve nem receber o HTML da página.
+  // `getUserRole` já recalcula o papel ao vivo (src/lib/permissions.ts):
+  // só o Administrador Geral (ADMIN_EMAILS) é ADMIN, e ninguém fora do
+  // domínio @ifpr.edu.br chega a ser PROFESSOR/ADMIN. O painel /admin é
+  // exclusivo do Administrador Geral — um Professor (coordenador/vice de
+  // projeto) tem o próprio painel em /professor, e quem não é nem um nem
+  // outro cai na área de usuário comum.
   const role = await getUserRole(session.email);
-  if (role !== 'ADMIN' && role !== 'PROFESSOR') redirect('/');
+  if (role === 'PROFESSOR') redirect('/professor');
+  if (role !== 'ADMIN') redirect('/meus-dados');
 
   return <AdminShell>{children}</AdminShell>;
 }

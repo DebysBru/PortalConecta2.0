@@ -13,7 +13,7 @@ const STATUS_LIST = ['ATIVO','EM_EXECUCAO','ENCERRADO','SUSPENSO','INSCRICOES_AB
 const TIPO_LIST = ['Pesquisa', 'Extensão'];
 
 const EMPTY_FORM: ProjetoFormData = {
-  nome: '', coordenador: '', area: '', descricao: '',
+  nome: '', coordenador: '', coordenadorEmail: '', viceCoordenadorNome: '', viceCoordenadorEmail: '', area: '', descricao: '',
   dataInicio: '', servidores: '', alunos: '', observacao: '',
   status: 'EM_EXECUCAO', logoUrl: '', corPrimaria: '#2F52D3',
   email: '', instagram: '', site: '', destaque: false, adminEmails: '',
@@ -66,6 +66,9 @@ export default function AdminProjetosPage() {
     setForm({
       nome: projeto.nome,
       coordenador: projeto.coordenador,
+      coordenadorEmail: projeto.coordenadorEmail ?? '',
+      viceCoordenadorNome: projeto.viceCoordenadorNome ?? '',
+      viceCoordenadorEmail: projeto.viceCoordenadorEmail ?? '',
       area: projeto.area,
       descricao: projeto.descricao ?? '',
       dataInicio: projeto.dataInicio ? new Date(projeto.dataInicio).toISOString().split('T')[0] : '',
@@ -371,9 +374,22 @@ export default function AdminProjetosPage() {
                         <label className="label-field">Nome <span className="text-red-500">*</span></label>
                         <input className="input-field disabled:opacity-50 disabled:bg-gray-50" value={form.nome} onChange={(e) => set('nome', e.target.value)} required disabled={!isMaster} />
                       </div>
-                      <div className="col-span-2">
+                      <div>
                         <label className="label-field">Coordenador <span className="text-red-500">*</span></label>
                         <input className="input-field disabled:opacity-50 disabled:bg-gray-50" value={form.coordenador} onChange={(e) => set('coordenador', e.target.value)} required disabled={!isMaster} />
+                      </div>
+                      <div>
+                        <label className="label-field">E-mail do coordenador</label>
+                        <input type="email" className="input-field disabled:opacity-50 disabled:bg-gray-50" placeholder="coordenador@ifpr.edu.br" value={form.coordenadorEmail ?? ''} onChange={(e) => set('coordenadorEmail', e.target.value)} disabled={!isMaster} />
+                        <p className="text-xs text-gray-400 mt-1">Precisa ser @ifpr.edu.br para o coordenador acessar o Painel do Professor deste projeto.</p>
+                      </div>
+                      <div>
+                        <label className="label-field">Vice-coordenador (nome)</label>
+                        <input className="input-field disabled:opacity-50 disabled:bg-gray-50" value={form.viceCoordenadorNome ?? ''} onChange={(e) => set('viceCoordenadorNome', e.target.value)} disabled={!isMaster} />
+                      </div>
+                      <div>
+                        <label className="label-field">Vice-coordenador (e-mail)</label>
+                        <input type="email" className="input-field disabled:opacity-50 disabled:bg-gray-50" placeholder="vice@ifpr.edu.br" value={form.viceCoordenadorEmail ?? ''} onChange={(e) => set('viceCoordenadorEmail', e.target.value)} disabled={!isMaster} />
                       </div>
                       <div>
                         <label className="label-field">Área <span className="text-red-500">*</span></label>

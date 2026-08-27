@@ -107,7 +107,7 @@ export default function AdminInscricoesPage() {
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-black text-gray-900">Inscrições</h1>
-          <p className="text-gray-500 text-sm">Gerencie as inscrições dos seus projetos</p>
+          <p className="text-gray-500 text-sm">Gerencie as inscrições de todos os projetos</p>
         </div>
       </div>
 

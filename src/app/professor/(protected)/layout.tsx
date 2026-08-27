@@ -15,8 +15,14 @@ export default async function ProfessorProtectedLayout({ children }: { children:
   const session = await getVerifiedServerSession();
   if (!session) redirect('/professor/login');
 
+  // `getUserRole` recalcula o papel ao vivo (src/lib/permissions.ts): só é
+  // PROFESSOR quem tem e-mail @ifpr.edu.br E coordena/vice-coordena (ou foi
+  // explicitamente autorizado em) pelo menos um projeto — sem projeto
+  // carregado, não entra. O Administrador Geral usa o painel completo em
+  // /admin, não este.
   const role = await getUserRole(session.email);
-  if (role !== 'PROFESSOR' && role !== 'ADMIN') redirect('/');
+  if (role === 'ADMIN') redirect('/admin');
+  if (role !== 'PROFESSOR') redirect('/meus-dados');
 
   return <ProfessorShell>{children}</ProfessorShell>;
 }

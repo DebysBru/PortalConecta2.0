@@ -8,10 +8,23 @@
 import { syncProjetos, syncEditais, getLastSyncLogs } from '@/lib/suap-sync';
 import { testSuapConnection, fetchSuapEndpoints } from '@/lib/suap-api';
 import { prisma } from '@/lib/prisma';
+import { isAdministradorGeral } from '@/lib/permissions';
 
 // ─── Sync Actions ──────────────────────────────────────────────────────────────
+//
+// Carregar/atualizar dados direto do SUAP é exclusivo do Administrador Geral
+// (achado equivalente ao S1/S2 do RELATORIO_TESTES.md em outras actions: até
+// aqui, syncProjetosAction/syncEditaisAction não tinham NENHUMA checagem de
+// autorização — a página só escondia o botão na UI para quem não era master,
+// mas a Server Action em si podia ser chamada diretamente por qualquer um).
 
-export async function syncProjetosAction(dryRun = false) {
+export async function syncProjetosAction(dryRun = false, callerEmail?: string) {
+  if (!callerEmail || !isAdministradorGeral(callerEmail)) {
+    return {
+      total: 0, criados: 0, atualizados: 0, erros: 1,
+      detalhes: ['❌ Acesso negado: apenas o Administrador Geral pode sincronizar com o SUAP'],
+    };
+  }
   try {
     return await syncProjetos({ dryRun });
   } catch (err) {
@@ -22,7 +35,13 @@ export async function syncProjetosAction(dryRun = false) {
   }
 }
 
-export async function syncEditaisAction(dryRun = false) {
+export async function syncEditaisAction(dryRun = false, callerEmail?: string) {
+  if (!callerEmail || !isAdministradorGeral(callerEmail)) {
+    return {
+      total: 0, criados: 0, atualizados: 0, erros: 1,
+      detalhes: ['❌ Acesso negado: apenas o Administrador Geral pode sincronizar com o SUAP'],
+    };
+  }
   try {
     return await syncEditais({ dryRun });
   } catch (err) {
@@ -35,7 +54,23 @@ export async function syncEditaisAction(dryRun = false) {
 
 // ─── Status Action ─────────────────────────────────────────────────────────────
 
-export async function getSuapStatusAction() {
+export async function getSuapStatusAction(callerEmail?: string) {
+  if (!callerEmail || !isAdministradorGeral(callerEmail)) {
+    return {
+      suap: {
+        configurado: false,
+        temApiToken: false,
+        temUserPass: false,
+        temClientCredentials: false,
+        baseUrl: process.env.SUAP_BASE_URL ?? 'https://suap.ifpr.edu.br',
+        campus: process.env.SUAP_CAMPUS ?? 'Ivaiporã',
+        conexao: { ok: false, message: 'Acesso negado: apenas o Administrador Geral pode ver o status do SUAP' },
+      },
+      banco: { totalProjetos: 0, totalEditais: 0, projetosDoSuap: 0, editaisDoSuap: 0 },
+      logs: [],
+    };
+  }
+
   const [conexao, logs, totalProjetos, totalEditais, projetosDoSuap, editaisDoSuap] =
     await Promise.allSettled([
       testSuapConnection(),
@@ -56,12 +91,14 @@ export async function getSuapStatusAction() {
     process.env.SUAP_PASSWORD &&
     process.env.SUAP_PASSWORD !== 'sua-senha-suap-aqui'
   );
+  const temClientCredentials = !!(process.env.SUAP_CLIENT_ID && process.env.SUAP_CLIENT_SECRET);
 
   return {
     suap: {
-      configurado: temApiToken || temUserPass,
+      configurado: temApiToken || temUserPass || temClientCredentials,
       temApiToken,
       temUserPass,
+      temClientCredentials,
       baseUrl: process.env.SUAP_BASE_URL ?? 'https://suap.ifpr.edu.br',
       campus: process.env.SUAP_CAMPUS ?? 'Ivaiporã',
       conexao: conexao.status === 'fulfilled'
@@ -80,7 +117,10 @@ export async function getSuapStatusAction() {
 
 // ─── Explorar endpoints ────────────────────────────────────────────────────────
 
-export async function getSuapEndpointsAction() {
+export async function getSuapEndpointsAction(callerEmail?: string) {
+  if (!callerEmail || !isAdministradorGeral(callerEmail)) {
+    return { error: 'Acesso negado: apenas o Administrador Geral' };
+  }
   try {
     return await fetchSuapEndpoints();
   } catch (err) {
