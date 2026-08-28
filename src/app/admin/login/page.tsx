@@ -58,7 +58,9 @@ export default function AdminLoginPage() {
       }
 
       if (result.type === 'firebase') {
-        router.replace('/admin');
+        // Não navega aqui — o useEffect (user + loading) redireciona assim
+        // que o AuthContext terminar de criar o cookie de sessão
+        // server-side. Ver comentário em handleEmailLogin.
         return;
       }
 
@@ -67,6 +69,7 @@ export default function AdminLoginPage() {
         setPendingToken(result.pendingToken);
         setSuapProfile(result.suapProfile);
         setStep('link_google');
+        setSubmitting(false);
         return;
       }
 
@@ -76,9 +79,9 @@ export default function AdminLoginPage() {
           'Configure FIREBASE_ADMIN_* no .env.local para login persistente.'
         );
       }
+      setSubmitting(false);
     } catch {
       setError('Erro inesperado. Tente novamente.');
-    } finally {
       setSubmitting(false);
     }
   };
@@ -93,13 +96,16 @@ export default function AdminLoginPage() {
       const result = await completeSuapGoogleLink(pendingToken);
       if (!result.ok) {
         setError(result.error);
+        linkingInProgress.current = false;
+        setSubmitting(false);
         return;
       }
-      // Vínculo salvo — agora pode redirecionar
-      router.replace('/admin');
+      // Vínculo salvo — libera o useEffect, que redireciona assim que
+      // `loading`/`user` confirmarem que o cookie de sessão já foi criado
+      // (não navegamos aqui: ver comentário em handleEmailLogin).
+      linkingInProgress.current = false;
     } catch {
       setError('Erro inesperado ao vincular. Tente novamente.');
-    } finally {
       linkingInProgress.current = false;
       setSubmitting(false);
     }
@@ -121,10 +127,17 @@ export default function AdminLoginPage() {
     setSubmitting(true);
     try {
       await signIn(email, password);
-      router.replace('/admin');
+      // Não navega aqui: signIn() resolve assim que o Firebase autentica no
+      // cliente, mas o cookie de sessão httpOnly que o layout `(protected)`
+      // verifica no servidor só é criado depois, dentro do
+      // onAuthStateChanged do AuthContext (fetch assíncrono separado). Se
+      // navegássemos aqui, o layout ainda não veria o cookie e bounce de
+      // volta pro login (tela branca piscando) — só funcionava na 2ª
+      // tentativa porque o cookie da 1ª já tinha terminado de ser criado em
+      // background. O useEffect abaixo (user + loading) já espera esse
+      // ciclo terminar antes de redirecionar.
     } catch {
       setError('E-mail ou senha incorretos.');
-    } finally {
       setSubmitting(false);
     }
   };
@@ -135,10 +148,9 @@ export default function AdminLoginPage() {
     setSubmitting(true);
     try {
       await signInWithGoogle();
-      router.replace('/admin');
+      // Idem handleEmailLogin — deixa o useEffect redirecionar.
     } catch {
       setError('Não foi possível autenticar com o Google.');
-    } finally {
       setSubmitting(false);
     }
   };

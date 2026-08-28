@@ -11,13 +11,50 @@ import type { Metadata } from 'next';
 
 export const dynamic = 'force-dynamic';
 
-interface TraducaoIFizinha {
+// O JSON salvo em `traducaoIFizinha` tem duas formas diferentes conforme a
+// origem do edital: o sync do SUAP grava chaves em camelCase com
+// `documentos` como array (src/lib/suap-sync.ts), enquanto o formulário do
+// admin grava chaves em minúsculo com `documentos` como string única
+// (src/actions/admin.ts EditalFormData). Sem normalizar as duas formas
+// aqui, um edital criado pelo admin com `documentos` string quebrava esta
+// página com "documentos.map is not a function" (string não tem `.map`).
+interface TraducaoIFizinhaRaw {
   oQueE?: string;
   quemPode?: string;
   comoParticipar?: string;
   quando?: string;
-  documentos?: string[];
+  documentos?: string | string[];
   mensagemIfizinha?: string;
+  oquee?: string;
+  quempode?: string;
+  comoinscrever?: string;
+  prazo?: string;
+  observacoes?: string;
+}
+
+interface TraducaoIFizinha {
+  oQueE: string;
+  quemPode: string;
+  comoParticipar: string;
+  quando: string;
+  documentos: string[];
+  mensagemIfizinha: string;
+}
+
+function normalizarTraducao(raw: unknown): TraducaoIFizinha {
+  const t = (raw && typeof raw === 'object' ? raw : {}) as TraducaoIFizinhaRaw;
+  return {
+    oQueE: t.oQueE || t.oquee || '',
+    quemPode: t.quemPode || t.quempode || '',
+    comoParticipar: t.comoParticipar || t.comoinscrever || '',
+    quando: t.quando || t.prazo || '',
+    documentos: Array.isArray(t.documentos)
+      ? t.documentos
+      : t.documentos
+        ? [t.documentos]
+        : [],
+    mensagemIfizinha: t.mensagemIfizinha || t.observacoes || '',
+  };
 }
 
 export async function generateMetadata({ params }: { params: { slug: string } }): Promise<Metadata> {
@@ -66,7 +103,7 @@ export default async function EditalDetalhePage({ params }: { params: { slug: st
 
   if (!edital) notFound();
 
-  const traducao = (edital.traducaoIFizinha as TraducaoIFizinha) || {};
+  const traducao = normalizarTraducao(edital.traducaoIFizinha);
   const daysLeft = edital.dataEncerramento ? getDaysUntil(edital.dataEncerramento) : null;
   const isUrgent = daysLeft !== null && daysLeft <= 7 && daysLeft > 0;
   const isExpired = daysLeft !== null && daysLeft <= 0;

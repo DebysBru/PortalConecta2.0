@@ -26,10 +26,14 @@ export default function ProfessorLoginPage() {
     setIsPending(true);
     try {
       await signIn(email, password);
-      router.replace('/professor');
+      // Não navega aqui: o cookie de sessão httpOnly que o layout
+      // protegido verifica no servidor só é criado depois, dentro do
+      // onAuthStateChanged do AuthContext. Navegar antes disso faz o
+      // layout ainda não ver o cookie e mandar de volta pro login (tela
+      // branca piscando) — o useEffect abaixo (user + loading) já espera
+      // esse ciclo terminar antes de redirecionar.
     } catch {
       setError('E-mail ou senha incorretos.');
-    } finally {
       setIsPending(false);
     }
   };
@@ -39,10 +43,9 @@ export default function ProfessorLoginPage() {
     setIsPending(true);
     try {
       await signInWithGoogle();
-      router.replace('/professor');
+      // Idem handleEmailLogin — deixa o useEffect redirecionar.
     } catch {
       setError('Não foi possível autenticar com o Google.');
-    } finally {
       setIsPending(false);
     }
   };
