@@ -158,7 +158,7 @@ export async function syncProjetos(options?: { dryRun?: boolean }): Promise<Sync
         // Não seta review_status aqui: se um admin já revisou/despublicou
         // manualmente este projeto, um re-sync não deve sobrescrever essa
         // decisão silenciosamente.
-        await prisma.projeto.update({ where: { suapId: sp.id }, data });
+        await prisma.projeto.update({ where: { suapId: suapIdUnico }, data });
         result.atualizados++;
         result.detalhes.push(`🔄 Atualizado: "${nome}" (SUAP ID: ${sp.id})`);
         await sincronizarProjetoSintetico(existente.id).catch(console.error);
@@ -266,7 +266,7 @@ export async function syncEditais(options?: { dryRun?: boolean }): Promise<SyncR
         comoParticipar:
           'Acesse o edital oficial e siga as instruções de inscrição indicadas no documento.',
         quando: dataEncerramento
-          ? `Inscrições até ${dataEncerramento.toLocaleDateString('pt-BR')}.`
+          ? `Inscrições até ${dataEncerramento.toLocaleDateString('pt-BR', { timeZone: 'UTC' })}.`
           : 'Consulte o edital oficial para as datas.',
         documentos: ['Consulte o edital oficial para a lista completa de documentos necessários.'],
         mensagemIfizinha:

@@ -56,14 +56,14 @@ function gerarTextoSintetico(projeto: ProjetoComRelacoes): string {
   if (projeto.publicoAlvo) linhas.push(`Público-alvo: ${projeto.publicoAlvo}`);
   if (projeto.localRealizacao) linhas.push(`Local de realização: ${projeto.localRealizacao}`);
   if (projeto.cargaHorariaSemanal) linhas.push(`Carga horária semanal: ${projeto.cargaHorariaSemanal}h`);
-  if (projeto.dataInicio) linhas.push(`Início: ${projeto.dataInicio.toLocaleDateString('pt-BR')}`);
-  if (projeto.dataConclusao) linhas.push(`Conclusão prevista: ${projeto.dataConclusao.toLocaleDateString('pt-BR')}`);
+  if (projeto.dataInicio) linhas.push(`Início: ${projeto.dataInicio.toLocaleDateString('pt-BR', { timeZone: 'UTC' })}`);
+  if (projeto.dataConclusao) linhas.push(`Conclusão prevista: ${projeto.dataConclusao.toLocaleDateString('pt-BR', { timeZone: 'UTC' })}`);
 
   linhas.push(`\nInscrições: ${projeto.inscricoes_abertas ? 'ABERTAS' : 'fechadas no momento'}`);
   if (projeto.inscricoes_abertas) {
     linhas.push(`Vagas bolsista: ${projeto.vagasBolsista}`);
     linhas.push(`Vagas voluntário: ${projeto.vagasVoluntario}`);
-    if (projeto.inscricao_fim) linhas.push(`Prazo de inscrição: ${projeto.inscricao_fim.toLocaleDateString('pt-BR')}`);
+    if (projeto.inscricao_fim) linhas.push(`Prazo de inscrição: ${projeto.inscricao_fim.toLocaleDateString('pt-BR', { timeZone: 'UTC' })}`);
   }
 
   if (projeto.tags.length > 0) linhas.push(`\nTags: ${projeto.tags.map((t) => t.tag).join(', ')}`);

@@ -166,7 +166,7 @@ export default async function EditaisPage() {
                           <div className="text-right">
                             <p className="text-xs text-gray-400">Encerra em</p>
                             <p className={`text-sm font-semibold ${isUrgent ? 'text-orange-600' : 'text-gray-700'}`}>
-                              {formatDateShort(edital.dataEncerramento)}
+                              {formatDateShort(edital.dataEncerramento, { timeZone: 'UTC' })}
                             </p>
                           </div>
                         )}

@@ -206,7 +206,7 @@ async function buscarContexto(pergunta: string): Promise<string> {
         if (p.status === 'INSCRICOES_ABERTAS') {
           partes.push(`- **INSCRIÇÕES ABERTAS** (${p.vagasBolsista} bolsista, ${p.vagasVoluntario} voluntário)`);
           if (p.inscricao_fim) {
-            partes.push(`- Prazo: ${p.inscricao_fim.toLocaleDateString('pt-BR')}`);
+            partes.push(`- Prazo: ${p.inscricao_fim.toLocaleDateString('pt-BR', { timeZone: 'UTC' })}`);
           }
         }
       });
@@ -260,7 +260,7 @@ async function buscarContexto(pergunta: string): Promise<string> {
           partes.push(`- Benefícios: ${e.beneficios.slice(0, 150)}`);
         }
         if (e.dataEncerramento) {
-          partes.push(`- Inscrições até: ${e.dataEncerramento.toLocaleDateString('pt-BR')}`);
+          partes.push(`- Inscrições até: ${e.dataEncerramento.toLocaleDateString('pt-BR', { timeZone: 'UTC' })}`);
         }
       });
     }

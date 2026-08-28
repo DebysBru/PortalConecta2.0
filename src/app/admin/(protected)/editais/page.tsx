@@ -1,7 +1,7 @@
 'use client';
 
-import React, { useEffect, useState, useTransition } from 'react';
-import { Plus, Pencil, Trash2, X, FileText, AlertCircle, Sparkles, Loader2, Eye, EyeOff } from 'lucide-react';
+import React, { useEffect, useRef, useState, useTransition } from 'react';
+import { Plus, Pencil, Trash2, X, FileText, AlertCircle, Sparkles, Loader2, Eye, EyeOff, FileUp } from 'lucide-react';
 import {
   listEditais, createEdital, updateEdital, deleteEdital, toggleEditalPublicacao,
   type EditalFormData,
@@ -33,6 +33,9 @@ export default function AdminEditaisPage() {
   const [generatingAI, setGeneratingAI] = useState(false);
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const [extractingPdf, setExtractingPdf] = useState(false);
+  const [extractInfo, setExtractInfo] = useState('');
+  const pdfInputRef = useRef<HTMLInputElement>(null);
 
   const isMaster = userRole === 'ADMIN' || isMasterAdmin;
 
@@ -53,6 +56,7 @@ export default function AdminEditaisPage() {
     setForm(EMPTY_FORM);
     setActiveTab('info');
     setError('');
+    setExtractInfo('');
     setPanelOpen(true);
   };
 
@@ -72,6 +76,7 @@ export default function AdminEditaisPage() {
     });
     setActiveTab('info');
     setError('');
+    setExtractInfo('');
     setPanelOpen(true);
   };
 
@@ -115,6 +120,50 @@ export default function AdminEditaisPage() {
   const setTrad = (field: string, value: string) =>
     setForm((f) => ({ ...f, traducaoIFizinha: { ...f.traducaoIFizinha, [field]: value } }));
 
+  const handlePdfSelected = async (file: File | null) => {
+    if (!file || !user?.email) return;
+    setExtractingPdf(true);
+    setExtractInfo('');
+    setError('');
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('adminEmail', user.email);
+
+      const res = await fetch('/api/admin/editais/extract-pdf', { method: 'POST', body: formData });
+      const result = await res.json();
+
+      if (!res.ok || !result.ok) {
+        setError(result.error || 'Erro ao extrair dados do PDF');
+        return;
+      }
+
+      const d = result.data as {
+        titulo?: string; resumo?: string; categoria?: EditalFormData['categoria'];
+        dataEncerramento?: string; linkOficial?: string;
+        traducaoIFizinha?: EditalFormData['traducaoIFizinha'];
+      };
+
+      setForm((f) => ({
+        ...f,
+        titulo: d.titulo || f.titulo,
+        resumo: d.resumo || f.resumo,
+        categoria: d.categoria ?? f.categoria,
+        dataEncerramento: d.dataEncerramento || f.dataEncerramento,
+        linkOficial: d.linkOficial || f.linkOficial,
+        traducaoIFizinha: d.traducaoIFizinha
+          ? { ...f.traducaoIFizinha, ...Object.fromEntries(Object.entries(d.traducaoIFizinha).filter(([, v]) => v)) }
+          : f.traducaoIFizinha,
+      }));
+      setExtractInfo('Dados extraídos do PDF! Revise os campos antes de salvar.');
+    } catch {
+      setError('Erro ao conectar com a IA para extrair o PDF');
+    } finally {
+      setExtractingPdf(false);
+      if (pdfInputRef.current) pdfInputRef.current.value = '';
+    }
+  };
+
   return (
     <div className="max-w-5xl mx-auto">
       <div className="flex flex-wrap items-center justify-between gap-4 mb-6">
@@ -155,7 +204,7 @@ export default function AdminEditaisPage() {
                       }`}>
                         {e.review_status === 'PUBLICADO' ? 'Publicado' : 'Rascunho'}
                       </span>
-                      <span className="text-xs text-gray-400">{e.dataEncerramento ? formatDateShort(e.dataEncerramento) : '-'}</span>
+                      <span className="text-xs text-gray-400">{e.dataEncerramento ? formatDateShort(e.dataEncerramento, { timeZone: 'UTC' }) : '-'}</span>
                     </div>
                   </div>
                   <div className="flex items-center gap-1 flex-shrink-0 mt-0.5">
@@ -211,7 +260,7 @@ export default function AdminEditaisPage() {
                           {e.review_status === 'PUBLICADO' ? 'Publicado' : 'Rascunho'}
                         </span>
                       </td>
-                      <td className="px-4 py-3 text-gray-500">{e.dataEncerramento ? formatDateShort(e.dataEncerramento) : '-'}</td>
+                      <td className="px-4 py-3 text-gray-500">{e.dataEncerramento ? formatDateShort(e.dataEncerramento, { timeZone: 'UTC' }) : '-'}</td>
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-1 justify-end">
                           <button
@@ -271,6 +320,31 @@ export default function AdminEditaisPage() {
               <div className="p-6 space-y-4">
                 {activeTab === 'info' ? (
                   <>
+                    <div className="bg-gradient-to-r from-purple-50 to-pink-50 border border-purple-100 rounded-xl p-4">
+                      <input
+                        ref={pdfInputRef}
+                        type="file"
+                        accept=".pdf,.docx,.doc"
+                        onChange={(e) => handlePdfSelected(e.target.files?.[0] || null)}
+                        className="hidden"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => pdfInputRef.current?.click()}
+                        disabled={extractingPdf}
+                        className="w-full flex items-center justify-center gap-2 py-2.5 rounded-lg bg-gradient-to-r from-purple-500 to-pink-500 text-white text-sm font-semibold hover:opacity-90 transition-all disabled:opacity-60"
+                      >
+                        {extractingPdf ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileUp className="w-4 h-4" />}
+                        {extractingPdf ? 'Lendo PDF e extraindo dados...' : 'Preencher a partir do PDF do edital'}
+                      </button>
+                      <p className="text-xs text-purple-700/80 mt-2 text-center">
+                        A IA lê o PDF e pré-preenche os campos abaixo. Revise antes de salvar.
+                      </p>
+                      {extractInfo && (
+                        <p className="text-xs text-green-700 font-medium mt-2 text-center">{extractInfo}</p>
+                      )}
+                    </div>
+
                     <Field label="Título" required>
                       <input className="input-field" value={form.titulo} onChange={(e) => setForm((f) => ({ ...f, titulo: e.target.value }))} required />
                     </Field>

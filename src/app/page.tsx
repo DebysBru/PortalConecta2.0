@@ -145,7 +145,7 @@ export default async function HomePage() {
                     {edital.dataEncerramento && (
                       <div className="flex items-center gap-1.5 text-xs text-gray-400 mt-auto pt-3 border-t border-gray-50">
                         <Clock className="w-3.5 h-3.5" />
-                        Encerra: {formatDateShort(edital.dataEncerramento)}
+                        Encerra: {formatDateShort(edital.dataEncerramento, { timeZone: 'UTC' })}
                       </div>
                     )}
 

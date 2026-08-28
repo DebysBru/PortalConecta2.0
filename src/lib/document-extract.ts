@@ -66,21 +66,14 @@ export async function extractDocument(buffer: Buffer, fileType: string): Promise
 
 async function extractPdf(buffer: Buffer): Promise<ExtractResult> {
   // eslint-disable-next-line @typescript-eslint/no-require-imports
-  const PDFParser = require('pdf2json');
+  const { PDFParse } = require('pdf-parse');
 
-  const text = await new Promise<string>((resolve, reject) => {
-    const parser = new PDFParser();
-    parser.on('pdfParser_dataError', (err: unknown) => reject(err instanceof Error ? err : new Error(String(err))));
-    parser.on('pdfParser_dataReady', () => resolve(parser.getRawTextContent() || ''));
-    parser.parseBuffer(buffer);
-  });
-
-  const pageMarkers = text.match(/-- \d+ of \d+ --/g);
-  const pages = pageMarkers
-    ? parseInt(pageMarkers[pageMarkers.length - 1]?.match(/\d+ of (\d+)/)?.[1] || '1')
-    : 1;
-
-  // pdf2json só lê a camada de texto embutida — PDF escaneado (imagem) retorna vazio.
-  // OCR não é suportado nesta versão; o chamador decide como tratar hasTextLayer=false.
-  return { text, pages, hasTextLayer: text.trim().length > 0 };
+  const parser = new PDFParse({ data: buffer });
+  try {
+    const result = await parser.getText();
+    const text = result.text.replace(/\n--\s*\d+\s+of\s+\d+\s*--\n?/g, '\n');
+    return { text, pages: result.total, hasTextLayer: text.trim().length > 0 };
+  } finally {
+    await parser.destroy();
+  }
 }
