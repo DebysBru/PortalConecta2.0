@@ -1,9 +1,11 @@
 'use server';
 
 import { prisma } from '@/lib/prisma';
+import type { Prisma } from '@prisma/client';
 import { enviarConfirmacaoInscricao } from '@/lib/email';
 import { rateLimitado, obterIpCliente } from '@/lib/rate-limit';
 import { verificarTurnstile } from '@/lib/turnstile';
+import { parsePerguntasExtra, validarRespostasExtraObrigatorias } from '@/lib/formulario-extra';
 
 type InscricaoFormData = {
   projetoId: string;
@@ -144,6 +146,15 @@ export async function criarInscricao(data: InscricaoFormData): Promise<ActionRes
       return { ok: false, error: verificacao.erro! };
     }
 
+    // Perguntas extras obrigatórias definidas pelo coordenador — o form
+    // público já marca `required`, mas isso é só client-side; o servidor
+    // não pode confiar que o navegador de fato validou.
+    const perguntasExtra = parsePerguntasExtra(verificacao.projeto!.formulario_extra);
+    const erroExtra = validarRespostasExtraObrigatorias(perguntasExtra, data.campos_extra ?? {});
+    if (erroExtra) {
+      return { ok: false, error: erroExtra };
+    }
+
     // Se uma vaga específica foi escolhida, validar que ela pertence a este
     // projeto e está aberta — o tipo de interesse passa a ser o da própria vaga.
     let tipoInteresse = data.tipo_interesse;
@@ -191,7 +202,7 @@ export async function criarInscricao(data: InscricaoFormData): Promise<ActionRes
         justificativa: data.justificativa?.trim() || null,
         ciencia_regras: data.ciencia_regras,
         consentimento_lgpd: data.consentimento_lgpd,
-        campos_extra: (data.campos_extra as Record<string, string>) || {},
+        campos_extra: (data.campos_extra ?? {}) as Prisma.InputJsonValue,
         status: 'recebida',
       },
     });
@@ -208,6 +219,12 @@ export async function criarInscricao(data: InscricaoFormData): Promise<ActionRes
     return { ok: true, data: { protocolo: inscricao.protocolo } };
   } catch (e) {
     console.error('Erro ao criar inscrição:', e);
+    // Achado real: `userId` inválido (não corresponde a nenhum User.id)
+    // já causou esse erro em produção — mensagem específica pra facilitar
+    // diagnóstico, em vez do genérico de sempre escondendo a causa.
+    if (String(e).includes('Inscricao_user_id_fkey')) {
+      return { ok: false, error: 'Sua sessão parece inválida. Saia e entre novamente antes de se inscrever.' };
+    }
     return { ok: false, error: 'Erro interno ao processar inscrição' };
   }
 }

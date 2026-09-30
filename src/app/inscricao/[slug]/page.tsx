@@ -10,6 +10,9 @@ import { criarInscricao } from '@/actions/inscricao';
 import { formatDate } from '@/lib/utils';
 import { useAuth } from '@/contexts/AuthContext';
 import { TurnstileWidget } from '@/components/ui/turnstile-widget';
+import { Field, Fieldset } from '@/components/ui/FormFieldPrimitives';
+import { PerguntasExtraFields } from '@/components/ui/PerguntasExtraFields';
+import { parsePerguntasExtra, coletarRespostasExtra, type PerguntaExtra } from '@/lib/formulario-extra';
 
 type VagaInfo = {
   id: string;
@@ -30,6 +33,7 @@ type ProjetoInfo = {
   vagasBolsista: number;
   vagasVoluntario: number;
   vagas: VagaInfo[];
+  formulario_extra?: unknown;
 };
 
 const CURSOS_SUPERIORES = [
@@ -67,7 +71,7 @@ const ANOS_INICIO = Array.from({ length: 10 }, (_, i) => new Date().getFullYear(
 
 export default function InscricaoPage({ params }: { params: { slug: string } }) {
   const { slug } = params;
-  const { user } = useAuth();
+  const { user, supabaseUserId } = useAuth();
 
   const [projeto, setProjeto] = useState<ProjetoInfo | null>(null);
   const [loading, setLoading] = useState(true);
@@ -107,6 +111,10 @@ export default function InscricaoPage({ params }: { params: { slug: string } }) 
 
   const temVagas = (projeto?.vagas.length ?? 0) > 0;
   const vagaEscolhida = projeto?.vagas.find((v) => v.id === vagaId);
+  const perguntasExtra: PerguntaExtra[] = React.useMemo(
+    () => parsePerguntasExtra(projeto?.formulario_extra),
+    [projeto?.formulario_extra]
+  );
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -145,7 +153,13 @@ export default function InscricaoPage({ params }: { params: { slug: string } }) 
       justificativa: form.get('justificativa') as string,
       ciencia_regras: form.get('ciencia_regras') === 'on',
       consentimento_lgpd: form.get('consentimento_lgpd') === 'on',
-      userId: user?.uid || undefined,
+      campos_extra: coletarRespostasExtra(form, perguntasExtra),
+      // `user.uid` é o UID do Firebase — não tem relação nenhuma com
+      // `User.id` (cuid interno do Prisma) que `Inscricao.user_id`
+      // referencia. Usar o UID do Firebase aqui sempre violava a foreign
+      // key pra qualquer usuário logado. `supabaseUserId` é o id correto,
+      // já resolvido pelo AuthContext via `ensureUser`.
+      userId: supabaseUserId || undefined,
       captchaToken: captchaToken ?? undefined,
     };
 
@@ -471,6 +485,18 @@ export default function InscricaoPage({ params }: { params: { slug: string } }) 
             </div>
           </div>
 
+          {perguntasExtra.length > 0 && (
+            <>
+              <hr className="border-gray-100" />
+              <div>
+                <h2 className="font-bold text-gray-900 text-lg mb-4">Perguntas do Projeto</h2>
+                <div className="space-y-4">
+                  <PerguntasExtraFields perguntas={perguntasExtra} />
+                </div>
+              </div>
+            </>
+          )}
+
           <hr className="border-gray-100" />
 
           {/* TERMOS */}
@@ -524,24 +550,3 @@ export default function InscricaoPage({ params }: { params: { slug: string } }) 
   );
 }
 
-function Field({ label, required, children }: { label: string; required?: boolean; children: React.ReactNode }) {
-  return (
-    <div>
-      <label className="block text-sm font-medium text-gray-700 mb-1">
-        {label}{required && <span className="text-red-500 ml-0.5">*</span>}
-      </label>
-      {children}
-    </div>
-  );
-}
-
-function Fieldset({ label, required, children }: { label: string; required?: boolean; children: React.ReactNode }) {
-  return (
-    <fieldset className="border-0 p-0 m-0">
-      <legend className="block text-sm font-medium text-gray-700 mb-1">
-        {label}{required && <span className="text-red-500 ml-0.5">*</span>}
-      </legend>
-      {children}
-    </fieldset>
-  );
-}
