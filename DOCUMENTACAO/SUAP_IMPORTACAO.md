@@ -67,6 +67,29 @@ feita lá — **sem token nenhum**:
 4. o JSON fica na área de transferência (se o navegador bloquear, ele baixa um
    `.json`).
 
+### Se o que você tem é uma tabela, não a captura
+
+Às vezes o que chega é uma **tabela resumida** (ID, título, situação, datas,
+coordenação) em vez do JSON da captura. O conversor transforma essa tabela no mesmo
+formato aceito aqui:
+
+```bash
+python tools/converter-tabela-projetos.py projetos.md projetos.json
+python tools/converter-tabela-projetos.py projetos.md projetos.json --fonte=pesquisa --campus=IVAIPODG
+```
+
+O que ele **não** inventa: a tabela não diz se o projeto é de extensão ou de
+pesquisa, então tudo entra como `extensao` (a menos que se use `--fonte=pesquisa`) —
+o portal vai rotular todos como "Extensão". A tabela também não traz `resumo`, então
+os cards ficam sem descrição. Quando a captura pelo navegador estiver disponível, ela
+é melhor: traz a fonte certa, o resumo, o e-mail da coordenação e o `edital`.
+
+Valide sempre antes de importar — este comando mostra o que seria gravado:
+
+```bash
+npm run db:suap -- projetos.json --seco
+```
+
 ### O script já traz só o campus (IVAIPODG)
 
 A lista do SUAP **não é filtrada por campus** pela API (o parâmetro documentado é
