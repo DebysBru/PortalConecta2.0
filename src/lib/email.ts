@@ -1,4 +1,6 @@
 import { Resend } from 'resend';
+import { MENSAGENS, mensagemAmigavel } from '@/lib/mensagens';
+import { ROTULO_STATUS_INSCRICAO } from '@/lib/notificacoes';
 
 const REMETENTE = 'Portal Conecta IFPR <noreply@portal-conecta2-0.vercel.app>';
 
@@ -11,14 +13,28 @@ let resendClient: Resend | null = null;
  * sem a variável configurada, o simples IMPORT de `@/lib/email` lançava
  * "Missing API key" — o que derrubava qualquer rota que só importasse o módulo,
  * inclusive Server Actions de inscrição que nem iam enviar e-mail. Agora a
- * ausência da chave faz o envio falhar (com log), não o carregamento do módulo.
+ * ausência da chave faz o envio falhar, não o carregamento do módulo.
  */
 function getResend(): Resend {
   const apiKey = process.env.RESEND_API_KEY;
-  if (!apiKey) throw new Error('RESEND_API_KEY não configurada — e-mail não enviado');
+  if (!apiKey) throw new Error(MENSAGENS.emailNaoConfigurado);
 
   if (!resendClient) resendClient = new Resend(apiKey);
   return resendClient;
+}
+
+/**
+ * O envio por e-mail está ligado? (mesmo padrão de `turnstileConfigurado()`)
+ *
+ * Decisão do responsável (05/10/2026): por enquanto o portal NÃO usa o Resend.
+ * Sem a chave, cada função abaixo devolve o mesmo `{ ok: false }` de antes, mas
+ * sem `console.error` — antes, toda inscrição/mudança de status despejava um
+ * stack trace ("Erro ao enviar e-mail de atualização") no journal, ruído que
+ * podia esconder um erro de verdade. Os avisos internos do portal (sino /
+ * "Minha área") continuam funcionando normalmente, são outro caminho.
+ */
+export function resendConfigurado(): boolean {
+  return !!process.env.RESEND_API_KEY;
 }
 
 /** Ponto único de envio, para o remetente e o tratamento de erro não divergirem. */
@@ -96,6 +112,10 @@ function wrapEmail(content: string): string {
 export async function enviarConfirmacaoInscricao(data: InscricaoEmailData) {
   const { protocolo, nomeCompleto, email, projetoNome, tipoInteresse } = data;
 
+  // Envio desligado neste ambiente (sem RESEND_API_KEY): mesmo contrato de
+  // sempre, sem log — ver `resendConfigurado()`.
+  if (!resendConfigurado()) return { ok: false as const, error: MENSAGENS.emailNaoConfigurado };
+
   const content = `
     <div style="text-align: center; margin-bottom: 24px;">
       <div style="width: 64px; height: 64px; background-color: #dcfce7; border-radius: 50%; display: inline-block; line-height: 64px; font-size: 32px;">✓</div>
@@ -153,21 +173,22 @@ export async function enviarConfirmacaoInscricao(data: InscricaoEmailData) {
     return { ok: true };
   } catch (error) {
     console.error('Erro ao enviar e-mail:', error);
-    return { ok: false, error: String(error) };
+    return { ok: false, error: mensagemAmigavel(error, MENSAGENS.falhaEnvioEmail) };
   }
 }
 
 export async function enviarAtualizacaoStatus(data: StatusUpdateEmailData) {
   const { protocolo, nomeCompleto, email, projetoNome, novoStatus, observacao } = data;
 
-  const statusLabels: Record<string, string> = {
-    'recebida': 'Recebida',
-    'em_analise': 'Em Análise',
-    'selecionado': 'Selecionado(a)',
-    'lista_espera': 'Lista de Espera',
-    'nao_selecionado': 'Não Selecionado(a)',
-    'desistente': 'Desistente',
-  };
+  // Envio desligado neste ambiente (sem RESEND_API_KEY): mesmo contrato de
+  // sempre, sem log — ver `resendConfigurado()`.
+  if (!resendConfigurado()) return { ok: false as const, error: MENSAGENS.emailNaoConfigurado };
+
+  // Rótulos vindos de `notificacoes.ts`: antes este arquivo usava
+  // "Selecionado(a)"/"Não Selecionado(a)" enquanto o aviso no portal usava
+  // "Selecionado"/"Não selecionado" — o mesmo status aparecia escrito de duas
+  // formas diferentes para o estudante.
+  const statusLabels = ROTULO_STATUS_INSCRICAO;
 
   const statusColors: Record<string, string> = {
     'recebida': '#6b7280',
@@ -230,11 +251,15 @@ export async function enviarAtualizacaoStatus(data: StatusUpdateEmailData) {
     return { ok: true };
   } catch (error) {
     console.error('Erro ao enviar e-mail de atualização:', error);
-    return { ok: false, error: String(error) };
+    return { ok: false, error: mensagemAmigavel(error, MENSAGENS.falhaEnvioEmail) };
   }
 }
 
 export async function enviarBoasVindas(email: string, nome: string) {
+  // Envio desligado neste ambiente (sem RESEND_API_KEY): mesmo contrato de
+  // sempre, sem log — ver `resendConfigurado()`.
+  if (!resendConfigurado()) return { ok: false as const, error: MENSAGENS.emailNaoConfigurado };
+
   const content = `
     <div style="text-align: center; margin-bottom: 24px;">
       <div style="width: 64px; height: 64px; background-color: #f3e8ff; border-radius: 50%; display: inline-block; line-height: 64px; font-size: 32px;">🎉</div>
@@ -269,7 +294,7 @@ export async function enviarBoasVindas(email: string, nome: string) {
     return { ok: true };
   } catch (error) {
     console.error('Erro ao enviar e-mail de boas-vindas:', error);
-    return { ok: false, error: String(error) };
+    return { ok: false, error: mensagemAmigavel(error, MENSAGENS.falhaEnvioEmail) };
   }
 }
 
@@ -288,6 +313,10 @@ interface AlertaEditalEmailData {
  */
 export async function enviarAlertaEdital(data: AlertaEditalEmailData) {
   const { email, nome, editalTitulo, editalCategoria, editalSlug, dataEncerramento } = data;
+
+  // Envio desligado neste ambiente (sem RESEND_API_KEY): mesmo contrato de
+  // sempre, sem log — ver `resendConfigurado()`.
+  if (!resendConfigurado()) return { ok: false as const, error: MENSAGENS.emailNaoConfigurado };
 
   const prazo = dataEncerramento
     ? `<p style="color: #6b7280; font-size: 14px; margin: 0 0 8px 0;">
@@ -330,6 +359,6 @@ export async function enviarAlertaEdital(data: AlertaEditalEmailData) {
     return { ok: true };
   } catch (error) {
     console.error('Erro ao enviar alerta de edital:', error);
-    return { ok: false, error: String(error) };
+    return { ok: false, error: mensagemAmigavel(error, MENSAGENS.falhaEnvioEmail) };
   }
 }

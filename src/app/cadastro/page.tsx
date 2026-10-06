@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import {
@@ -11,6 +11,7 @@ import { createUserWithEmailAndPassword, updateProfile } from 'firebase/auth';
 import { auth } from '@/lib/firebase';
 import { ensureUser } from '@/actions/admin';
 import { TurnstileWidget } from '@/components/ui/turnstile-widget';
+import { MENSAGENS, mensagemAmigavel } from '@/lib/mensagens';
 
 export default function CadastroPage() {
   const { user, loading } = useAuth();
@@ -24,6 +25,25 @@ export default function CadastroPage() {
   const [success, setSuccess] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [captchaToken, setCaptchaToken] = useState<string | null>(null);
+  // Marca que a conta acabou de ser criada nesta tela — mantém a mensagem de
+  // sucesso visível por um instante antes de seguir para o painel.
+  const [contaCriada, setContaCriada] = useState(false);
+
+  // Redireciona quem já está autenticado. Precisa ser em `useEffect`, nunca
+  // durante a renderização: `router.replace()` no corpo do componente é
+  // navegação durante o render (o React reclama de atualizar outro componente
+  // no meio do render e a página cai com "Application error: a client-side
+  // exception has occurred").
+  //
+  // Esperar `loading === false` também garante que o cookie de sessão httpOnly
+  // já foi criado pelo AuthContext antes de irmos para /admin — sem isso o
+  // layout protegido não vê a sessão e devolve para /admin/login. É a mesma
+  // correção aplicada em admin/login e professor/login (ver DECISIONS.md).
+  useEffect(() => {
+    if (loading || !user) return;
+    const timer = setTimeout(() => router.replace('/admin'), contaCriada ? 1500 : 0);
+    return () => clearTimeout(timer);
+  }, [user, loading, contaCriada, router]);
 
   if (loading) {
     return (
@@ -33,28 +53,23 @@ export default function CadastroPage() {
     );
   }
 
-  if (user) {
-    router.replace('/admin');
-    return null;
-  }
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
     setSuccess('');
 
     if (password.length < 6) {
-      setError('A senha deve ter pelo menos 6 caracteres.');
+      setError(MENSAGENS.senhaCurta);
       return;
     }
 
     if (password !== confirmPassword) {
-      setError('As senhas não conferem.');
+      setError(MENSAGENS.senhasNaoConferem);
       return;
     }
 
     if (process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY && !captchaToken) {
-      setError('Complete a verificação de segurança abaixo.');
+      setError(MENSAGENS.verificacaoSegurancaPendente);
       return;
     }
 
@@ -67,7 +82,7 @@ export default function CadastroPage() {
       });
       if (!captchaCheck.ok) {
         const data = await captchaCheck.json().catch(() => ({}));
-        setError(data.error ?? 'Verificação de segurança falhou.');
+        setError(mensagemAmigavel(data.error, MENSAGENS.verificacaoSegurancaFalhou));
         setSubmitting(false);
         return;
       }
@@ -75,17 +90,20 @@ export default function CadastroPage() {
       const result = await createUserWithEmailAndPassword(auth, email, password);
       await updateProfile(result.user, { displayName: name });
       await ensureUser(email, name);
-      setSuccess('Conta criada com sucesso! Redirecionando...');
-      setTimeout(() => router.replace('/admin'), 1500);
+      setSuccess(MENSAGENS.contaCriada);
+      // Quem navega daqui é o useEffect (user + loading), não um timer local:
+      // ele só dispara depois que o AuthContext terminou de gravar o cookie de
+      // sessão — ver comentário no topo do componente.
+      setContaCriada(true);
     } catch (err: any) {
       if (err.code === 'auth/email-already-in-use') {
-        setError('Este e-mail já está cadastrado.');
+        setError(MENSAGENS.emailJaCadastrado);
       } else if (err.code === 'auth/invalid-email') {
-        setError('E-mail inválido.');
+        setError(MENSAGENS.emailInvalido);
       } else if (err.code === 'auth/weak-password') {
-        setError('Senha muito fraca. Use pelo menos 6 caracteres.');
+        setError(MENSAGENS.senhaFraca);
       } else {
-        setError('Erro ao criar conta. Tente novamente.');
+        setError(mensagemAmigavel(err, MENSAGENS.erroInesperadoOrientacao));
       }
     } finally {
       setSubmitting(false);
