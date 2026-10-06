@@ -13,6 +13,7 @@ import { ProjetosGrid } from '@/components/sections/ProjetosGrid';
 import { UltimasDosProjetos } from '@/components/sections/UltimasDosProjetos';
 import { PergunteIFizinha } from '@/components/sections/PergunteIFizinha';
 import { MascoteIFizinha } from '@/components/ifizinha/MascoteIFizinha';
+import { MascoteInterativa } from '@/components/ifizinha/MascoteInterativa';
 import { getDashboardStatsAction } from '@/actions/auth';
 import { getAllSiteConfigAction } from '@/actions/site-config';
 import { POST_BUSCA_WHERE } from '@/lib/busca';
@@ -227,6 +228,35 @@ export default async function HomePage() {
           </div>
 
           <div className="grid grid-cols-1 gap-6 md:grid-cols-3 xl:pl-[210px]">
+            {/* Sem edital publicado (o portal pode estar começando), a seção não
+                pode ficar com a grade vazia: entra o estado vazio com a IFizinha,
+                no mesmo padrão das outras telas. */}
+            {editaisDestaque.length === 0 && (
+              <div className="rounded-2xl border border-dashed border-gray-200 bg-gray-50 px-6 py-12 text-center md:col-span-3">
+                <div className="mx-auto mb-4 w-[130px]">
+                  <MascoteInterativa nome="chat" />
+                </div>
+                <p className="font-semibold text-gray-700">Nenhum edital publicado ainda</p>
+                <p className="mx-auto mt-1 max-w-md text-sm text-gray-500">
+                  Quando a equipe publicar, a IFizinha traduz cada edital em poucas linhas aqui.
+                  Enquanto isso, dá uma olhada nos projetos e na agenda do campus.
+                </p>
+                <div className="mt-5 flex flex-wrap justify-center gap-3">
+                  <Link
+                    href="/projetos"
+                    className="rounded-xl bg-azul-eletrico px-5 py-2.5 text-sm font-semibold text-white transition-all hover:bg-azul-eletrico/90"
+                  >
+                    Ver projetos
+                  </Link>
+                  <Link
+                    href="/agenda"
+                    className="rounded-xl border border-gray-200 bg-white px-5 py-2.5 text-sm font-semibold text-gray-700 transition-all hover:bg-gray-50"
+                  >
+                    Ver agenda
+                  </Link>
+                </div>
+              </div>
+            )}
             {editaisDestaque.map((edital) => {
               const daysLeft = edital.dataEncerramento ? getDaysUntil(edital.dataEncerramento) : null;
               const isUrgent = daysLeft !== null && daysLeft <= 7 && daysLeft > 0;
