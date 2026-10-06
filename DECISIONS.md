@@ -1329,6 +1329,67 @@ seções e bloco "Pergunte pra IFizinha"). Plano e mapa de colocação em
 
 ---
 
+## 29. Redesign fases 2 e 4 (home com capa/notícias + metadados)
+
+**Continuação do §28.** A fase 3 (páginas internas) ficou para depois — o pedido
+foi seguir direto para a 4.
+
+**Fase 2 — home** (`src/app/page.tsx`, `HeroIFizinha`, `ProjetosGrid`):
+
+| O que mudou | Detalhe |
+|---|---|
+| Header | saiu o botão extra "Ver Editais" do desktop (o link continua na navegação e no menu mobile) |
+| Capa | deixou de ser gradiente escuro de tela cheia: agora é clara, com a foto do campus (`banner-campus-3`), etiquetas de atalho (Editais/Projetos/Agenda/Bolsas) e os dois CTAs |
+| Atalhos | os 4 cards de estatística viraram "O que você procura?", com os ícones 3D; a contagem continua vindo do banco, com `stat_editais`/`stat_projetos` do painel como override |
+| Seções | títulos do mockup ("Traduzindo o burocrátês", "Tem muita coisa acontecendo por aqui", "Não deixa passar") mantendo badges, prazos e links |
+| **Notícias (novo)** | 3 posts públicos mais recentes, capa pelo mesmo `PostCapa` da página do projeto, visibilidade por `POST_BUSCA_WHERE` (a mesma régua da busca global). Sem post publicado — o caso de produção hoje — mostra estado vazio explicando, em vez de sumir |
+| **Pergunte pra IFizinha (novo)** | chat embutido na home, com perguntas sugeridas, no **mesmo** `/api/chat` do widget flutuante; título/subtítulo seguem vindo de `ifizinha_titulo`/`ifizinha_descricao` |
+
+**Mascotes (o pedido era "não parecerem cortadas nem soltas"):** as poses de meio
+corpo ficam com o **próprio corte alinhado ao fim da seção** (o arquivo termina na
+cintura) e cada uma ganhou uma calha — recuo na grade — para não cobrir card
+nenhum; a pose deitada do bloco de chat aparece inteira (cortar a lateral
+deceparia as pernas); e as poses em **JPEG só entram em seções com o mesmo fundo**
+(#F7F7F7), senão aparece o retângulo. No rodapé ela foi reancorada no canto
+(`bottom-0`), deixando de flutuar no vazio.
+
+**Correção de raiz achada no caminho:** `.bg-hero-gradient` (globals.css) usava o
+atalho `background:`, que **reseta `background-clip`** — qualquer elemento que
+combinasse essa classe com `bg-clip-text` virava um retângulo colorido no lugar de
+texto com gradiente. Passou a usar `background-image`, e o título da capa usa a
+`.text-gradient` que já existia.
+
+**Fase 4 — metadados:**
+
+| Item | O que foi feito |
+|---|---|
+| Ícones | `tools/gerar-icones-portal.py` gera PWA (192/512), maskable, favicon (16/32/48) e apple-touch-icon a partir do **símbolo** do logo oficial, em fundo branco. Os antigos eram a marca anterior (estrelinha). O símbolo é isolado por componente conectada + remoção da faixa do texto, porque o anel e o "P" de "Portal" se encostam no arquivo. `public/icons/icon.svg` (marca antiga) foi removido |
+| Compartilhamento | `metadataBase` + `openGraph.images` + `twitter:card`: o link do portal agora tem imagem no WhatsApp. A página do post ganhou `og:image` (capa do post ou a padrão) + `canonical` |
+| SEO | `robots.ts` (respondia 404 em produção) com áreas autenticadas/API fora do índice e apontando o sitemap; `sitemap.ts` com as páginas fixas + editais e projetos publicados, `revalidate` de 1h e fallback para as fixas se o banco cair |
+| Contraste | medido por luminância: gray-400 (2,5:1) → gray-500 em eyebrows/datas; ciano-claro (3,0:1) → ciano-700 em textos pequenos; rosa-vibrante (3,9:1) → rosa-600 em links pequenos (títulos grandes seguem no rosa da marca); barra final do rodapé gray-500 → gray-400 (7,2:1); faixa "Dica da IFizinha" ganhou véu preto de 15% e o parágrafo foi para white/95 (o gradiente termina em rosa, onde branco puro dá 3,9:1) |
+
+**Deploys:** fase 0+1 `BQJ44sJ7trRYlP8SEagLg`, fase 2 `PCYDK6x-eRxBL_RpXPeNN`, fase 4
+`J6xWG1OV6O3LqbeoY1dmD` — todos blue-green pelo `/root/troca-portal.sh`, com ~1 s
+fora do ar e 0 respostas 5xx.
+
+**Verificação:** 475 testes em 30 arquivos; `tsc --noEmit` limpo; `next build` ok;
+conferido por Chrome headless em 1440 e 390 (7 seções, sem erro de console) e, em
+produção, `/robots.txt` 200, `/sitemap.xml` 200 com 11 URLs, os 4 ícones e a
+`og:image` 200 com o tipo certo, e as meta tags de compartilhamento com URL
+absoluta na home e na página do post.
+
+**Pendente:** fase 3 — páginas internas (editais, projetos, agenda, login/cadastro)
+e a arte de 404 (`arte-404.webp`, já gerada); e, se quiser, os chips de filtro da
+agenda que aparecem no mockup.
+
+**Registrado em:** DECISIONS.md
+**Impacto:** `src/app/{page,layout,robots,sitemap}.tsx`,
+`src/components/sections/*`, `src/components/layout/Header.tsx`,
+`src/app/projetos/[slug]/posts/[postSlug]/page.tsx`, `public/icons/*`,
+`public/{favicon.ico,apple-touch-icon.png}`, `tools/gerar-icones-portal.py`
+
+---
+
 ## Resumo de impactos
 
 | Decisão | Impacto | Fase | Notas |
@@ -1357,7 +1418,8 @@ seções e bloco "Pergunte pra IFizinha"). Plano e mapa de colocação em
 | **Cadastro quebrava a página (Dec. 25)** | `/cadastro` redireciona em `useEffect` (era `router.replace` durante o render → React error #310 → tela branca ao criar conta); recarga automática quando um chunk do build anterior some; deploy passa a preservar `.next/static` e copiar `public/` | **no ar** (05/10, BUILD_ID `887zxvLK3wAiaOVHIqLIf`) | `public/` agora versionado; favicon e ícones do PWA voltaram a 200; runbook em `deploy/DEPLOY_BLUE_GREEN.md` |
 | **E-mail e CAPTCHA desligados por opção (Dec. 26)** | Sem `RESEND_API_KEY` o envio devolve `{ ok: false }` sem stack trace no journal (aviso no portal segue); sem Turnstile não há CAPTCHA no cadastro/inscrição | **no ar** (05/10, BUILD_ID `hq8XoWCjwi7QgyUDrTe_X`) | Decisão do responsável; ligar exige preencher as chaves **e** rebuildar (a site key é embutida no build) |
 | **Rodapé institucional + lição de deploy (Dec. 27)** | Endereço completo, mapa (embed sem chave, `loading="lazy"`) e contatos oficiais no rodapé; `@ifpr.ivaipora` (errado) → `@ifpr.campus.ivaipora`; script de troca passa a não assumir que `-old` existe | **no ar** (06/10, BUILD_ID `CaA2WYgwrI0QuGuwzy73p`) | `mv A B` com B existente move A para dentro de B — causou 20 s de queda; agora `/root/troca-portal.sh` na VPS e runbook corrigido |
-| **Redesign com a IFizinha, fases 0 e 1 (Dec. 28)** | Assets de 14,7 MB → 1,9 MB em `public/ifizinha/` (script com Pillow) + componente `MascoteIFizinha`; header claro com o logo oficial e botão "Pergunte à IFizinha"; rodapé azul com a mascote | **commitado, aguardando deploy** | Backup em 3 camadas (tag `pre-redesign-2026-10-06`); nenhum link removido; fase 2 = home |
+| **Redesign com a IFizinha, fases 0 e 1 (Dec. 28)** | Assets de 14,7 MB → 1,9 MB em `public/ifizinha/` (script com Pillow) + componente `MascoteIFizinha`; header claro com o logo oficial e botão "Pergunte à IFizinha"; rodapé azul com a mascote | **no ar** (06/10, BUILD_ID `BQJ44sJ7trRYlP8SEagLg`) | Backup em 3 camadas (tag `pre-redesign-2026-10-06`); nenhum link removido; fase 2 = home |
+| **Redesign — fases 2 e 4: home e metadados (Dec. 29)** | Home com capa clara, 4 atalhos com ícones 3D, seções do mockup, **notícias dos projetos** (posts públicos) e chat embutido; ícones do PWA na marca nova, OG image no compartilhamento, robots/sitemap e ajustes de contraste (WCAG AA) | **no ar** (06/10, BUILD_ID `J6xWG1OV6O3LqbeoY1dmD`) | Mascotes ancoradas nas bordas; `.bg-hero-gradient` deixou de usar o atalho `background` (resetava `background-clip`); produção ainda sem post publicado → seção de notícias no estado vazio; **fase 3 pendente** |
 
 ---
 
