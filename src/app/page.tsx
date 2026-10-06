@@ -88,7 +88,7 @@ export default async function HomePage() {
       descricao: 'Não perca prazos, eventos e momentos importantes.',
       icone: '/ifizinha/icone-agenda.webp',
       fundo: 'bg-rosa-50',
-      cor: 'text-rosa-vibrante',
+      cor: 'text-rosa-700',
       contagem: String(stats.eventos),
       rotulo: stats.eventos === 1 ? 'evento próximo' : 'eventos próximos',
     },
@@ -98,7 +98,7 @@ export default async function HomePage() {
       descricao: 'Conheça os projetos do campus e como participar.',
       icone: '/ifizinha/icone-projetos.webp',
       fundo: 'bg-ciano-50',
-      cor: 'text-ciano-claro',
+      cor: 'text-ciano-700',
       contagem: siteConfig.stat_projetos || String(stats.projetos),
       rotulo: 'projetos',
     },
@@ -262,7 +262,7 @@ export default async function HomePage() {
                     </p>
 
                     {edital.dataEncerramento && (
-                      <div className="mt-auto flex items-center gap-1.5 border-t border-gray-50 pt-3 text-xs text-gray-400">
+                      <div className="mt-auto flex items-center gap-1.5 border-t border-gray-50 pt-3 text-xs text-gray-500">
                         <Clock className="w-3.5 h-3.5" />
                         Encerra: {formatDateShort(edital.dataEncerramento, { timeZone: 'UTC' })}
                       </div>
@@ -306,7 +306,7 @@ export default async function HomePage() {
             <div>
               <div className="mb-2 flex items-center gap-2">
                 <div className="h-6 w-1 rounded-full bg-hero-gradient" />
-                <p className="text-sm font-semibold uppercase tracking-wider text-rosa-vibrante">
+                <p className="text-sm font-semibold uppercase tracking-wider text-rosa-600">
                   Agenda
                 </p>
               </div>
@@ -319,7 +319,7 @@ export default async function HomePage() {
             </div>
             <Link
               href="/agenda"
-              className="hidden items-center gap-1.5 text-sm font-semibold text-rosa-vibrante transition-all hover:gap-3 md:flex"
+              className="hidden items-center gap-1.5 text-sm font-semibold text-rosa-600 transition-all hover:gap-3 md:flex"
             >
               Ver agenda completa
               <ArrowRight className="w-4 h-4" />

@@ -63,7 +63,7 @@ export function HeroIFizinha({ config = {} }: HeroIFizinhaProps) {
         <div className="grid items-end gap-6 lg:grid-cols-[1.05fr_0.95fr] lg:gap-4">
           {/* Texto */}
           <div className="pb-10 lg:pb-24">
-            <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-gray-400 mb-4">
+            <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-gray-500 mb-4">
               Informação · Oportunidades · Vida no campus
             </p>
 

@@ -66,16 +66,20 @@ export function Footer() {
         </div>
       </div>
       {/* IFizinha CTA */}
-      <div className="bg-hero-gradient py-12">
-        <div className="container mx-auto px-4 max-w-7xl text-center">
-          <div className="inline-flex items-center gap-2 bg-white/10 rounded-full px-4 py-1.5 text-white/80 text-sm mb-4">
+      <div className="relative bg-hero-gradient py-12">
+        {/* Véu escuro leve: o gradiente termina em rosa (#E83D89), onde o branco
+            puro dá só ~3,9:1. Com o véu, o texto branco passa de 4,5:1 (WCAG AA
+            para texto normal) sem mudar a identidade da faixa. */}
+        <div className="absolute inset-0 bg-black/15" aria-hidden />
+        <div className="container relative mx-auto px-4 max-w-7xl text-center">
+          <div className="inline-flex items-center gap-2 bg-white/15 rounded-full px-4 py-1.5 text-white text-sm mb-4">
             <Sparkles className="w-4 h-4" />
             Dica da IFizinha
           </div>
           <h2 className="text-2xl md:text-3xl font-bold text-white mb-3">
             Nunca perca um edital importante!
           </h2>
-          <p className="text-white/80 max-w-xl mx-auto mb-6">
+          <p className="text-white/95 max-w-xl mx-auto mb-6">
             A IFizinha traduz todos os editais do IFPR para você entender de verdade.
             Confira sempre o edital oficial para ter certeza dos detalhes.
           </p>
@@ -189,7 +193,7 @@ export function Footer() {
         </div>
 
         {/* Bottom */}
-        <div className="border-t border-white/10 mt-10 pt-6 flex flex-col md:flex-row items-center justify-between gap-3 text-xs text-gray-500 xl:pr-52">
+        <div className="border-t border-white/10 mt-10 pt-6 flex flex-col md:flex-row items-center justify-between gap-3 text-xs text-gray-400 xl:pr-52">
           <p>
             © {new Date().getFullYear()} Portal Conecta IFPR Ivaiporã. Todos os direitos reservados.
           </p>

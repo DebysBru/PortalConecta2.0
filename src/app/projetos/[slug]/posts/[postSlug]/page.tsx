@@ -33,9 +33,21 @@ async function getPost(slug: string, postSlug: string) {
 export async function generateMetadata({ params }: { params: Params }): Promise<Metadata> {
   const post = await getPost(params.slug, params.postSlug);
   if (!post) return { title: 'Post não encontrado' };
+
+  const descricao = (post.resumo || stripHtml(post.conteudo)).slice(0, 160);
   return {
     title: post.titulo,
-    description: (post.resumo || stripHtml(post.conteudo)).slice(0, 160),
+    description: descricao,
+    alternates: { canonical: `/projetos/${post.projeto.slug}/posts/${post.slug}` },
+    openGraph: {
+      type: 'article',
+      title: post.titulo,
+      description: descricao,
+      // Capa do post quando existe; senão a imagem padrão do portal (a mesma do
+      // layout raiz, em public/ifizinha/og-portal.jpg) — assim o link nunca é
+      // compartilhado sem imagem.
+      images: [{ url: post.imagemUrl || '/ifizinha/og-portal.jpg', alt: post.titulo }],
+    },
   };
 }
 

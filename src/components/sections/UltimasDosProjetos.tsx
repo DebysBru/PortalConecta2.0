@@ -32,7 +32,7 @@ export function UltimasDosProjetos({ posts }: { posts: PostDaHome[] }) {
           <div>
             <div className="mb-2 flex items-center gap-2">
               <div className="h-6 w-1 rounded-full bg-hero-gradient" />
-              <p className="text-sm font-semibold uppercase tracking-wider text-ciano-claro">
+              <p className="text-sm font-semibold uppercase tracking-wider text-ciano-700">
                 Notícias
               </p>
             </div>
@@ -88,7 +88,7 @@ export function UltimasDosProjetos({ posts }: { posts: PostDaHome[] }) {
                     <span className="inline-flex items-center rounded-full bg-azul-eletrico/10 px-2.5 py-1 text-xs font-semibold text-azul-eletrico">
                       {post.projeto.nome}
                     </span>
-                    <span className="flex items-center gap-1.5 text-xs font-medium text-gray-400">
+                    <span className="flex items-center gap-1.5 text-xs font-medium text-gray-500">
                       <Calendar className="h-3.5 w-3.5" />
                       {new Date(post.createdAt).toLocaleDateString('pt-BR')}
                     </span>
