@@ -67,14 +67,14 @@ export function PageHero({
           cortada no meio do branco. `overflow-x-clip` corta só a lateral, sem
           criar barra de rolagem. */}
       {mascote && (
-        <div className="pointer-events-none absolute bottom-0 right-0 hidden w-[190px] xl:block 2xl:w-[210px]">
+        <div className="pointer-events-none absolute bottom-0 right-0 hidden w-[170px] xl:block 2xl:w-[185px]">
           <div className="-mr-6 -mb-10">
             <MascoteInterativa nome={mascote.nome} dica={mascote.dica} />
           </div>
         </div>
       )}
 
-      <div className={`container mx-auto max-w-7xl px-4 ${mascote ? 'xl:pr-[190px] 2xl:pr-[220px]' : ''}`}>
+      <div className={`container mx-auto max-w-7xl px-4 ${mascote ? 'xl:pr-[170px] 2xl:pr-[200px]' : ''}`}>
         <nav aria-label="Trilha" className="mb-4 flex flex-wrap items-center gap-1.5 text-sm text-gray-500">
           {trilha.map((item, i) => (
             <React.Fragment key={`${item.label}-${i}`}>

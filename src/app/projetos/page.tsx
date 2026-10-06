@@ -46,7 +46,7 @@ export default async function ProjetosPage({
         icone={<FolderOpen className="h-7 w-7 text-roxo-luminoso" />}
         fundoIcone="bg-roxo-50"
         mascote={{
-          nome: 'de-costas',
+          nome: 'de-costas-recorte',
           dica: 'Estes são os projetos do campus — tem vaga aberta em vários!',
         }}
       >

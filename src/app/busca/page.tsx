@@ -188,7 +188,7 @@ export default async function BuscaPage({
         icone={<Search className="h-7 w-7 text-azul-eletrico" />}
         fundoIcone="bg-azul-50"
         mascote={{
-          nome: 'de-costas',
+          nome: 'de-costas-recorte',
           dica: 'Escreve uma palavra-chave que eu procuro no portal inteiro!',
         }}
       >

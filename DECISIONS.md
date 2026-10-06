@@ -1589,6 +1589,28 @@ detalhe e a busca, e a mascote entrou nos **estados vazios**:
 O teste de poses passou a cobrir as seis páginas, e um bloco novo garante que os
 quatro estados vazios continuam com a mascote (19 testes no arquivo).
 
+**Correção — fundo das poses de estúdio (relatado no /projetos):** a pose "de
+costas" aparecia como uma **caixinha branca** sobre a faixa do cabeçalho. Causa
+medida: o fundo do JPEG é #FEFEFE (não #FFFFFF), e 1-2 níveis de diferença já são
+perceptíveis numa área grande — a compressão WebP ainda cria bandas na parte
+chapada, o que realça a borda. Ou seja, a regra antiga de "pose com fundo branco
+pode ir em faixa branca" **não se sustentou**.
+
+Solução: `tools/recortar-fundo-poses.py` gera versões **transparentes** das poses
+de estúdio (`pose-*-recorte.webp`). O recorte é por **inundação a partir das
+bordas** (flood fill com tolerância), e não por "apagar todo pixel claro" — é isso
+que preserva a camiseta branca da IFizinha, que está dentro da silhueta e nunca é
+alcançada. No fim a borda recebe um leve esmaecimento para não ficar serrilhada, e
+o arquivo é recortado justo (sem sobra).
+
+As cinco poses ganharam versão recortada e as páginas que usavam a versão de fundo
+sólido foram trocadas (`/projetos` e `/busca` usam `de-costas-recorte`; a seção de
+editais da home usa `editais-recorte`). Um teste novo varre as páginas públicas e
+**falha** se alguma voltar a usar pose de fundo `cinza`/`branco`, e as poses de
+cabeçalho agora exigem `fundo === 'transparente'`. A largura da mascote no
+cabeçalho caiu para 170px (185px em telas largas) porque a arte recortada é mais
+alta que o JPEG com margem.
+
 ---
 
 ## Resumo de impactos

@@ -198,7 +198,7 @@ export default async function HomePage() {
               — que termina 64px antes do fim da seção. */}
           <div className="pointer-events-none absolute bottom-0 left-0 hidden w-[230px] xl:block">
             <div className="-ml-12 -mb-24">
-              <MascoteIFizinha nome="editais" />
+              <MascoteIFizinha nome="editais-recorte" />
             </div>
           </div>
 

@@ -91,6 +91,49 @@ export const MASCOTES = {
     fundo: 'cinza',
     descricao: 'IFizinha apontando para o relógio de pulso',
   },
+  // ── Poses em JPEG com o fundo recortado ────────────────────────────────────
+  // As poses acima (`cinza`/`branco`) vêm de fotos de estúdio: o fundo é sólido
+  // (#FEFEFE, #F7F7F7...) e sobre uma faixa branca aparece como uma caixinha —
+  // 1-2 níveis de diferença já são visíveis e o WebP ainda cria bandas na área
+  // chapada. Estas versões passaram por `tools/recortar-fundo-poses.py`, que
+  // remove o fundo por inundação a partir das bordas (preservando a camiseta
+  // branca, que está dentro da silhueta) e grava com transparência de verdade.
+  // Prefira estas quando o fundo da seção for branco ou claro.
+  'de-costas-recorte': {
+    src: '/ifizinha/pose-de-costas-recorte.webp',
+    width: 542,
+    height: 986,
+    fundo: 'transparente',
+    descricao: 'IFizinha de costas, apontando para o logo nas costas da camiseta',
+  },
+  'editais-recorte': {
+    src: '/ifizinha/pose-editais-recorte.webp',
+    width: 670,
+    height: 796,
+    fundo: 'transparente',
+    descricao: 'IFizinha com uma prancheta na mão fazendo sinal de positivo',
+  },
+  'projetos-recorte': {
+    src: '/ifizinha/pose-projetos-recorte.webp',
+    width: 789,
+    height: 769,
+    fundo: 'transparente',
+    descricao: 'IFizinha apresentando com as mãos abertas',
+  },
+  'prazos-recorte': {
+    src: '/ifizinha/pose-prazos-recorte.webp',
+    width: 740,
+    height: 1037,
+    fundo: 'transparente',
+    descricao: 'IFizinha apontando para o relógio de pulso',
+  },
+  'apontando-logo-recorte': {
+    src: '/ifizinha/pose-apontando-logo-recorte.webp',
+    width: 492,
+    height: 1149,
+    fundo: 'transparente',
+    descricao: 'IFizinha apontando para o logo na camiseta',
+  },
 } as const;
 
 export type NomeMascote = keyof typeof MASCOTES;
