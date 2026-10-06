@@ -1,4 +1,5 @@
 import { normalizaSiglaSuap, type SuapProjeto } from '@/lib/suap-api';
+import { LIMITE_CAPTURA_BYTES } from '@/lib/suap-limites';
 
 /**
  * Importação de projetos do SUAP a partir de uma **captura feita no navegador**.
@@ -21,7 +22,9 @@ import { normalizaSiglaSuap, type SuapProjeto } from '@/lib/suap-api';
 export type ProjetoCapturado = SuapProjeto & { _fonte: 'pesquisa' | 'extensao' };
 
 /**
- * Tamanho máximo da captura aceita.
+ * Tamanho máximo da captura aceita — a constante vive em `@/lib/suap-limites`
+ * (módulo sem imports) porque o navegador também precisa dela; reexportada aqui
+ * para quem já importa deste arquivo no servidor.
  *
  * Precisa ficar **abaixo** do limite de corpo das Server Actions
  * (`experimental.serverActions.bodySizeLimit` em next.config.js, hoje 16 MB): se
@@ -30,7 +33,7 @@ export type ProjetoCapturado = SuapProjeto & { _fonte: 'pesquisa' | 'extensao' }
  * exatamente o que aconteceu em 06/10/2026 (digest 1301235869, statusCode 413).
  * O teste `tests/limite-importacao.test.ts` trava essa relação.
  */
-export const LIMITE_CAPTURA_BYTES = 12 * 1024 * 1024;
+export { LIMITE_CAPTURA_BYTES };
 
 /** Tamanho real em bytes (UTF-8), para comparar com o limite sem enganar por acento. */
 export function tamanhoEmBytes(texto: string): number {

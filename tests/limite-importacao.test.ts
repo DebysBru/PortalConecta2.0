@@ -1,5 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { createRequire } from 'node:module';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { LIMITE_CAPTURA_BYTES, tamanhoEmBytes } from '@/lib/suap-import';
 
 const require = createRequire(import.meta.url);
@@ -46,5 +48,21 @@ describe('limites da importação do SUAP', () => {
     expect(tamanhoEmBytes('Ivaiporã')).toBeGreaterThan('Ivaiporã'.length);
     // e um conteúdo grande é medido acima do limite corretamente
     expect(tamanhoEmBytes('a'.repeat(LIMITE_CAPTURA_BYTES + 1))).toBeGreaterThan(LIMITE_CAPTURA_BYTES);
+  });
+
+  it('o componente de cliente importa a constante do módulo neutro, não do cliente do SUAP', () => {
+    // Regressão de 06/10/2026: o cliente importava de `@/lib/suap-import`, que
+    // puxa `@/lib/suap-api` (usa `fs/promises`) para o bundle do navegador — o
+    // build falhava com "Module not found: Can't resolve 'fs/promises'".
+    const cliente = readFileSync(
+      join(process.cwd(), 'src', 'app', 'admin', '(protected)', 'suap', 'importar', 'ImportarSuapClient.tsx'),
+      'utf8',
+    );
+    expect(cliente).toContain("from '@/lib/suap-limites'");
+    expect(cliente).not.toMatch(/from '@\/lib\/suap-import'/);
+
+    // e o módulo neutro não pode ganhar imports (é o que o mantém seguro nos dois lados)
+    const limites = readFileSync(join(process.cwd(), 'src', 'lib', 'suap-limites.ts'), 'utf8');
+    expect(limites).not.toMatch(/^\s*import\s/m);
   });
 });

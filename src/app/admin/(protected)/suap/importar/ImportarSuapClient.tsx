@@ -10,7 +10,7 @@ import {
   previsualizarImportacaoSuap, confirmarImportacaoSuap, type PreviaImportacaoSuap,
 } from '@/actions/suap-import';
 import type { SyncResult } from '@/lib/suap-sync';
-import { LIMITE_CAPTURA_BYTES } from '@/lib/suap-import';
+import { LIMITE_CAPTURA_BYTES } from '@/lib/suap-limites';
 import { useAuth } from '@/contexts/AuthContext';
 import { useMensagemErro } from '@/lib/use-mensagem-erro';
 
