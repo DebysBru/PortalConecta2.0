@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { writeFile, readFile } from 'fs/promises';
 import { join } from 'path';
 import { exigirAdministradorGeral } from '@/lib/admin-auth';
+import { MENSAGENS } from '@/lib/mensagens';
 
 /**
  * Token de acesso à API do SUAP.
@@ -36,11 +37,11 @@ export async function POST(request: NextRequest) {
     const { token } = await request.json();
 
     if (!token || typeof token !== 'string') {
-      return NextResponse.json({ error: 'Token inválido' }, { status: 400 });
+      return NextResponse.json({ error: MENSAGENS.suapTokenInvalido }, { status: 400 });
     }
 
     if (!token.startsWith('eyJ')) {
-      return NextResponse.json({ error: 'Token deve começar com "eyJ"' }, { status: 400 });
+      return NextResponse.json({ error: MENSAGENS.suapTokenFormatoInvalido }, { status: 400 });
     }
 
     await writeFile(TOKEN_FILE, JSON.stringify({
@@ -48,10 +49,10 @@ export async function POST(request: NextRequest) {
       updatedAt: new Date().toISOString(),
     }, null, 2));
 
-    return NextResponse.json({ ok: true, message: 'Token salvo com sucesso' });
+    return NextResponse.json({ ok: true, message: MENSAGENS.suapTokenSalvo });
   } catch (e) {
     console.error('Erro ao salvar token:', e);
-    return NextResponse.json({ error: 'Erro ao salvar token' }, { status: 500 });
+    return NextResponse.json({ error: MENSAGENS.suapErroSalvarToken }, { status: 500 });
   }
 }
 

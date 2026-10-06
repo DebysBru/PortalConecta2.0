@@ -2,14 +2,24 @@
 
 import { prisma } from '@/lib/prisma';
 import { DEEPSEEK_MODEL } from '@/lib/llm';
+import { MENSAGENS, mensagemAmigavel } from '@/lib/mensagens';
+import { getVerifiedServerSession } from '@/lib/session';
 
 type ActionResult<T = void> = { ok: true; data?: T } | { ok: false; error: string };
 
-/** Sem checagem nenhuma antes (achado S19) — não chamadas por nenhuma página hoje, mas continuam invocáveis diretamente como Server Actions. */
+/** Sem checagem nenhuma antes (achado S19) — não chamadas por nenhuma página hoje, mas
+ *  continuam invocáveis diretamente como Server Actions. Agora exigem, além do papel,
+ *  que o e-mail seja o da SESSÃO verificada (o e-mail sozinho não prova identidade). */
 async function requireAdminEmail(email?: string): Promise<{ ok: true } | { ok: false; error: string }> {
-  if (!email) return { ok: false, error: 'Não autenticado' };
+  if (!email) return { ok: false, error: MENSAGENS.naoAutenticado };
+
+  const sessao = await getVerifiedServerSession();
+  if (!sessao?.email || sessao.email.toLowerCase() !== email.toLowerCase()) {
+    return { ok: false, error: MENSAGENS.semPermissaoAdmin };
+  }
+
   const user = await prisma.user.findUnique({ where: { email }, select: { role: true } });
-  if (user?.role !== 'ADMIN') return { ok: false, error: 'Acesso negado: apenas administradores' };
+  if (user?.role !== 'ADMIN') return { ok: false, error: MENSAGENS.semPermissaoAdmin };
   return { ok: true };
 }
 
@@ -34,7 +44,7 @@ export async function sugerirTags(
 ): Promise<ActionResult<string[]>> {
   const apiKey = process.env.DEEPSEEK_API_KEY;
   if (!apiKey) {
-    return { ok: false, error: 'DEEPSEEK_API_KEY não configurada' };
+    return { ok: false, error: MENSAGENS.iaNaoConfigurada };
   }
 
   const TAGS_DISPONIVEIS = [
@@ -74,7 +84,7 @@ Responda APENAS com as tags separadas por vírgula (máximo 5 tags). Exemplo: Te
   });
 
   if (!response.ok) {
-    return { ok: false, error: 'Erro ao sugerir tags' };
+    return { ok: false, error: 'A IA não conseguiu sugerir tags agora. Tente novamente ou escolha as tags manualmente.' };
   }
 
   const data = await response.json();
@@ -121,7 +131,7 @@ export async function adicionarTagsProjeto(
 
     return { ok: true };
   } catch (e) {
-    return { ok: false, error: String(e) };
+    return { ok: false, error: mensagemAmigavel(e, MENSAGENS.operacaoNaoConcluida) };
   }
 }
 
@@ -145,7 +155,7 @@ export async function aprovarTag(
     });
     return { ok: true };
   } catch (e) {
-    return { ok: false, error: String(e) };
+    return { ok: false, error: mensagemAmigavel(e, MENSAGENS.operacaoNaoConcluida) };
   }
 }
 
@@ -168,6 +178,6 @@ export async function removerTag(
     });
     return { ok: true };
   } catch (e) {
-    return { ok: false, error: String(e) };
+    return { ok: false, error: mensagemAmigavel(e, MENSAGENS.operacaoNaoConcluida) };
   }
 }

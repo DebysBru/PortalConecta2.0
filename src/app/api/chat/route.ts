@@ -5,6 +5,7 @@ import { generateEmbedding } from '@/lib/embeddings';
 import { searchSimilarChunks } from '@/lib/busca-vetorial';
 import { createLogger } from '@/lib/logger';
 import { DEEPSEEK_MODEL } from '@/lib/llm';
+import { MENSAGENS } from '@/lib/mensagens';
 
 const log = createLogger('api-chat');
 
@@ -354,12 +355,12 @@ export async function POST(request: Request) {
   const history = sanitizeHistory(body?.history);
 
   if (!message) {
-    return NextResponse.json({ error: 'Mensagem não fornecida' }, { status: 400 });
+    return NextResponse.json({ error: 'Escreva sua pergunta para a IFizinha antes de enviar.' }, { status: 400 });
   }
 
   const apiKey = process.env.DEEPSEEK_API_KEY;
   if (!apiKey) {
-    return NextResponse.json({ error: 'DEEPSEEK_API_KEY não configurada' }, { status: 500 });
+    return NextResponse.json({ error: MENSAGENS.iaNaoConfigurada }, { status: 500 });
   }
 
   const contexto = await buscarContexto(message);
@@ -436,7 +437,7 @@ ${contexto}`;
   if (!response.ok) {
     const errorData = await response.json().catch(() => ({}));
     log.error('Erro na API do DeepSeek', { status: response.status, errorData });
-    return NextResponse.json({ error: 'Erro ao processar mensagem' }, { status: 500 });
+    return NextResponse.json({ error: MENSAGENS.iaErro }, { status: 500 });
   }
 
   const data = await response.json();
@@ -444,7 +445,7 @@ ${contexto}`;
 
   if (!reply) {
     log.error('DeepSeek retornou resposta vazia');
-    return NextResponse.json({ error: 'Resposta vazia da IA' }, { status: 500 });
+    return NextResponse.json({ error: MENSAGENS.iaErro }, { status: 500 });
   }
 
   log.info('Resposta da IFizinha gerada', { totalChunksContexto: (contexto.match(/\[Fonte:/g) || []).length });

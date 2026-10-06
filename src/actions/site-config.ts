@@ -2,6 +2,7 @@
 
 import { db } from '@/lib/prisma';
 import type { Prisma } from '@prisma/client';
+import { MENSAGENS } from '@/lib/mensagens';
 
 /**
  * Configuração padrão do site
@@ -69,7 +70,7 @@ export async function updateSiteConfigAction(chave: string, valor: any, userId: 
     });
 
     if (user?.role !== 'ADMIN') {
-      throw new Error('Acesso negado: apenas admin pode alterar configurações');
+      throw new Error(MENSAGENS.semPermissaoAdmin);
     }
 
     const config = await db.siteConfig.upsert({

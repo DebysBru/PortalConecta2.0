@@ -6,6 +6,12 @@ import { enviarConfirmacaoInscricao } from '@/lib/email';
 import { rateLimitado, obterIpCliente } from '@/lib/rate-limit';
 import { verificarTurnstile } from '@/lib/turnstile';
 import { parsePerguntasExtra, validarRespostasExtraObrigatorias } from '@/lib/formulario-extra';
+import {
+  LIMITES, OPCOES, validarCampos, validarEmail, validarMapaDeRespostas, validarNumero,
+  validarOpcao, validarTelefone, validarTexto, validarTextoOpcional,
+} from '@/lib/validacao';
+import { MENSAGENS } from '@/lib/mensagens';
+import { fimDoDiaBrasil, inicioDoDiaBrasil } from '@/lib/datas';
 
 type InscricaoFormData = {
   projetoId: string;
@@ -19,6 +25,14 @@ type InscricaoFormData = {
   idade?: number;
   matricula?: string;
   tipo_interesse: 'BOLSISTA' | 'VOLUNTARIO' | 'AMBOS';
+  /**
+   * ⚠️ ACHADO (2026-10-05): o formulário público pede "Gênero" como campo
+   * OBRIGATÓRIO, mas `Inscricao` não tem essa coluna — o dado era descartado em
+   * silêncio (o aluno informa e não fica registrado em lugar nenhum). Aqui ele
+   * passou a ser VALIDADO (o cliente pode mandar qualquer coisa), mas continua
+   * não sendo gravado: ou o campo entra no banco, ou sai do formulário.
+   */
+  genero?: string;
   disponibilidade?: string;
   experiencia_previa?: string;
   justificativa?: string;
@@ -67,17 +81,34 @@ export async function verificarInscricoesAbertas(projetoId: string) {
     },
   });
 
-  if (!projeto) return { aberto: false, erro: 'Projeto não encontrado' };
+  if (!projeto) {
+    return {
+      aberto: false,
+      erro: 'Não encontramos este projeto. Ele pode ter sido removido ou o link está incompleto.',
+    };
+  }
   if (projeto.status !== 'INSCRICOES_ABERTAS') {
-    return { aberto: false, erro: 'Inscrições não estão abertas para este projeto' };
+    return {
+      aberto: false,
+      erro: 'As inscrições deste projeto não estão abertas neste momento. Volte à página de projetos para ver o que está com vagas abertas.',
+    };
   }
 
   const agora = new Date();
-  if (projeto.inscricao_inicio && agora < projeto.inscricao_inicio) {
-    return { aberto: false, erro: 'Inscrições ainda não iniciaram' };
+  // Prazo INCLUSIVO e no fuso do Brasil: quem escolhe "encerra em 10/10" aceita
+  // inscrição até 23:59 de 10/10 em Brasília. Antes, a data gravada ao
+  // meio-dia UTC fazia o prazo terminar no meio da tarde do dia anterior.
+  if (projeto.inscricao_inicio && agora < inicioDoDiaBrasil(projeto.inscricao_inicio)) {
+    return {
+      aberto: false,
+      erro: 'As inscrições deste projeto ainda não começaram. Volte na data de abertura para se inscrever.',
+    };
   }
-  if (projeto.inscricao_fim && agora > projeto.inscricao_fim) {
-    return { aberto: false, erro: 'Prazo de inscrições encerrado' };
+  if (projeto.inscricao_fim && agora > fimDoDiaBrasil(projeto.inscricao_fim)) {
+    return {
+      aberto: false,
+      erro: 'O prazo de inscrições deste projeto já encerrou. Confira outros projetos com inscrições abertas.',
+    };
   }
 
   return { aberto: true, projeto };
@@ -95,50 +126,56 @@ export async function criarInscricao(data: InscricaoFormData): Promise<ActionRes
     const ip = obterIpCliente();
     const limite = await rateLimitado('criar-inscricao', ip, 10, 10 * 60_000);
     if (!limite.ok) {
-      return { ok: false, error: 'Muitas inscrições em pouco tempo. Aguarde alguns minutos e tente novamente.' };
+      return { ok: false, error: MENSAGENS.muitasInscricoes };
     }
 
     // CAPTCHA (Cloudflare Turnstile) — sem TURNSTILE_SECRET_KEY configurada,
     // `verificarTurnstile` sempre retorna true (degrada graciosamente).
     const captchaOk = await verificarTurnstile(data.captchaToken, ip);
     if (!captchaOk) {
-      return { ok: false, error: 'Verificação de segurança falhou. Recarregue a página e tente novamente.' };
+      return { ok: false, error: MENSAGENS.verificacaoSegurancaFalhou };
     }
 
     // Validações
     if (!data.ciencia_regras) {
-      return { ok: false, error: 'Você precisa ciência das regras para se inscrever' };
+      return {
+        ok: false,
+        error: 'Para se inscrever, marque a caixinha confirmando que você leu e concorda com as regras do projeto.',
+      };
     }
     if (!data.consentimento_lgpd) {
-      return { ok: false, error: 'Consentimento LGPD é obrigatório' };
+      return {
+        ok: false,
+        error: 'Para se inscrever, autorize o uso dos seus dados pessoais (LGPD — Lei Geral de Proteção de Dados). Marque a caixinha correspondente.',
+      };
     }
 
-    // Trim e validação de campos obrigatórios
-    const nome = data.nome_completo?.trim();
-    const email = data.email?.trim();
-    if (!nome || nome.length < 2) {
-      return { ok: false, error: 'Nome completo é obrigatório (mínimo 2 caracteres)' };
-    }
-    if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-      return { ok: false, error: 'Email inválido' };
-    }
+    // ── Validação de entrada (este formulário é PÚBLICO: quem chama a Server
+    // Action direto não passa pela validação do navegador) ──────────────────
+    const v = validarCampos({
+      nome: () => validarTexto(data.nome_completo, 'Nome completo', { min: 2, max: LIMITES.titulo.max }),
+      email: () => validarEmail(data.email, 'E-mail'),
+      telefone: () => validarTelefone(data.telefone),
+      idade: () => validarNumero(data.idade, 'Idade', LIMITES.idade, { inteiro: true, opcional: true }),
+      curso: () => validarTextoOpcional(data.curso, 'Curso', LIMITES.linha),
+      turma: () => validarTextoOpcional(data.turma, 'Turma', { min: 0, max: 40 }),
+      semestre: () => validarTextoOpcional(data.semestre, 'Semestre', { min: 0, max: 20 }),
+      matricula: () => validarTextoOpcional(data.matricula, 'Matrícula', { min: 0, max: LIMITES.matricula }),
+      disponibilidade: () => validarTextoOpcional(data.disponibilidade, 'Disponibilidade', LIMITES.resumo),
+      experiencia: () => validarTextoOpcional(data.experiencia_previa, 'Experiência prévia', { min: 0, max: 40 }),
+      justificativa: () => validarTextoOpcional(data.justificativa, 'Justificativa', LIMITES.texto),
+      tipoInteresse: () => validarOpcao(data.tipo_interesse, 'Tipo de interesse', OPCOES.tipoInteresse),
+      genero: () => validarOpcao(data.genero, 'Gênero', OPCOES.genero),
+      camposExtra: () => validarMapaDeRespostas(data.campos_extra, 'Respostas do formulário'),
+      consentimentoLgpd: () => (data.consentimento_lgpd === true
+        ? { ok: true as const, valor: true }
+        : { ok: false as const, error: 'É necessário aceitar o tratamento de dados (LGPD) para enviar a inscrição.' }),
+    });
+    if (!v.ok) return v;
 
-    // Valid idade se fornecida
-    if (data.idade !== undefined && data.idade !== null) {
-      if (data.idade < 14 || data.idade > 100) {
-        return { ok: false, error: 'Idade deve ser entre 14 e 100 anos' };
-      }
-    }
-
-    // Telefone, se fornecido: só dígitos, espaços, parênteses, hífen e "+" —
-    // 8 a 15 dígitos (formatos nacionais e internacionais razoáveis).
-    const telefone = data.telefone?.trim();
-    if (telefone) {
-      const digitos = telefone.replace(/\D/g, '');
-      if (!/^[\d\s()+-]+$/.test(telefone) || digitos.length < 8 || digitos.length > 15) {
-        return { ok: false, error: 'Telefone inválido' };
-      }
-    }
+    const nome = v.valor.nome;
+    const email = v.valor.email;
+    const telefone = v.valor.telefone;
 
     // Verificar se projeto aceita inscrições
     const verificacao = await verificarInscricoesAbertas(data.projetoId);
@@ -157,31 +194,39 @@ export async function criarInscricao(data: InscricaoFormData): Promise<ActionRes
 
     // Se uma vaga específica foi escolhida, validar que ela pertence a este
     // projeto e está aberta — o tipo de interesse passa a ser o da própria vaga.
-    let tipoInteresse = data.tipo_interesse;
+    let tipoInteresse = v.valor.tipoInteresse;
     if (data.vagaId) {
       const vagaEscolhida = verificacao.projeto!.vagas.find((v) => v.id === data.vagaId);
       if (!vagaEscolhida) {
-        return { ok: false, error: 'Vaga selecionada não está mais disponível para este projeto' };
+        return {
+          ok: false,
+          error: 'A vaga que você escolheu não está mais disponível para este projeto. Selecione outra vaga e envie novamente.',
+        };
       }
       tipoInteresse = vagaEscolhida.tipo;
     }
 
-    // Verificar se já existe inscrição deste email neste projeto
+    // Verificar se já existe inscrição deste email neste projeto (sem diferenciar
+    // maiúsculas: "Maria@..." e "maria@..." são a mesma pessoa)
     const existente = await prisma.inscricao.findFirst({
       where: {
         projeto_id: data.projetoId,
-        email: data.email,
+        email: { equals: email, mode: 'insensitive' },
       },
     });
 
     if (existente) {
-      return { ok: false, error: 'Você já está inscrito neste projeto' };
+      return {
+        ok: false,
+        error: 'Você já tem uma inscrição neste projeto. Acompanhe o andamento em "Meus Dados".',
+      };
     }
 
     // Gerar protocolo único
     const protocolo = await gerarProtocolo();
 
-    // Criar inscrição
+    // Criar inscrição — todos os campos abaixo já passaram pela validação de
+    // entrada (tamanho, faixa numérica, formato) no bloco `validarCampos`.
     const inscricao = await prisma.inscricao.create({
       data: {
         protocolo,
@@ -190,19 +235,19 @@ export async function criarInscricao(data: InscricaoFormData): Promise<ActionRes
         user_id: data.userId || null,
         nome_completo: nome,
         email,
-        telefone: data.telefone?.trim() || null,
-        curso: data.curso || null,
-        turma: data.turma || null,
-        semestre: data.semestre || null,
-        idade: data.idade || null,
-        matricula: data.matricula?.trim() || null,
+        telefone: telefone || null,
+        curso: v.valor.curso,
+        turma: v.valor.turma,
+        semestre: v.valor.semestre,
+        idade: v.valor.idade,
+        matricula: v.valor.matricula,
         tipo_interesse: tipoInteresse,
-        disponibilidade: data.disponibilidade || null,
-        experiencia_previa: data.experiencia_previa || null,
-        justificativa: data.justificativa?.trim() || null,
+        disponibilidade: v.valor.disponibilidade,
+        experiencia_previa: v.valor.experiencia,
+        justificativa: v.valor.justificativa,
         ciencia_regras: data.ciencia_regras,
-        consentimento_lgpd: data.consentimento_lgpd,
-        campos_extra: (data.campos_extra ?? {}) as Prisma.InputJsonValue,
+        consentimento_lgpd: v.valor.consentimentoLgpd,
+        campos_extra: v.valor.camposExtra as Prisma.InputJsonValue,
         status: 'recebida',
       },
     });
@@ -223,8 +268,11 @@ export async function criarInscricao(data: InscricaoFormData): Promise<ActionRes
     // já causou esse erro em produção — mensagem específica pra facilitar
     // diagnóstico, em vez do genérico de sempre escondendo a causa.
     if (String(e).includes('Inscricao_user_id_fkey')) {
-      return { ok: false, error: 'Sua sessão parece inválida. Saia e entre novamente antes de se inscrever.' };
+      return { ok: false, error: MENSAGENS.sessaoInvalida };
     }
-    return { ok: false, error: 'Erro interno ao processar inscrição' };
+    return {
+      ok: false,
+      error: 'Não conseguimos registrar sua inscrição por um problema do nosso lado. Tente novamente — se continuar, fale com a coordenação do projeto.',
+    };
   }
 }

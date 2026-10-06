@@ -5,6 +5,7 @@
  */
 import { NextRequest, NextResponse } from 'next/server';
 import { fetchSuapEndpoints, suapGet } from '@/lib/suap-api';
+import { MENSAGENS } from '@/lib/mensagens';
 
 export const dynamic = 'force-dynamic';
 
@@ -20,7 +21,7 @@ function isAuthorized(req: NextRequest): boolean {
 
 export async function GET(req: NextRequest) {
   if (!isAuthorized(req)) {
-    return NextResponse.json({ error: 'Não autorizado' }, { status: 401 });
+    return NextResponse.json({ error: MENSAGENS.semPermissao }, { status: 401 });
   }
 
   const url = new URL(req.url);
@@ -35,14 +36,11 @@ export async function GET(req: NextRequest) {
 
     // Listar todos os endpoints raiz
     const endpoints = await fetchSuapEndpoints();
-    return NextResponse.json({
-      endpoints,
-      dica: 'Use ?path=/api/v2/extensao/projetos/ para explorar um endpoint específico',
-    });
+    return NextResponse.json({ endpoints });
   } catch (err) {
-    return NextResponse.json(
-      { error: err instanceof Error ? err.message : String(err) },
-      { status: 500 }
-    );
+    // Erro cru do SUAP (URL, matrícula, corpo da resposta) fica no log do
+    // servidor — esta rota é consumida por scripts, não pela interface.
+    console.error('Falha ao explorar endpoints do SUAP:', err);
+    return NextResponse.json({ error: MENSAGENS.suapIndisponivel }, { status: 500 });
   }
 }

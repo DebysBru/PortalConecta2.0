@@ -184,6 +184,26 @@ Achadas ao escrever os testes dos critérios §14 — todas corrigidas e com tes
 
 ---
 
+## 📱 PWA instalável (2026-10-05)
+
+**Objetivo:** permitir instalar o portal na tela inicial do celular (ícone próprio, abertura em tela cheia), **sem** versão offline.
+
+### ✅ Entregue
+
+- **`src/app/manifest.ts`** — manifesto servido em `/manifest.webmanifest` (`name`, `short_name`, `start_url: /`, `scope: /`, `display: standalone`, `theme_color #2F52D3`, `background_color #ffffff`, atalhos para Editais/Projetos/Agenda). Ícones `any` (192 e 512) + `maskable` 512.
+- **Ícones em `public/`** — desenhados a partir da própria marca do site (`bg-hero-gradient` + `Sparkles` do cabeçalho, ver `tailwind.config.ts`): `favicon.ico` (16/32/48 — o quadro de 16px usa só a estrela grande, porque as estrelinhas viram ruído nesse tamanho), `apple-touch-icon.png` (180) e `icons/icon.svg` vetorial. **O projeto não tinha nenhum favicon antes** — a aba do navegador agora tem ícone, e some o 404 de `/favicon.ico` no log do nginx.
+- **`src/app/layout.tsx`** — `viewport.themeColor` + `colorScheme` (no Next 14 `themeColor` saiu de `metadata` e precisa do export `viewport`, senão o build avisa), `appleWebApp` (`capable`, `title`, `statusBarStyle: 'default'`) e `icons`/`applicationName`.
+
+### ❌ Fora de escopo (decisão deliberada): service worker e offline
+
+Não há service worker, e é intencional. O portal depende de rede em tudo que importa (IFizinha/RAG, uploads, inscrições, sync SUAP) e é SSR com Server Actions. Cachear HTML em laboratório de máquinas compartilhadas vazaria dados de um aluno para o seguinte (`/admin`, `/minha-area`, `/professor`), e a sincronização de sessão em `src/contexts/AuthContext.tsx` **falha fechado** — offline ela deslogaria o usuário. Sem SW o app continua instalável **pelo menu** do navegador (o Chrome dispensou a exigência de `fetch()` handler para instalação via menu nas versões 108 mobile / 112 desktop); o que se perde é o prompt automático de instalação.
+
+### ⏭️ Decisão pendente — notificações push (Fase 2)
+
+Push é o único motivo real para se ter um service worker aqui. Se for adiante, o SW deve tratar **apenas** `push` e `notificationclick`, **sem handler de `fetch`** — assim não existe cache nenhum e o risco de vazamento entre alunos não aparece.
+
+---
+
 ## 🎯 PRÓXIMOS PASSOS
 
 ### ✅ Entregue (execução de 2026-09-16)
@@ -202,6 +222,8 @@ Achadas ao escrever os testes dos critérios §14 — todas corrigidas e com tes
 - **Revisar o `RELATORIO_TESTES.md`** para o que não é automatizável: aparência/responsividade, acessibilidade AA e um teste ponta a ponta de upload de PDF → revisão → publicação.
 - **Validar o sync SUAP** com o token real e conferir o campo `preservados` no relatório do painel admin (comportamento novo: não sobrescreve mais edição manual).
 - **Decidir sobre o envio de e-mail**: `RESEND_API_KEY` já é opcional em runtime, mas os avisos por e-mail (confirmação de inscrição, mudança de status e alertas) só saem com a chave configurada.
+- **Testar a instalação do PWA em celular real** (ver seção "📱 PWA instalável"): Android → menu ⋮ do Chrome → "Instalar app"; iOS → Compartilhar → "Adicionar à Tela de Início". Vale conferir também se os ícones aparecem certos nos recortes do launcher (o maskable foi gerado com o glifo dentro da zona segura de 80%).
+- **Decidir sobre notificações push** — é o que justificaria criar um service worker (só com `push`/`notificationclick`, sem `fetch`, para não introduzir cache).
 
 ---
 

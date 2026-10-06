@@ -41,6 +41,15 @@ EnvironmentFile=/var/www/portal-conecta/.env
 Environment=NODE_ENV=production
 Environment=PORT=3000
 
+# Fuso horário do processo — o portal é do IFPR Campus Ivaiporã e TODA data exibida
+# é do Brasil. A VPS roda em America/Chicago: sem esta linha, um prazo digitado no
+# formulário aparecia um dia antes do que a coordenação escolheu, o prazo fechava
+# no meio da tarde do dia anterior e a virada de semestre (que decide quando o
+# portal avança o semestre do aluno sozinho) acontecia no dia errado.
+# O código também formata explicitamente em America/Sao_Paulo (src/lib/datas.ts);
+# isto aqui alinha o resto do runtime (new Date(), regras de calendário).
+Environment=TZ=America/Sao_Paulo
+
 # `next start` usa o build já gerado por `npm run build`. Não use `next dev`.
 ExecStart=/usr/bin/npm run start -- --port 3000
 

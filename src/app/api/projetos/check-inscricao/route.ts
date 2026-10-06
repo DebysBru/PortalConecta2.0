@@ -6,7 +6,7 @@ export async function GET(request: Request) {
   const slug = searchParams.get('slug');
 
   if (!slug) {
-    return NextResponse.json({ error: 'Slug não fornecido' }, { status: 400 });
+    return NextResponse.json({ error: 'Não identificamos qual projeto você quer abrir. Volte à lista de projetos e escolha um.' }, { status: 400 });
   }
 
   const projeto = await prisma.projeto.findUnique({
@@ -37,7 +37,10 @@ export async function GET(request: Request) {
   });
 
   if (!projeto) {
-    return NextResponse.json({ error: 'Projeto não encontrado' }, { status: 404 });
+    return NextResponse.json(
+      { error: 'Não encontramos este projeto. Ele pode ter sido removido ou o link está incompleto.' },
+      { status: 404 }
+    );
   }
 
   const inscricoesAbertas = projeto.status === 'INSCRICOES_ABERTAS';

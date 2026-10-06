@@ -4,15 +4,22 @@ import React, { useState, useTransition } from 'react';
 import Link from 'next/link';
 import {
   ChevronRight, CheckCircle, AlertCircle, ArrowLeft,
-  Loader2, FileText, Clock,
+  Loader2, FileText, Clock, ClipboardCheck,
 } from 'lucide-react';
 import { criarInscricao } from '@/actions/inscricao';
+import { getDadosAcademicosInscricao } from '@/actions/perfil';
 import { formatDate } from '@/lib/utils';
 import { useAuth } from '@/contexts/AuthContext';
 import { TurnstileWidget } from '@/components/ui/turnstile-widget';
 import { Field, Fieldset } from '@/components/ui/FormFieldPrimitives';
 import { PerguntasExtraFields } from '@/components/ui/PerguntasExtraFields';
 import { parsePerguntasExtra, coletarRespostasExtra, type PerguntaExtra } from '@/lib/formulario-extra';
+import { MENSAGENS, mensagemAmigavel, mensagemDeErroServidor } from '@/lib/mensagens';
+import {
+  GRUPOS_CURSOS, SEMESTRES, TODOS_OS_CURSOS, anosDeIngresso,
+  formatarSemestreInscricao, rotuloSemestre, turmaDeIngresso,
+  type FonteAcademica,
+} from '@/lib/perfil-academico';
 
 type VagaInfo = {
   id: string;
@@ -36,42 +43,15 @@ type ProjetoInfo = {
   formulario_extra?: unknown;
 };
 
-const CURSOS_SUPERIORES = [
-  'Sistemas de Informação',
-  'Física',
-  'Engenharia Agronômica',
-];
-
-const CURSOS_TECNICOS = [
-  'Informática Integrado',
-  'Eletrotécnica Integrado',
-  'Agropecuária Integrado',
-  'Agroecologia Integrado',
-  'Eletrotécnica Subsequente',
-];
-
-const CURSOS_FIC = [
-  'Formação Inicial e Continuada (FIC)',
-];
-
-const CURSOS_POS = [
-  'Pós-graduação',
-];
-
-const TODOS_OS_CURSOS = [
-  { group: 'Cursos Superiores', options: CURSOS_SUPERIORES },
-  { group: 'Cursos Técnicos', options: CURSOS_TECNICOS },
-  { group: 'Cursos FIC', options: CURSOS_FIC },
-  { group: 'Pós-graduação', options: CURSOS_POS },
-];
-
-const SEMESTRES = Array.from({ length: 10 }, (_, i) => i + 1);
-
-const ANOS_INICIO = Array.from({ length: 10 }, (_, i) => new Date().getFullYear() - i);
+// Catálogo de cursos, anos de ingresso e semestres: um único lugar
+// (src/lib/perfil-academico.ts), compartilhado com o "Meu Perfil" — antes a
+// lista vivia só aqui e o perfil aceitava texto livre, o que fazia o mesmo
+// aluno aparecer com nomes de curso diferentes nas duas telas.
+const ANOS_INICIO = anosDeIngresso();
 
 export default function InscricaoPage({ params }: { params: { slug: string } }) {
   const { slug } = params;
-  const { user, supabaseUserId } = useAuth();
+  const { user, supabaseUserId, loading: authCarregando } = useAuth();
 
   const [projeto, setProjeto] = useState<ProjetoInfo | null>(null);
   const [loading, setLoading] = useState(true);
@@ -79,6 +59,10 @@ export default function InscricaoPage({ params }: { params: { slug: string } }) 
   const [success, setSuccess] = useState('');
   const [protocolo, setProtocolo] = useState('');
   const [isPending, startTransition] = useTransition();
+
+  // Dados do perfil do estudante logado, usados para pré-preencher o formulário
+  // (ver `getDadosAcademicosInscricao`). `null` = visitante sem login.
+  const [dadosDoPerfil, setDadosDoPerfil] = useState<FonteAcademica | null>(null);
 
   // Estado para cálculo automático de turma
   const [anoInicio, setAnoInicio] = useState<string>('');
@@ -92,25 +76,68 @@ export default function InscricaoPage({ params }: { params: { slug: string } }) 
 
   // Calcular turma automaticamente
   React.useEffect(() => {
-    if (anoInicio) {
-      setTurmaCalculada(`Turma ${anoInicio}`);
-    }
+    setTurmaCalculada(turmaDeIngresso(anoInicio ? Number(anoInicio) : null) ?? '');
   }, [anoInicio]);
 
-  // Verificar inscrições ao carregar
+  // Verificar inscrições ao carregar.
+  //
+  // Espera o Firebase dizer QUEM é o usuário (`authCarregando`) antes de montar
+  // o formulário: os campos usam `defaultValue`, então se o perfil chegasse
+  // depois da primeira renderização o aluno logado veria tudo em branco mesmo
+  // tendo perfil — e o "puxa os dados do perfil" não funcionaria. Para quem não
+  // está logado o estado de auth resolve na hora e nada muda.
   React.useEffect(() => {
-    fetch(`/api/projetos/check-inscricao?slug=${slug}`)
-      .then((r) => r.json())
-      .then((data) => {
+    if (authCarregando) return;
+    let cancelado = false;
+
+    const idTokenPromise = user ? user.getIdToken() : Promise.resolve(null);
+
+    Promise.all([
+      fetch(`/api/projetos/check-inscricao?slug=${slug}`).then((r) => r.json()),
+      idTokenPromise
+        .then((idToken) => (idToken ? getDadosAcademicosInscricao(idToken) : null))
+        .catch(() => null),
+    ])
+      .then(([data, academicos]) => {
+        if (cancelado) return;
+
         if (data.projeto) setProjeto(data.projeto);
-        else setError(data.error || 'Projeto não encontrado');
+        else setError(mensagemAmigavel(data.error, 'Não encontramos este projeto. Ele pode ter sido removido ou o link está incompleto.'));
+
+        if (academicos) {
+          setDadosDoPerfil(academicos);
+          if (academicos.anoIngresso) setAnoInicio(String(academicos.anoIngresso));
+          // Já vem avançado até o semestre de hoje pelo servidor.
+          if (academicos.semestreAtual) setSemestre(String(academicos.semestreAtual));
+        }
       })
-      .catch(() => setError('Erro ao carregar projeto'))
-      .finally(() => setLoading(false));
-  }, [slug]);
+      .catch(() => {
+        if (!cancelado) setError('Não conseguimos carregar as informações deste projeto. Confira sua conexão e recarregue a página.');
+      })
+      .finally(() => {
+        if (!cancelado) setLoading(false);
+      });
+
+    return () => { cancelado = true; };
+  }, [slug, user, authCarregando]);
 
   const temVagas = (projeto?.vagas.length ?? 0) > 0;
   const vagaEscolhida = projeto?.vagas.find((v) => v.id === vagaId);
+  const prefillDoPerfil = Boolean(
+    dadosDoPerfil &&
+      (dadosDoPerfil.curso ||
+        dadosDoPerfil.anoIngresso ||
+        dadosDoPerfil.semestre ||
+        dadosDoPerfil.matricula ||
+        dadosDoPerfil.telefone),
+  );
+  // Curso que veio do cadastro antigo e não existe no catálogo (ex.: "Técnico em
+  // Informática"): aparece como opção extra para não sumir da tela, mas o aluno
+  // é quem decide — o catálogo é a lista oficial.
+  const cursoForaDoCatalogo =
+    dadosDoPerfil?.curso && !TODOS_OS_CURSOS.includes(dadosDoPerfil.curso)
+      ? dadosDoPerfil.curso
+      : null;
   const perguntasExtra: PerguntaExtra[] = React.useMemo(
     () => parsePerguntasExtra(projeto?.formulario_extra),
     [projeto?.formulario_extra]
@@ -122,12 +149,12 @@ export default function InscricaoPage({ params }: { params: { slug: string } }) 
     setSuccess('');
 
     if (temVagas && !vagaId) {
-      setError('Escolha uma vaga para se inscrever');
+      setError('Escolha a vaga em que você quer se inscrever antes de enviar.');
       return;
     }
 
     if (process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY && !captchaToken) {
-      setError('Complete a verificação de segurança abaixo.');
+      setError(MENSAGENS.verificacaoSegurancaPendente);
       return;
     }
 
@@ -141,7 +168,9 @@ export default function InscricaoPage({ params }: { params: { slug: string } }) 
       telefone: form.get('telefone') as string,
       curso: form.get('curso') as string,
       turma: turmaCalculada || form.get('turma') as string,
-      semestre: `${anoInicio}.${semestre}`,
+      // Formato histórico "<ano de ingresso>.<semestre do curso>" (ex.: "2024.5"),
+      // montado pelo helper compartilhado para não divergir do perfil.
+      semestre: formatarSemestreInscricao(anoInicio ? Number(anoInicio) : null, semestre ? Number(semestre) : null),
       idade: form.get('idade') ? Number(form.get('idade')) : undefined,
       matricula: form.get('matricula') as string,
       genero: form.get('genero') as string,
@@ -167,9 +196,9 @@ export default function InscricaoPage({ params }: { params: { slug: string } }) 
       const result = await criarInscricao(data);
       if (result.ok) {
         setProtocolo(result.data.protocolo);
-        setSuccess('Inscrição realizada com sucesso!');
+        setSuccess('Inscrição enviada com sucesso!');
       } else {
-        setError(result.error);
+        setError(mensagemDeErroServidor(result.error, 'Não conseguimos concluir sua inscrição. Revise os dados e tente novamente.'));
       }
     });
   };
@@ -187,7 +216,7 @@ export default function InscricaoPage({ params }: { params: { slug: string } }) 
       <div className="min-h-screen flex items-center justify-center p-4">
         <div className="text-center">
           <AlertCircle className="w-12 h-12 text-red-400 mx-auto mb-4" />
-          <h1 className="text-xl font-bold text-gray-900 mb-2">Erro</h1>
+          <h1 className="text-xl font-bold text-gray-900 mb-2">Não conseguimos abrir esta inscrição</h1>
           <p className="text-gray-500 mb-6">{error}</p>
           <Link href="/projetos" className="text-azul-eletrico font-semibold hover:underline">
             Ver projetos
@@ -283,6 +312,23 @@ export default function InscricaoPage({ params }: { params: { slug: string } }) 
 
         {/* Formulário */}
         <form onSubmit={handleSubmit} className="bg-white rounded-2xl border border-gray-100 p-6 space-y-5">
+          {/* Os dados vêm do perfil do aluno logado (getDadosAcademicosInscricao).
+              O aviso existe para ele CONFERIR em vez de confiar: o semestre é
+              calculado pelo portal e pode estar defasado se ele não atualiza o
+              perfil desde que entrou no curso. */}
+          {prefillDoPerfil && (
+            <div className="flex items-start gap-2 bg-blue-50 border border-blue-100 rounded-xl p-3 text-xs text-blue-700">
+              <ClipboardCheck className="w-4 h-4 flex-shrink-0 mt-0.5" />
+              <span>
+                Puxamos seus dados do perfil para agilizar — confira antes de enviar. Algo mudou?{' '}
+                <Link href="/meus-dados" className="font-semibold underline">
+                  Atualize seu perfil
+                </Link>{' '}
+                e as próximas inscrições já vêm certinhas.
+              </span>
+            </div>
+          )}
+
           {/* DADOS PESSOAIS */}
           <div>
             <h2 className="font-bold text-gray-900 text-lg mb-4">Dados Pessoais</h2>
@@ -298,7 +344,7 @@ export default function InscricaoPage({ params }: { params: { slug: string } }) 
 
               <div className="grid grid-cols-2 gap-4">
                 <Field label="Telefone">
-                  <input name="telefone" type="tel" className="input-field" placeholder="(00) 00000-0000" />
+                  <input name="telefone" type="tel" className="input-field" placeholder="(00) 00000-0000" defaultValue={dadosDoPerfil?.telefone ?? ''} />
                 </Field>
                 <Field label="Idade">
                   <input name="idade" type="number" className="input-field" min="14" max="100" />
@@ -328,9 +374,12 @@ export default function InscricaoPage({ params }: { params: { slug: string } }) 
             <div className="space-y-4">
               {/* Curso - Select com grupos */}
               <Field label="Curso" required>
-                <select name="curso" className="input-field" required>
+                <select name="curso" className="input-field" required defaultValue={dadosDoPerfil?.curso ?? ''}>
                   <option value="">Selecione seu curso</option>
-                  {TODOS_OS_CURSOS.map((group) => (
+                  {cursoForaDoCatalogo && (
+                    <option value={cursoForaDoCatalogo}>{cursoForaDoCatalogo} (do seu cadastro)</option>
+                  )}
+                  {GRUPOS_CURSOS.map((group) => (
                     <optgroup key={group.group} label={group.group}>
                       {group.options.map((curso) => (
                         <option key={curso} value={curso}>{curso}</option>
@@ -368,7 +417,7 @@ export default function InscricaoPage({ params }: { params: { slug: string } }) 
                   >
                     <option value="">Selecione</option>
                     {SEMESTRES.map((s) => (
-                      <option key={s} value={s}>{s}º Semestre</option>
+                      <option key={s} value={s}>{rotuloSemestre(s)}</option>
                     ))}
                   </select>
                 </Field>
@@ -387,7 +436,7 @@ export default function InscricaoPage({ params }: { params: { slug: string } }) 
               </Field>
 
               <Field label="Matrícula">
-                <input name="matricula" type="text" className="input-field" placeholder="Número da matrícula" />
+                <input name="matricula" type="text" className="input-field" placeholder="Número da matrícula" defaultValue={dadosDoPerfil?.matricula ?? ''} />
               </Field>
             </div>
           </div>

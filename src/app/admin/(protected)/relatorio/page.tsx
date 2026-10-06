@@ -12,6 +12,8 @@ import {
 } from '@/components/charts';
 import { formatDateShort } from '@/lib/utils';
 import { Prisma } from '@prisma/client';
+import { useToast } from '@/components/ui/toast';
+import { mensagemAmigavel } from '@/lib/mensagens';
 
 type Projeto = Awaited<ReturnType<typeof listMyProjetos>>[number];
 type Inscricao = Prisma.InscricaoGetPayload<{}>;
@@ -31,6 +33,7 @@ const STATUS_COLORS: Record<string, string> = {
 
 export default function AdminRelatorioPage() {
   const { user } = useAuth();
+  const { toast } = useToast();
   const [projetos, setProjetos] = useState<Projeto[]>([]);
   const [selectedProjeto, setSelectedProjeto] = useState<string>('');
   const [inscricoes, setInscricoes] = useState<Inscricao[]>([]);
@@ -54,10 +57,10 @@ export default function AdminRelatorioPage() {
           setSeriesError(null);
         } else {
           setSeries(null);
-          setSeriesError(result.error);
+          setSeriesError(mensagemAmigavel(result.error, 'Não conseguimos carregar os gráficos do portal agora.'));
         }
       })
-      .catch(() => setSeriesError('Não foi possível carregar os gráficos do portal.'))
+      .catch(() => setSeriesError('Não conseguimos carregar os gráficos do portal agora. Recarregue a página para tentar de novo.'))
       .finally(() => setLoadingSeries(false));
   }, [user]);
 
@@ -88,7 +91,7 @@ export default function AdminRelatorioPage() {
     if (!selectedProjeto || !user?.email) return;
     const projeto = projetos.find((p) => p.id === selectedProjeto);
     const result = await exportInscricoesCSV(selectedProjeto, user.email);
-    if (!result.ok) { alert(result.error); return; }
+    if (!result.ok) { toast(result.error, 'error'); return; }
     const blob = new Blob([result.csv], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -278,7 +281,7 @@ export default function AdminRelatorioPage() {
           </div>
         ) : seriesError || !series ? (
           <div className="bg-white rounded-2xl border border-gray-100 p-8 text-center text-sm text-gray-500">
-            {seriesError ?? 'Não foi possível carregar os gráficos do portal.'}
+            {seriesError ?? 'Não conseguimos carregar os gráficos do portal agora. Recarregue a página para tentar de novo.'}
           </div>
         ) : (
           <div className="grid gap-4 lg:grid-cols-2">

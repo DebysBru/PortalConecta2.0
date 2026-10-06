@@ -10,6 +10,7 @@
  */
 import { NextRequest, NextResponse } from 'next/server';
 import { getAdminAuth } from '@/lib/firebase-admin';
+import { MENSAGENS } from '@/lib/mensagens';
 import { prisma } from '@/lib/prisma';
 import { createPendingToken } from '@/lib/suap-pending';
 import { rateLimitado, obterIpCliente } from '@/lib/rate-limit';
@@ -34,7 +35,7 @@ export async function POST(req: NextRequest) {
     const { username, password } = await req.json() as { username?: string; password?: string };
 
     if (!username || !password) {
-      return NextResponse.json({ error: 'Informe matrícula e senha.' }, { status: 400 });
+      return NextResponse.json({ error: 'Informe sua matrícula e senha do SUAP para entrar.' }, { status: 400 });
     }
 
     // Rate limit por IP — este endpoint repassa a senha direto pro SUAP,
@@ -44,7 +45,7 @@ export async function POST(req: NextRequest) {
     const limite = await rateLimitado('suap-login', ip, 5, 5 * 60_000);
     if (!limite.ok) {
       return NextResponse.json(
-        { error: 'Muitas tentativas de login. Aguarde alguns minutos e tente novamente.' },
+        { error: MENSAGENS.muitasTentativas },
         { status: 429, headers: { 'Retry-After': String(limite.retryAfterSeconds) } },
       );
     }
@@ -60,12 +61,12 @@ export async function POST(req: NextRequest) {
     if (!tokenRes.ok) {
       if (tokenRes.status === 401) {
         return NextResponse.json(
-          { error: 'Matrícula ou senha incorretos. Verifique suas credenciais SUAP.' },
+          { error: MENSAGENS.suapCredenciaisInvalidas },
           { status: 401 },
         );
       }
       return NextResponse.json(
-        { error: `SUAP indisponível (${tokenRes.status}). Tente novamente.` },
+        { error: MENSAGENS.suapIndisponivel },
         { status: 502 },
       );
     }
@@ -136,6 +137,9 @@ export async function POST(req: NextRequest) {
 
   } catch (err) {
     console.error('[SUAP Login] Erro:', err);
-    return NextResponse.json({ error: 'Erro interno ao processar o login.' }, { status: 500 });
+    return NextResponse.json(
+      { error: 'Não conseguimos concluir seu login agora. Tente novamente em alguns instantes.' },
+      { status: 500 }
+    );
   }
 }

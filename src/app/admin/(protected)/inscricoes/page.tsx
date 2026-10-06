@@ -7,7 +7,8 @@ import {
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { listMyProjetos, listInscricoes, updateInscricaoStatus, exportInscricoesCSV } from '@/actions/professor';
-import { formatDateShort } from '@/lib/utils';
+import { formatDateShort, getStatusLabel } from '@/lib/utils';
+import { rotuloRespostaAluno } from '@/lib/inscricao-aluno';
 import { parsePerguntasExtra, resolverRespostasExtra } from '@/lib/formulario-extra';
 import { Prisma } from '@prisma/client';
 import { useToast } from '@/components/ui/toast';
@@ -80,9 +81,9 @@ export default function AdminInscricoesPage() {
       setInscricoes((prev) =>
         prev.map((i) => (i.id === inscricaoId ? { ...i, status: newStatus } : i))
       );
-      toast(`Status alterado para "${newStatus.replace(/_/g, ' ')}"`, 'success');
+      toast(`Status alterado para "${getStatusLabel(newStatus)}"`, 'success');
     } else {
-      toast(result.error || 'Erro ao alterar status', 'error');
+      toast(result.error || 'Não conseguimos alterar o status desta inscrição. Tente novamente.', 'error');
     }
   };
 
@@ -263,6 +264,10 @@ export default function AdminInscricoesPage() {
                 { label: 'Matrícula', value: selectedInscricao.matricula },
                 { label: 'Idade', value: selectedInscricao.idade?.toString() },
                 { label: 'Tipo interesse', value: selectedInscricao.tipo_interesse },
+                // O que o ALUNO respondeu (aceite/recusa de convocação) — fica
+                // separado do status, que é a decisão da coordenação.
+                { label: 'Resposta do aluno', value: rotuloRespostaAluno(selectedInscricao.resposta_aluno) },
+                { label: 'Desistiu em', value: selectedInscricao.desistiu_em ? formatDateShort(selectedInscricao.desistiu_em) : null },
                 { label: 'Disponibilidade', value: selectedInscricao.disponibilidade },
                 { label: 'Experiência', value: selectedInscricao.experiencia_previa },
                 { label: 'Justificativa', value: selectedInscricao.justificativa },

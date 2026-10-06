@@ -135,6 +135,55 @@ describe('validação de campos obrigatórios', () => {
   });
 });
 
+describe('limites de entrada do formulário público', () => {
+  /**
+   * O formulário é público: quem chama a Server Action direto não passa pelo
+   * `maxLength` do navegador. Sem teto no servidor, um "nome completo" de 5 mil
+   * caracteres (ou uma justificativa de 900 KB) entrava no banco.
+   */
+  it('recusa nome acima do limite e diz o tamanho enviado', async () => {
+    const resultado = await criarInscricao(dadosBase({ nome_completo: 'a'.repeat(5000) }));
+
+    expect(resultado.ok).toBe(false);
+    if (!resultado.ok) {
+      expect(resultado.error).toContain('Nome completo');
+      expect(resultado.error).toContain('5000 caracteres');
+    }
+    expect(prismaMock.inscricao.create).not.toHaveBeenCalled();
+  });
+
+  it('recusa justificativa gigante', async () => {
+    const resultado = await criarInscricao(dadosBase({ justificativa: 'x'.repeat(5000) }));
+
+    expect(resultado.ok).toBe(false);
+    expect(prismaMock.inscricao.create).not.toHaveBeenCalled();
+  });
+
+  it('recusa tipo de interesse fora das opções', async () => {
+    const resultado = await criarInscricao(
+      dadosBase({ tipo_interesse: 'ADMIN' as unknown as 'BOLSISTA' }),
+    );
+
+    expect(resultado.ok).toBe(false);
+    if (!resultado.ok) expect(resultado.error).toMatch(/Tipo de interesse/i);
+  });
+
+  it('recusa respostas extras acima do teto', async () => {
+    const resultado = await criarInscricao(
+      dadosBase({ campos_extra: { resposta: 'y'.repeat(3000) } }),
+    );
+
+    expect(resultado.ok).toBe(false);
+    expect(prismaMock.inscricao.create).not.toHaveBeenCalled();
+  });
+
+  it('recusa telefone com letras', async () => {
+    const resultado = await criarInscricao(dadosBase({ telefone: '(43) 99999-0000<script>' }));
+
+    expect(resultado.ok).toBe(false);
+  });
+});
+
 describe('rate limit do formulário público', () => {
   it('bloqueia quando o IP estourou o limite da janela', async () => {
     prismaMock.rateLimitHit.count.mockResolvedValue(10);

@@ -1,15 +1,24 @@
 import React from 'react';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
-import { ChevronRight, Calendar, ArrowLeft, FileText, ExternalLink, Video } from 'lucide-react';
+import { ChevronRight, Calendar, ArrowLeft, FileText, ExternalLink, Video, FileArchive, Download } from 'lucide-react';
 import { prisma } from '@/lib/prisma';
 import { stripHtml } from '@/lib/rich-text';
+import { anexosDoJson, formatarMb } from '@/lib/post-midias';
+import { semCapaEscolhida } from '@/lib/post-capa';
+import { PostCapa } from '@/components/ui/PostCapa';
 import { SafeHtml } from '@/components/ui/SafeHtml';
 import type { Metadata } from 'next';
 
 export const dynamic = 'force-dynamic';
 
 type Params = { slug: string; postSlug: string };
+
+/** Anexos são PDF ou pacotes (ZIP/RAR) — muda só o ícone. */
+function ehPacote(nome: string): boolean {
+  const minusculo = nome.toLowerCase();
+  return minusculo.endsWith('.zip') || minusculo.endsWith('.rar');
+}
 
 async function getPost(slug: string, postSlug: string) {
   return prisma.post.findFirst({
@@ -33,6 +42,8 @@ export async function generateMetadata({ params }: { params: Params }): Promise<
 export default async function PostPage({ params }: { params: Params }) {
   const post = await getPost(params.slug, params.postSlug);
   if (!post) notFound();
+
+  const anexos = anexosDoJson(post.anexos);
 
   const youtubeId = post.videoUrl?.includes('youtube.com/watch?v=')
     ? new URLSearchParams(new URL(post.videoUrl).search).get('v')
@@ -74,12 +85,10 @@ export default async function PostPage({ params }: { params: Params }) {
         </Link>
 
         <div className="bg-white rounded-2xl border border-gray-100 p-6 md:p-8 space-y-6">
-          {post.imagemUrl && (
-            <div className="w-full aspect-video rounded-xl overflow-hidden bg-gray-100">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={post.imagemUrl} alt={post.titulo} className="w-full h-full object-cover" />
-            </div>
-          )}
+          {/* No post, a faixa de capa só aparece quando há uma escolha explícita
+              (imagem ou ícone). Sem isso, o topo da publicação ganharia uma
+              faixa cinza grande sem significado. */}
+          {!semCapaEscolhida(post) && <PostCapa post={post} tamanho="hero" />}
 
           <SafeHtml
             html={post.conteudo}
@@ -99,7 +108,7 @@ export default async function PostPage({ params }: { params: Params }) {
             </div>
           )}
 
-          {(post.arquivoPdfUrl || post.linkExterno) && (
+          {(post.arquivoPdfUrl || post.linkExterno || post.videoUrl || anexos.length > 0) && (
             <div className="flex flex-wrap gap-3 pt-2 border-t border-gray-100">
               {post.arquivoPdfUrl && (
                 <a
@@ -134,6 +143,40 @@ export default async function PostPage({ params }: { params: Params }) {
                   Assistir vídeo
                 </a>
               )}
+            </div>
+          )}
+
+          {/* Arquivos anexados pelo professor: ficam no storage do próprio
+              servidor e o nginx serve como download. */}
+          {anexos.length > 0 && (
+            <div className="pt-2 border-t border-gray-100">
+              <h2 className="text-sm font-bold text-gray-900 mb-2">Arquivos para download</h2>
+              <ul className="space-y-2">
+                {anexos.map((anexo) => (
+                  <li key={anexo.path}>
+                    <a
+                      href={anexo.url}
+                      download
+                      className="flex items-center gap-3 px-3 py-2.5 rounded-xl border border-gray-200 hover:bg-gray-50 transition-colors"
+                    >
+                      <span className="w-9 h-9 rounded-lg bg-azul-eletrico/10 text-azul-eletrico flex items-center justify-center flex-shrink-0">
+                        {ehPacote(anexo.nome ?? anexo.path)
+                          ? <FileArchive className="w-4 h-4" />
+                          : <FileText className="w-4 h-4" />}
+                      </span>
+                      <span className="min-w-0 flex-1">
+                        <span className="block text-sm font-semibold text-gray-900 truncate">
+                          {anexo.nome ?? 'Arquivo'}
+                        </span>
+                        {anexo.bytes > 0 && (
+                          <span className="block text-xs text-gray-400">{formatarMb(anexo.bytes)}</span>
+                        )}
+                      </span>
+                      <Download className="w-4 h-4 text-gray-400 flex-shrink-0" />
+                    </a>
+                  </li>
+                ))}
+              </ul>
             </div>
           )}
         </div>

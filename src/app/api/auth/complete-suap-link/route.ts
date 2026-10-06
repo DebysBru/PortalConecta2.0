@@ -11,6 +11,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getAdminAuth } from '@/lib/firebase-admin';
 import { prisma } from '@/lib/prisma';
 import { consumePendingToken } from '@/lib/suap-pending';
+import { MENSAGENS } from '@/lib/mensagens';
 
 export async function POST(req: NextRequest) {
   try {
@@ -20,14 +21,17 @@ export async function POST(req: NextRequest) {
     };
 
     if (!pendingToken || !firebaseIdToken) {
-      return NextResponse.json({ error: 'Dados incompletos.' }, { status: 400 });
+      return NextResponse.json(
+        { error: 'Faltaram informações para concluir o vínculo. Volte à tela de login e tente novamente.' },
+        { status: 400 }
+      );
     }
 
     // ── 1. Validar token temporário SUAP ────────────────────────────────────────
     const suapData = consumePendingToken(pendingToken);
     if (!suapData) {
       return NextResponse.json(
-        { error: 'Token de verificação expirado ou inválido. Faça login SUAP novamente.' },
+        { error: 'A confirmação do SUAP expirou. Entre novamente com seu usuário e senha do SUAP para continuar.' },
         { status: 401 },
       );
     }
@@ -49,7 +53,10 @@ export async function POST(req: NextRequest) {
       if (!googleEmail) throw new Error('Google token sem e-mail.');
     } catch (err) {
       console.error('[complete-suap-link] Erro ao verificar ID token Google:', err);
-      return NextResponse.json({ error: 'Token Google inválido. Tente novamente.' }, { status: 401 });
+      return NextResponse.json(
+        { error: 'Não conseguimos confirmar sua conta Google. Feche a janela e tente entrar novamente.' },
+        { status: 401 }
+      );
     }
 
     // ── 3. Criar/atualizar usuário no banco vinculando SUAP + Google ────────────
@@ -100,6 +107,6 @@ export async function POST(req: NextRequest) {
 
   } catch (err) {
     console.error('[complete-suap-link] Erro:', err);
-    return NextResponse.json({ error: 'Erro interno. Tente novamente.' }, { status: 500 });
+    return NextResponse.json({ error: MENSAGENS.erroInesperadoOrientacao }, { status: 500 });
   }
 }

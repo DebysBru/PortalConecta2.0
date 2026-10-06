@@ -1,5 +1,7 @@
 import { type ClassValue, clsx } from 'clsx';
 import { twMerge } from 'tailwind-merge';
+import { MENSAGENS } from '@/lib/mensagens';
+import { fimDoDiaBrasil, formatarDataBrasil } from '@/lib/datas';
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
@@ -17,25 +19,20 @@ export function slugify(text: string): string {
 }
 
 /**
- * Formata datas de prazo/calendário (dataEncerramento, inscricao_fim, etc.), que são
- * salvas como meia-noite UTC a partir de <input type="date">. timeZone: 'UTC' evita
- * que o fuso do Brasil (UTC-3) exiba o dia anterior ao formatar.
+ * Formata datas de prazo/calendário (dataEncerramento, inscricao_fim, etc.).
+ *
+ * Essas datas são gravadas ao MEIO-DIA no fuso do Brasil (ver
+ * src/lib/datas.ts), então exibi-las no fuso do Brasil mostra exatamente o dia
+ * que a coordenação digitou — independente do fuso da máquina que roda o
+ * servidor (a VPS fica nos EUA, em America/Chicago).
  */
 export function formatDate(date: Date | string, options?: Intl.DateTimeFormatOptions): string {
-  const d = typeof date === 'string' ? new Date(date) : date;
-  return d.toLocaleDateString('pt-BR', {
-    day: '2-digit',
-    month: 'long',
-    year: 'numeric',
-    timeZone: 'UTC',
-    ...options,
-  });
+  return formatarDataBrasil(date, options);
 }
 
-/** Timestamps reais (createdAt, etc.) — sem timeZone fixo, usa o fuso do runtime. */
+/** Timestamps reais (createdAt, etc.) — também no fuso do Brasil. */
 export function formatDateShort(date: Date | string, options?: Intl.DateTimeFormatOptions): string {
-  const d = typeof date === 'string' ? new Date(date) : date;
-  return d.toLocaleDateString('pt-BR', {
+  return formatarDataBrasil(date, {
     day: '2-digit',
     month: '2-digit',
     year: 'numeric',
@@ -43,20 +40,29 @@ export function formatDateShort(date: Date | string, options?: Intl.DateTimeForm
   });
 }
 
+/** Dias inteiros que faltam até o fim do dia do prazo (inclusive). */
 export function getDaysUntil(date: Date | string): number {
-  const target = typeof date === 'string' ? new Date(date) : date;
-  const now = new Date();
-  const diffTime = target.getTime() - now.getTime();
-  return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+  const alvo = typeof date === 'string' ? new Date(date) : date;
+  const diff = fimDoDiaBrasil(alvo).getTime() - Date.now();
+  return Math.ceil(diff / (1000 * 60 * 60 * 24));
 }
 
+/** Rótulo amigável de qualquer status. Status desconhecido volta como veio. */
 export function getStatusLabel(status: string): string {
   const labels: Record<string, string> = {
+    // Status de inscrição (minúsculos, vindos do banco)
+    recebida: 'Recebida',
+    em_analise: 'Em análise',
+    selecionado: 'Selecionado',
+    lista_espera: 'Lista de espera',
+    nao_selecionado: 'Não selecionado',
+    desistente: 'Desistente',
+    // Status de projeto / edital (maiúsculos)
     EM_BREVE: 'Em breve',
     ABERTO: 'Aberto',
     EM_ANALISE: 'Em análise',
     RESULTADO_PARCIAL: 'Resultado parcial',
-    PRAZO_RECURSO: 'Prazo recurso',
+    PRAZO_RECURSO: 'Prazo de recurso',
     RESULTADO_PUBLICADO: 'Resultado publicado',
     ENCERRADO: 'Encerrado',
     ATIVO: 'Ativo',
@@ -64,9 +70,9 @@ export function getStatusLabel(status: string): string {
     SUSPENSO: 'Suspenso',
     INSCRICOES_ABERTAS: 'Inscrições abertas',
     SEM_VAGAS: 'Sem vagas',
-    PRAZO_EDITAL: 'Prazo Edital',
-    EVENTO_CAMPUS: 'Evento Campus',
-    EVENTO_PROJETO: 'Evento Projeto',
+    PRAZO_EDITAL: 'Prazo de edital',
+    EVENTO_CAMPUS: 'Evento do campus',
+    EVENTO_PROJETO: 'Evento do projeto',
     REUNIAO: 'Reunião',
     PALESTRA: 'Palestra',
     BOLSAS: 'Bolsas',
@@ -114,44 +120,48 @@ export function getCategoryColor(categoria: string): string {
 }
 
 /**
- * Traduz erros do Prisma para mensagens amigáveis ao usuário
+ * Traduz erros do Prisma para mensagens amigáveis ao usuário.
+ *
+ * As mensagens vêm do catálogo central (`src/lib/mensagens.ts`) para manter o
+ * mesmo tom em todo o portal. Erros que não reconhecemos caem numa mensagem
+ * genérica — nunca no texto cru do Prisma, que expõe nomes de tabelas/colunas.
  */
 export function translatePrismaError(error: unknown): string {
   const msg = String(error);
 
   // Erros de constraint/unique
-  if (msg.includes('Unique constraint') || msg.includes('unique constraint')) {
-    if (msg.includes('email')) return 'Este e-mail já está cadastrado.';
-    if (msg.includes('slug')) return 'Já existe um registro com este nome.';
-    if (msg.includes('protocolo')) return 'Erro ao gerar protocolo. Tente novamente.';
-    return 'Já existe um registro com estes dados.';
+  if (msg.includes('Unique constraint') || msg.includes('unique constraint') || msg.includes('duplicate key')) {
+    if (msg.includes('email')) return MENSAGENS.emailJaCadastrado;
+    if (msg.includes('slug')) return MENSAGENS.nomeDuplicado;
+    if (msg.includes('protocolo')) return MENSAGENS.falhaProtocolo;
+    return MENSAGENS.registroJaExiste;
   }
 
   // Erros de foreign key
   if (msg.includes('Foreign key constraint') || msg.includes('foreign key constraint')) {
-    return 'Não é possível excluir: existem dados vinculados a este registro.';
+    return MENSAGENS.semDadosVinculados;
   }
 
   // Erros de record not found
   if (msg.includes('Record to delete does not exist') || msg.includes('Record to update does not exist')) {
-    return 'Registro não encontrado. Pode ter sido excluído por outro usuário.';
+    return MENSAGENS.registroNaoEncontrado;
   }
 
   // Erros de conexão
   if (msg.includes('Connection refused') || msg.includes('ECONNREFUSED')) {
-    return 'Erro de conexão com o servidor. Tente novamente em alguns instantes.';
+    return MENSAGENS.erroConexaoServidor;
   }
 
   // Erros de timeout
   if (msg.includes('Timeout') || msg.includes('ETIMEDOUT')) {
-    return 'Tempo limite excedido. Tente novamente.';
+    return MENSAGENS.tempoEsgotado;
   }
 
   // Erros de validação do Prisma
-  if (msg.includes('Invalid value')) {
-    return 'Dados inválidos. Verifique os campos preenchidos.';
+  if (msg.includes('Invalid value') || msg.includes('null constraint')) {
+    return MENSAGENS.dadosInvalidos;
   }
 
   // Erro genérico
-  return 'Erro interno. Tente novamente ou entre em contato com o suporte.';
+  return MENSAGENS.erroInesperado;
 }

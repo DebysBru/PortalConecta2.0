@@ -14,6 +14,7 @@ import {
 import { auth } from '@/lib/firebase';
 import { getUserRole, ensureUser } from '@/actions/admin';
 import { UserRole } from '@prisma/client';
+import { MENSAGENS, mensagemAmigavel } from '@/lib/mensagens';
 
 // ── Tipos públicos ─────────────────────────────────────────────────────────────
 
@@ -192,7 +193,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       error?: string;
     };
 
-    if (!res.ok) return { ok: false, error: data.error ?? 'Falha no login SUAP.' };
+    if (!res.ok) return { ok: false, error: mensagemAmigavel(data.error, MENSAGENS.suapIndisponivel) };
 
     // Primeira vez — precisa vincular Google
     if (data.needsGoogleLink && data.pendingToken && data.suapProfile) {
@@ -210,7 +211,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       return { ok: true, type: 'fallback', user: data.user };
     }
 
-    return { ok: false, error: 'Resposta inesperada do servidor.' };
+    return { ok: false, error: MENSAGENS.erroInesperadoOrientacao };
   };
 
   // ── Completar vínculo SUAP + Google ─────────────────────────────────────────
@@ -243,7 +244,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (!res.ok) {
         // Falhou no servidor — desfaz o sign-in do Google e retorna erro
         await firebaseSignOut(auth);
-        return { ok: false, error: data.error ?? 'Erro ao vincular conta.' };
+        return { ok: false, error: mensagemAmigavel(data.error, MENSAGENS.loginGoogleFalhou) };
       }
 
       // 3. Vínculo salvo com sucesso.
@@ -258,11 +259,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       return { ok: true };
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Erro desconhecido.';
+      // Erros do Firebase vêm em inglês e com termos técnicos (auth/...) —
+      // passam pelo tradutor antes de virar texto na tela.
+      const message = err instanceof Error ? err.message : '';
       if (message.includes('popup-closed') || message.includes('cancelled')) {
-        return { ok: false, error: 'Login com Google cancelado. É necessário vincular para continuar.' };
+        return { ok: false, error: MENSAGENS.loginGoogleCancelado };
       }
-      return { ok: false, error: message };
+      return { ok: false, error: mensagemAmigavel(err, MENSAGENS.loginGoogleFalhou) };
     }
   };
 

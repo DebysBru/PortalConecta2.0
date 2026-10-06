@@ -10,6 +10,7 @@ import { parsePerguntasExtra, type PerguntaExtra } from '@/lib/formulario-extra'
 import { getStatusLabel, getStatusColor } from '@/lib/utils';
 import { useAuth } from '@/contexts/AuthContext';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
+import { useMensagemErro } from '@/lib/use-mensagem-erro';
 
 type Projeto = Awaited<ReturnType<typeof listProjetos>>[number];
 
@@ -29,7 +30,7 @@ export default function AdminProjetosPage() {
   const [panelOpen, setPanelOpen] = useState(false);
   const [editing, setEditing] = useState<Projeto | null>(null);
   const [form, setForm] = useState<ProjetoFormData>(EMPTY_FORM);
-  const [error, setError] = useState('');
+  const [error, setError] = useMensagemErro();
   const [isPending, startTransition] = useTransition();
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
@@ -104,7 +105,7 @@ export default function AdminProjetosPage() {
     startTransition(async () => {
       const result = await toggleProjetoPublicacao(id, user.email!);
       if (result.ok) load();
-      else setError(result.error);
+      else setError(result.error, 'Não conseguimos mudar a publicação do projeto. Tente novamente.');
     });
   };
 
@@ -135,7 +136,7 @@ export default function AdminProjetosPage() {
           setProjetos((prev) => prev.map((p) =>
             p.id === projeto.id ? { ...p, inscricoes_abertas: true, status: 'INSCRICOES_ABERTAS' } : p
           ));
-          setError(result.error);
+          setError(result.error, 'Não conseguimos encerrar as inscrições deste projeto. Tente novamente.');
         }
       })
       .finally(() => setTogglingInscricoesId(null));
@@ -150,7 +151,7 @@ export default function AdminProjetosPage() {
       ));
       setAbrirModalProjetoId(null);
     } else {
-      setError(result.error);
+      setError(result.error, 'Não conseguimos abrir as inscrições deste projeto. Confira as datas informadas.');
     }
   };
 
@@ -160,7 +161,7 @@ export default function AdminProjetosPage() {
     startTransition(async () => {
       const result = await deleteProjeto(deleteId, user.email!);
       if (result.ok) load();
-      else setError(result.error);
+      else setError(result.error, 'Não conseguimos excluir o projeto. Tente novamente.');
       setDeleting(false);
       setDeleteId(null);
     });
@@ -169,11 +170,11 @@ export default function AdminProjetosPage() {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
-    if (!user?.email) { setError('Não autenticado'); return; }
+    if (!user?.email) { setError('Sua sessão expirou. Entre novamente para salvar o projeto.'); return; }
     startTransition(async () => {
       const result = editing ? await updateProjeto(editing.id, form, user.email!) : await createProjeto(form, user.email!);
       if (result.ok) { setPanelOpen(false); load(); }
-      else setError(result.error);
+      else setError(result.error, 'Não conseguimos salvar o projeto. Confira os campos e tente novamente.');
     });
   };
 

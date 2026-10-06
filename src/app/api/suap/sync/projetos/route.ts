@@ -11,6 +11,7 @@
  */
 import { NextRequest, NextResponse } from 'next/server';
 import { syncProjetos } from '@/lib/suap-sync';
+import { MENSAGENS } from '@/lib/mensagens';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -32,7 +33,7 @@ function isAuthorized(req: NextRequest): boolean {
 
 export async function POST(req: NextRequest) {
   if (!isAuthorized(req)) {
-    return NextResponse.json({ error: 'Não autorizado' }, { status: 401 });
+    return NextResponse.json({ error: MENSAGENS.semPermissao }, { status: 401 });
   }
 
   let dryRun = false;
@@ -58,9 +59,9 @@ export async function POST(req: NextRequest) {
       ...result,
     });
   } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
+    console.error('Falha na sincronização de projetos do SUAP:', err);
     return NextResponse.json(
-      { ok: false, error: message },
+      { ok: false, error: 'Não conseguimos concluir a sincronização de projetos. Confira a conexão com o SUAP e tente novamente.' },
       { status: 500 }
     );
   }

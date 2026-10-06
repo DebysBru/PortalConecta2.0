@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { Sparkles, Mail, Lock, AlertCircle, User, KeyRound, LogIn, Link2, CheckCircle } from 'lucide-react';
 import { useAuth, type SuapProfile } from '@/contexts/AuthContext';
 import Image from 'next/image';
+import { MENSAGENS, mensagemAmigavel } from '@/lib/mensagens';
 
 type LoginTab = 'suap' | 'email';
 type LoginStep = 'login' | 'link_google';
@@ -75,13 +76,13 @@ export default function AdminLoginPage() {
 
       if (result.type === 'fallback') {
         setError(
-          'SUAP verificado, mas Firebase Admin não está configurado. ' +
-          'Configure FIREBASE_ADMIN_* no .env.local para login persistente.'
+          'Entramos no SUAP, mas não foi possível manter sua sessão no portal. ' +
+          'Fale com a equipe responsável pelo portal para liberar seu acesso.'
         );
       }
       setSubmitting(false);
-    } catch {
-      setError('Erro inesperado. Tente novamente.');
+    } catch (err) {
+      setError(mensagemAmigavel(err, MENSAGENS.erroInesperadoOrientacao));
       setSubmitting(false);
     }
   };
@@ -95,7 +96,7 @@ export default function AdminLoginPage() {
     try {
       const result = await completeSuapGoogleLink(pendingToken);
       if (!result.ok) {
-        setError(result.error);
+        setError(mensagemAmigavel(result.error, MENSAGENS.loginGoogleFalhou));
         linkingInProgress.current = false;
         setSubmitting(false);
         return;
@@ -104,8 +105,8 @@ export default function AdminLoginPage() {
       // `loading`/`user` confirmarem que o cookie de sessão já foi criado
       // (não navegamos aqui: ver comentário em handleEmailLogin).
       linkingInProgress.current = false;
-    } catch {
-      setError('Erro inesperado ao vincular. Tente novamente.');
+    } catch (err) {
+      setError(mensagemAmigavel(err, MENSAGENS.erroInesperadoOrientacao));
       linkingInProgress.current = false;
       setSubmitting(false);
     }
@@ -136,8 +137,8 @@ export default function AdminLoginPage() {
       // tentativa porque o cookie da 1ª já tinha terminado de ser criado em
       // background. O useEffect abaixo (user + loading) já espera esse
       // ciclo terminar antes de redirecionar.
-    } catch {
-      setError('E-mail ou senha incorretos.');
+    } catch (err) {
+      setError(mensagemAmigavel(err, MENSAGENS.emailOuSenhaIncorretos));
       setSubmitting(false);
     }
   };
@@ -149,8 +150,8 @@ export default function AdminLoginPage() {
     try {
       await signInWithGoogle();
       // Idem handleEmailLogin — deixa o useEffect redirecionar.
-    } catch {
-      setError('Não foi possível autenticar com o Google.');
+    } catch (err) {
+      setError(mensagemAmigavel(err, MENSAGENS.loginGoogleFalhou));
       setSubmitting(false);
     }
   };

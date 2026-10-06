@@ -56,8 +56,12 @@ export async function alternarFavorito(
   if (!sessao.ok) return sessao;
 
   const entidade = normalizarEntidade(entidadeRaw);
-  if (!entidade) return { ok: false, error: 'Tipo de item inválido' };
-  if (!entidadeId?.trim()) return { ok: false, error: 'Item inválido' };
+  if (!entidade) {
+    return { ok: false, error: 'Não conseguimos identificar o tipo deste item para salvar nos favoritos. Recarregue a página e tente novamente.' };
+  }
+  if (!entidadeId?.trim()) {
+    return { ok: false, error: 'Não conseguimos identificar este item para salvar nos favoritos. Recarregue a página e tente novamente.' };
+  }
 
   try {
     const existente = await prisma.favorito.findUnique({
@@ -86,7 +90,7 @@ export async function alternarFavorito(
     // Só favorita o que existe de fato — senão a lista do estudante acumula
     // ids órfãos que nunca resolvem para nada.
     if (!(await validarAlvo(entidade, entidadeId))) {
-      return { ok: false, error: 'Item não encontrado' };
+      return { ok: false, error: 'Não encontramos este item — ele pode ter sido removido do portal. Atualize a página para ver a lista mais recente.' };
     }
 
     await prisma.favorito.create({
@@ -95,7 +99,7 @@ export async function alternarFavorito(
 
     return { ok: true, favoritado: true };
   } catch {
-    return { ok: false, error: 'Não foi possível atualizar o favorito' };
+    return { ok: false, error: 'Não conseguimos atualizar seus favoritos agora. Tente novamente em alguns instantes.' };
   }
 }
 
@@ -108,7 +112,9 @@ export async function removerFavorito(
   if (!sessao.ok) return sessao;
 
   const entidade = normalizarEntidade(entidadeRaw);
-  if (!entidade) return { ok: false, error: 'Tipo de item inválido' };
+  if (!entidade) {
+    return { ok: false, error: 'Não conseguimos identificar este item para remover dos favoritos. Recarregue a página e tente novamente.' };
+  }
 
   try {
     await prisma.favorito.deleteMany({
@@ -116,7 +122,7 @@ export async function removerFavorito(
     });
     return { ok: true };
   } catch {
-    return { ok: false, error: 'Não foi possível remover o favorito' };
+    return { ok: false, error: 'Não conseguimos remover este item dos favoritos agora. Tente novamente.' };
   }
 }
 

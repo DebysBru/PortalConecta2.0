@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { Sparkles, Mail, Lock, AlertCircle, Loader2 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
+import { MENSAGENS, mensagemAmigavel } from '@/lib/mensagens';
 
 export default function ProfessorLoginPage() {
   const { signIn, signInWithGoogle, user, loading } = useAuth();
@@ -32,8 +33,8 @@ export default function ProfessorLoginPage() {
       // layout ainda não ver o cookie e mandar de volta pro login (tela
       // branca piscando) — o useEffect abaixo (user + loading) já espera
       // esse ciclo terminar antes de redirecionar.
-    } catch {
-      setError('E-mail ou senha incorretos.');
+    } catch (err) {
+      setError(mensagemAmigavel(err, MENSAGENS.emailOuSenhaIncorretos));
       setIsPending(false);
     }
   };
@@ -44,8 +45,8 @@ export default function ProfessorLoginPage() {
     try {
       await signInWithGoogle();
       // Idem handleEmailLogin — deixa o useEffect redirecionar.
-    } catch {
-      setError('Não foi possível autenticar com o Google.');
+    } catch (err) {
+      setError(mensagemAmigavel(err, MENSAGENS.loginGoogleFalhou));
       setIsPending(false);
     }
   };

@@ -105,7 +105,7 @@ describe('mensagemPreservado', () => {
     const msg = mensagemPreservado('Horta Comunitária', 42);
 
     expect(msg).toContain('Horta Comunitária');
-    expect(msg).toContain('SUAP ID: 42');
-    expect(msg).toContain('sync forçada');
+    expect(msg).toContain('registro nº 42 no SUAP');
+    expect(msg).toContain('sincronização forçada');
   });
 });

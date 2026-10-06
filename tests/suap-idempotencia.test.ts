@@ -136,7 +136,7 @@ describe('syncProjetos — rodar 2x não duplica', () => {
 
     expect(prismaMock.projeto.create).not.toHaveBeenCalled();
     expect(prismaMock.projeto.update).not.toHaveBeenCalled();
-    expect(resultado.detalhes.join(' ')).toMatch(/dry-run/i);
+    expect(resultado.detalhes.join(' ')).toMatch(/simulação/i);
   });
 
   it('erro na busca do SUAP é reportado e não cria projeto nenhum', async () => {

@@ -18,7 +18,7 @@ export function AbrirInscricoesModal({
 
   const handleConfirm = async () => {
     if (!fim) {
-      setError('Informe o prazo final das inscrições');
+      setError('Escolha a data em que as inscrições terminam para poder abri-las.');
       return;
     }
     setError('');

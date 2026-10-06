@@ -16,7 +16,7 @@ export async function GET(request: NextRequest) {
 
   const id = request.nextUrl.searchParams.get('id');
   if (!id) {
-    return NextResponse.json({ error: 'ID obrigatório' }, { status: 400 });
+    return NextResponse.json({ error: 'Informe qual documento você quer consultar.' }, { status: 400 });
   }
 
   const doc = await prisma.documentoKb.findUnique({
@@ -25,7 +25,7 @@ export async function GET(request: NextRequest) {
   });
 
   if (!doc) {
-    return NextResponse.json({ error: 'Documento não encontrado' }, { status: 404 });
+    return NextResponse.json({ error: 'Não encontramos este documento. Ele pode ter sido removido.' }, { status: 404 });
   }
 
   return NextResponse.json({ ok: true, data: doc });
@@ -39,17 +39,17 @@ export async function PUT(request: NextRequest) {
   try {
     body = await request.json();
   } catch {
-    return NextResponse.json({ error: 'Corpo inválido' }, { status: 400 });
+    return NextResponse.json({ error: 'Não conseguimos entender os dados enviados. Recarregue a página e tente novamente.' }, { status: 400 });
   }
 
   const { id, titulo, ativo } = body;
   if (!id) {
-    return NextResponse.json({ error: 'ID obrigatório' }, { status: 400 });
+    return NextResponse.json({ error: 'Informe qual documento você quer alterar.' }, { status: 400 });
   }
 
   const doc = await prisma.documentoKb.findUnique({ where: { id } });
   if (!doc) {
-    return NextResponse.json({ error: 'Documento não encontrado' }, { status: 404 });
+    return NextResponse.json({ error: 'Não encontramos este documento. Ele pode ter sido removido.' }, { status: 404 });
   }
 
   const updated = await prisma.documentoKb.update({
@@ -73,12 +73,12 @@ export async function DELETE(request: NextRequest) {
 
   const id = request.nextUrl.searchParams.get('id');
   if (!id) {
-    return NextResponse.json({ error: 'ID obrigatório' }, { status: 400 });
+    return NextResponse.json({ error: 'Informe qual documento você quer excluir.' }, { status: 400 });
   }
 
   const doc = await prisma.documentoKb.findUnique({ where: { id } });
   if (!doc) {
-    return NextResponse.json({ error: 'Documento não encontrado' }, { status: 404 });
+    return NextResponse.json({ error: 'Não encontramos este documento. Ele pode ter sido removido.' }, { status: 404 });
   }
 
   // Chunks são deletados em cascade

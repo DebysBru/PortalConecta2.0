@@ -3,12 +3,13 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import {
   ChevronRight, Users, Mail, Instagram, Globe, ArrowLeft,
-  BookOpen, Calendar, ArrowRight, Image as ImageIcon, HelpCircle,
+  BookOpen, Calendar, ArrowRight, HelpCircle,
 } from 'lucide-react';
 import { getStatusLabel, getStatusColor, formatDate } from '@/lib/utils';
 import { stripHtml } from '@/lib/rich-text';
 import { SafeHtml } from '@/components/ui/SafeHtml';
 import { BotaoFavorito } from '@/components/ui/BotaoFavorito';
+import { PostCapa } from '@/components/ui/PostCapa';
 import { prisma } from '@/lib/prisma';
 import type { Metadata } from 'next';
 
@@ -291,16 +292,7 @@ export default async function ProjetoPage({ params }: { params: Params }) {
                       href={`/projetos/${projeto.slug}/posts/${post.slug}`}
                       className="group bg-white rounded-2xl border border-gray-100 p-5 hover:border-gray-200 hover:shadow-md transition-all flex flex-col sm:flex-row gap-5"
                     >
-                      {post.imagemUrl ? (
-                        <div className="w-full sm:w-48 h-32 flex-shrink-0 rounded-xl overflow-hidden bg-gray-100">
-                          {/* eslint-disable-next-line @next/next/no-img-element */}
-                          <img src={post.imagemUrl} alt={post.titulo} className="w-full h-full object-cover" />
-                        </div>
-                      ) : (
-                        <div className="w-full sm:w-48 h-32 flex-shrink-0 rounded-xl bg-gray-50 border border-gray-100 flex items-center justify-center">
-                          <ImageIcon className="w-8 h-8 text-gray-300" />
-                        </div>
-                      )}
+                      <PostCapa post={post} />
                       <div className="flex-1 min-w-0 flex flex-col justify-center">
                         <div className="text-xs text-gray-400 font-medium mb-1 flex items-center gap-2">
                           <Calendar className="w-3.5 h-3.5" />

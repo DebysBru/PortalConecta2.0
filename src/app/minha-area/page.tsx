@@ -19,6 +19,7 @@ import {
   CATEGORIAS_ALERTA, CANAIS_ALERTA, ROTULO_CATEGORIA, ROTULO_ENTIDADE,
   formatarTempoRelativo, contarNaoLidas, type CanalAlerta,
 } from '@/lib/minha-area';
+import { useMensagemErro } from '@/lib/use-mensagem-erro';
 
 /**
  * Área do estudante (ROADMAP 6.2, 6.3 e 6.4): favoritos, notificações e
@@ -46,7 +47,7 @@ export default function MinhaAreaPage() {
   const { user } = useAuth();
   const [aba, setAba] = useState<Aba>('favoritos');
   const [carregando, setCarregando] = useState(true);
-  const [erro, setErro] = useState('');
+  const [erro, setErro] = useMensagemErro();
 
   const [favoritos, setFavoritos] = useState<FavoritoItem[]>([]);
   const [notificacoes, setNotificacoes] = useState<NotificacaoItem[]>([]);
@@ -75,7 +76,7 @@ export default function MinhaAreaPage() {
       setNotificacoes(n);
       setAlertas(a);
     } catch {
-      setErro('Não foi possível carregar seus dados agora. Tente novamente.');
+      setErro('Não conseguimos carregar seus favoritos, avisos e alertas agora. Confira sua conexão e tente novamente.');
     } finally {
       setCarregando(false);
     }

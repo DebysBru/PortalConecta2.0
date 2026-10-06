@@ -1,0 +1,22 @@
+-- ==============================================================================
+-- PORTAL CONECTA 2.0 — CAPA DO POST (imagem enviada OU ícone nativo)
+-- ==============================================================================
+--
+-- Adiciona `Post.icone`: a chave do ícone escolhido pelo professor, dentre os do
+-- catálogo em `src/lib/post-capa.ts` (aviso, inscricoes, selecao, prazo, evento,
+-- formacao, reuniao, atividade, conquista, documento).
+--
+-- Por que: a lista de "Últimas Atualizações" mostrada em /projetos/[slug] só
+-- sabia exibir `imagemUrl`, e o formulário do professor não tinha campo de imagem
+-- — todo post criado por ele caía num quadrado cinza vazio. Quem não tem foto
+-- agora escolhe um ícone com significado; a imagem (quando existe) continua tendo
+-- precedência na hora de renderizar.
+--
+-- COMO APLICAR (banco local em 127.0.0.1:5433; em produção, no VPS):
+--   psql "$DATABASE_URL" -f prisma/post-capa-setup.sql
+--
+-- ⚠️ NÃO use `prisma db push` neste banco (ver DOCUMENTACAO/MIGRACAO_POSTGRES_LOCAL.md).
+-- O script é IDEMPOTENTE: pode rodar quantas vezes quiser.
+-- ==============================================================================
+
+ALTER TABLE "Post" ADD COLUMN IF NOT EXISTS "icone" TEXT;

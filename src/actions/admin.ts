@@ -2,6 +2,7 @@
 
 import { prisma } from '@/lib/prisma';
 import { slugify, translatePrismaError } from '@/lib/utils';
+import { MENSAGENS, mensagemAmigavel } from '@/lib/mensagens';
 import { cache } from '@/lib/cache';
 import { getPublicMetrics } from '@/lib/metrics';
 import { dispararAlertasDeEdital } from '@/lib/alertas';
@@ -9,6 +10,11 @@ import { derivarEventosEdital, derivarEventosProjeto } from '@/lib/evento-helper
 import { LIMPEZA_TABLES } from '@/lib/limpeza-tables';
 import { sincronizarProjetoSintetico, removerProjetoSintetico } from '@/lib/projeto-sintetico';
 import { sanitizeHtml } from '@/lib/rich-text';
+import { limparAnexosRemovidos, validarMidiasDoPost } from '@/lib/post-midias-server';
+import { chaveDeIconeValida } from '@/lib/post-capa';
+import { getVerifiedServerSession } from '@/lib/session';
+import { parseDataDoFormulario } from '@/lib/datas';
+import type { Prisma } from '@prisma/client';
 import type { PerguntaExtra } from '@/lib/formulario-extra';
 import {
   isAdministradorGeral,
@@ -31,11 +37,24 @@ type ActionResult<T = void> = { ok: true; data?: T } | { ok: false; error: strin
  * de segurança em 2026-08-26): qualquer chamada direta à Server Action, sem
  * passar pela UI, conseguia criar/editar/excluir projetos, editais e eventos.
  * Mesmo padrão já usado em `src/actions/rag.ts`.
+ *
+ * ⚠️ CORREÇÃO DE 2026-10-05: conferir o PAPEL do e-mail informado não bastava —
+ * o e-mail vinha do cliente (`user.email` do contexto de autenticação) e os
+ * e-mails administrativos estão na documentação pública do projeto. Ou seja,
+ * qualquer pessoa podia chamar `updateEdital(id, {...}, 'ronan.lopes@ifpr.edu.br')`
+ * e editar o portal inteiro. A identidade agora tem de bater com o **cookie de
+ * sessão verificado** (`getVerifiedServerSession`), que o cliente não forja.
  */
 async function requireAdminEmail(email?: string): Promise<{ ok: true } | { ok: false; error: string }> {
-  if (!email) return { ok: false, error: 'Não autenticado' };
+  if (!email) return { ok: false, error: MENSAGENS.naoAutenticado };
+
+  const sessao = await getVerifiedServerSession();
+  if (!sessao?.email || sessao.email.toLowerCase() !== email.toLowerCase()) {
+    return { ok: false, error: MENSAGENS.semPermissaoAdmin };
+  }
+
   const user = await prisma.user.findUnique({ where: { email }, select: { role: true } });
-  if (user?.role !== 'ADMIN') return { ok: false, error: 'Acesso negado: apenas administradores' };
+  if (user?.role !== 'ADMIN') return { ok: false, error: MENSAGENS.semPermissaoAdmin };
   return { ok: true };
 }
 
@@ -125,16 +144,16 @@ export async function createEdital(
     const titulo = data.titulo?.trim();
     const resumo = data.resumo?.trim();
     if (!titulo || titulo.length < 2) {
-      return { ok: false, error: 'Título do edital é obrigatório (mínimo 2 caracteres)' };
+      return { ok: false, error: MENSAGENS.campoObrigatorio('Título do edital') };
     }
     if (!resumo) {
-      return { ok: false, error: 'Resumo é obrigatório' };
+      return { ok: false, error: MENSAGENS.campoObrigatorio('Resumo') };
     }
     if (!data.dataEncerramento) {
-      return { ok: false, error: 'Data de encerramento é obrigatória' };
+      return { ok: false, error: MENSAGENS.campoObrigatorio('Data de encerramento') };
     }
     if (!data.linkOficial?.trim()) {
-      return { ok: false, error: 'Link oficial é obrigatório' };
+      return { ok: false, error: MENSAGENS.campoObrigatorio('Link oficial') };
     }
 
     const author = await ensureUser(authorEmail);
@@ -145,7 +164,7 @@ export async function createEdital(
         slug,
         categoria: data.categoria,
         resumo: data.resumo,
-        dataEncerramento: new Date(data.dataEncerramento),
+        dataEncerramento: parseDataDoFormulario(data.dataEncerramento),
         status: data.status,
         linkOficial: data.linkOficial,
         arquivoPdfUrl: data.arquivoPdfUrl ?? null,
@@ -184,7 +203,7 @@ export async function updateEdital(
       where: { id },
       data: {
         ...data,
-        dataEncerramento: data.dataEncerramento ? new Date(data.dataEncerramento) : undefined,
+        dataEncerramento: data.dataEncerramento ? parseDataDoFormulario(data.dataEncerramento) : undefined,
         slug: data.titulo ? slugify(data.titulo) : undefined,
       },
     });
@@ -204,11 +223,11 @@ export async function toggleEditalPublicacao(id: string, callerEmail: string): P
   try {
     const caller = await prisma.user.findUnique({ where: { email: callerEmail }, select: { role: true } });
     if (caller?.role !== 'ADMIN') {
-      return { ok: false, error: 'Acesso negado: apenas administradores podem publicar/despublicar' };
+      return { ok: false, error: MENSAGENS.semPermissaoAdmin };
     }
 
     const edital = await prisma.edital.findUnique({ where: { id }, select: { review_status: true } });
-    if (!edital) return { ok: false, error: 'Edital não encontrado' };
+    if (!edital) return { ok: false, error: 'Não encontramos este edital. Ele pode ter sido removido por outra pessoa.' };
 
     const review_status = edital.review_status === 'PUBLICADO' ? 'RASCUNHO' : 'PUBLICADO';
     await prisma.edital.update({ where: { id }, data: { review_status } });
@@ -335,13 +354,13 @@ export async function createProjeto(data: ProjetoFormData, callerEmail: string):
     const coordenador = data.coordenador?.trim();
     const area = data.area?.trim();
     if (!nome || nome.length < 2) {
-      return { ok: false, error: 'Nome do projeto é obrigatório (mínimo 2 caracteres)' };
+      return { ok: false, error: MENSAGENS.campoObrigatorio('Nome do projeto') };
     }
     if (!coordenador) {
-      return { ok: false, error: 'Coordenador é obrigatório' };
+      return { ok: false, error: MENSAGENS.campoObrigatorio('Coordenador') };
     }
     if (!area) {
-      return { ok: false, error: 'Área é obrigatória' };
+      return { ok: false, error: MENSAGENS.campoObrigatorio('Área') };
     }
 
     const slug = slugify(nome);
@@ -409,7 +428,7 @@ export async function updateProjeto(id: string, data: Partial<ProjetoFormData>, 
     if (data.viceCoordenadorEmail !== undefined) updateData.viceCoordenadorEmail = data.viceCoordenadorEmail?.trim().toLowerCase() || null;
     if (data.area !== undefined) updateData.area = data.area;
     if (data.descricao !== undefined) updateData.descricao = data.descricao;
-    if (data.dataInicio !== undefined) updateData.dataInicio = data.dataInicio ? new Date(data.dataInicio) : null;
+    if (data.dataInicio !== undefined) updateData.dataInicio = data.dataInicio ? parseDataDoFormulario(data.dataInicio) : null;
     if (data.servidores !== undefined) updateData.servidores = data.servidores;
     if (data.alunos !== undefined) updateData.alunos = data.alunos;
     if (data.observacao !== undefined) updateData.observacao = data.observacao;
@@ -447,11 +466,11 @@ export async function toggleProjetoPublicacao(id: string, callerEmail: string): 
   try {
     const caller = await prisma.user.findUnique({ where: { email: callerEmail }, select: { role: true } });
     if (caller?.role !== 'ADMIN') {
-      return { ok: false, error: 'Acesso negado: apenas administradores podem publicar/despublicar' };
+      return { ok: false, error: MENSAGENS.semPermissaoAdmin };
     }
 
     const projeto = await prisma.projeto.findUnique({ where: { id }, select: { review_status: true } });
-    if (!projeto) return { ok: false, error: 'Projeto não encontrado' };
+    if (!projeto) return { ok: false, error: 'Não encontramos este projeto. Ele pode ter sido removido por outra pessoa.' };
 
     const review_status = projeto.review_status === 'PUBLICADO' ? 'RASCUNHO' : 'PUBLICADO';
     await prisma.projeto.update({ where: { id }, data: { review_status } });
@@ -502,8 +521,12 @@ export type PostFormData = {
   videoUrl?: string;
   arquivoPdfUrl?: string;
   linkExterno?: string;
+  /** Chave do ícone de capa (catálogo em src/lib/post-capa.ts). */
+  icone?: string | null;
   status: StatusPost;
   projetoId: string;
+  /** Anexos (PDF, ZIP, RAR) já enviados para o storage local do servidor. */
+  anexos?: unknown;
 };
 
 export async function listPosts(userEmail?: string, userRole?: string) {
@@ -528,27 +551,39 @@ export async function createPost(data: PostFormData, authorEmail: string): Promi
     // `userRole` fornecido pelo cliente — bastava mandar `userRole: 'ADMIN'`
     // pra pular a checagem de coordenador (mesma classe do achado S2).
     const userRecord = await prisma.user.findUnique({ where: { email: authorEmail }, select: { role: true } });
-    if (!userRecord) return { ok: false, error: 'Usuário não encontrado' };
+    if (!userRecord) return { ok: false, error: MENSAGENS.usuarioNaoEncontrado };
 
     if (userRecord.role === 'PROFESSOR') {
       const isCoordinator = await isCoordenadorOuViceDoProjeto(data.projetoId, authorEmail);
-      if (!isCoordinator) return { ok: false, error: 'Acesso negado: você não é coordenador deste projeto' };
+      if (!isCoordinator) return { ok: false, error: MENSAGENS.semPermissaoCoordenador };
     } else if (userRecord.role !== 'ADMIN') {
-      return { ok: false, error: 'Acesso negado' };
+      return { ok: false, error: MENSAGENS.semPermissao };
     }
 
     const author = await ensureUser(authorEmail);
-    const slug = slugify(data.titulo);
+    // Mesmo formato do painel do professor: o sufixo curto evita que dois posts
+    // com o MESMO título colidam no `slug` (que é único no banco) — antes, criar
+    // o segundo post com um título repetido devolvia erro de banco genérico.
+    const slug = `${slugify(data.titulo)}-${Date.now().toString(36)}`;
+    const conteudo = sanitizeHtml(data.conteudo);
+
+    // Mesmo orçamento do painel do professor (20 MB por post, somando imagens do
+    // texto + anexos). Sem isto, um post criado pelo admin escaparia do limite.
+    const midias = await validarMidiasDoPost(conteudo, data.anexos);
+    if (!midias.ok) return { ok: false, error: midias.error };
+
     const post = await prisma.post.create({
       data: {
         titulo: data.titulo,
         slug,
-        conteudo: sanitizeHtml(data.conteudo),
+        conteudo,
         resumo: data.resumo ?? null,
         imagemUrl: data.imagemUrl ?? null,
         videoUrl: data.videoUrl ?? null,
         arquivoPdfUrl: data.arquivoPdfUrl ?? null,
         linkExterno: data.linkExterno ?? null,
+        icone: chaveDeIconeValida(data.icone) ? data.icone : null,
+        anexos: midias.anexos as unknown as Prisma.InputJsonValue,
         status: data.status,
         projetoId: data.projetoId,
         authorId: author.id,
@@ -564,28 +599,61 @@ export async function updatePost(id: string, data: Partial<PostFormData>, userEm
   try {
     // Role sempre lido do servidor — ver comentário em createPost.
     const userRecord = await prisma.user.findUnique({ where: { email: userEmail }, select: { role: true } });
-    if (!userRecord) return { ok: false, error: 'Usuário não encontrado' };
+    if (!userRecord) return { ok: false, error: MENSAGENS.usuarioNaoEncontrado };
 
     if (userRecord.role === 'PROFESSOR') {
       const post = await prisma.post.findUnique({ where: { id }, select: { projetoId: true } });
-      if (!post) return { ok: false, error: 'Post não encontrado' };
+      if (!post) return { ok: false, error: 'Não encontramos esta publicação. Ela pode ter sido removida por outra pessoa.' };
       const isCoordinator = await isCoordenadorOuViceDoProjeto(post.projetoId, userEmail);
-      if (!isCoordinator) return { ok: false, error: 'Acesso negado: você não é coordenador do projeto deste post' };
+      if (!isCoordinator) return { ok: false, error: MENSAGENS.semPermissaoCoordenador };
     } else if (userRecord.role !== 'ADMIN') {
-      return { ok: false, error: 'Acesso negado' };
+      return { ok: false, error: MENSAGENS.semPermissao };
     }
 
+    // Estado atual: o conteúdo pode não vir nesta chamada (update parcial), e o
+    // orçamento precisa considerar o que JÁ está publicado + o que está entrando.
+    const atual = await prisma.post.findUnique({
+      where: { id },
+      select: { conteudo: true, anexos: true },
+    });
+    if (!atual) return { ok: false, error: 'Não encontramos esta publicação. Ela pode ter sido removida por outra pessoa.' };
+
+    const conteudoFinal = data.conteudo !== undefined ? sanitizeHtml(data.conteudo) : atual.conteudo;
+    const anexosEntrada = data.anexos !== undefined ? data.anexos : atual.anexos;
+
+    // Mesmo orçamento do painel do professor (20 MB por post).
+    const midias = await validarMidiasDoPost(conteudoFinal, anexosEntrada);
+    if (!midias.ok) return { ok: false, error: midias.error };
+
+    // Campos gravados EXPLICITAMENTE. Antes era `...data`, que espalhava no
+    // Prisma qualquer chave que o cliente mandasse — inclusive `projetoId` e
+    // `authorId`, o que permitia mover o post para um projeto que a pessoa não
+    // coordena. O que não está nesta lista simplesmente não é aceito.
+    //
+    // O `slug` NÃO entra: ele é a URL pública do post (a que o botão "Ver no
+    // portal" abre e a que já foi compartilhada com os estudantes) e é gerado uma
+    // única vez, na criação, com sufixo que evita colisão entre títulos iguais.
+    // Regerar no update trocava o endereço a cada edição e podia colidir com
+    // outro post de mesmo título (o `slug` é único no banco).
     await prisma.post.update({
       where: { id },
       data: {
-        ...data,
-        conteudo: data.conteudo !== undefined ? sanitizeHtml(data.conteudo) : undefined,
-        slug: data.titulo ? slugify(data.titulo) : undefined,
+        ...(data.titulo !== undefined ? { titulo: data.titulo } : {}),
+        ...(data.conteudo !== undefined ? { conteudo: conteudoFinal } : {}),
+        ...(data.resumo !== undefined ? { resumo: data.resumo ?? null } : {}),
+        ...(data.imagemUrl !== undefined ? { imagemUrl: data.imagemUrl ?? null } : {}),
+        ...(data.videoUrl !== undefined ? { videoUrl: data.videoUrl ?? null } : {}),
+        ...(data.arquivoPdfUrl !== undefined ? { arquivoPdfUrl: data.arquivoPdfUrl ?? null } : {}),
+        ...(data.linkExterno !== undefined ? { linkExterno: data.linkExterno ?? null } : {}),
+        ...(data.icone !== undefined ? { icone: chaveDeIconeValida(data.icone) ? data.icone : null } : {}),
+        ...(data.status !== undefined ? { status: data.status } : {}),
+        anexos: midias.anexos as unknown as Prisma.InputJsonValue,
       },
     });
-    return { ok: true };
-  } catch (e) {
-    return { ok: false, error: String(e) };
+
+    await limparAnexosRemovidos(atual.anexos, midias.anexos);
+    return { ok: true };  } catch (e) {
+    return { ok: false, error: mensagemAmigavel(e, MENSAGENS.operacaoNaoConcluida) };
   }
 }
 
@@ -593,21 +661,21 @@ export async function deletePost(id: string, userEmail: string): Promise<ActionR
   try {
     // Role sempre lido do servidor — ver comentário em createPost.
     const userRecord = await prisma.user.findUnique({ where: { email: userEmail }, select: { role: true } });
-    if (!userRecord) return { ok: false, error: 'Usuário não encontrado' };
+    if (!userRecord) return { ok: false, error: MENSAGENS.usuarioNaoEncontrado };
 
     if (userRecord.role === 'PROFESSOR') {
       const post = await prisma.post.findUnique({ where: { id }, select: { projetoId: true } });
-      if (!post) return { ok: false, error: 'Post não encontrado' };
+      if (!post) return { ok: false, error: 'Não encontramos esta publicação. Ela pode ter sido removida por outra pessoa.' };
       const isCoordinator = await isCoordenadorOuViceDoProjeto(post.projetoId, userEmail);
-      if (!isCoordinator) return { ok: false, error: 'Acesso negado: você não é coordenador do projeto deste post' };
+      if (!isCoordinator) return { ok: false, error: MENSAGENS.semPermissaoCoordenador };
     } else if (userRecord.role !== 'ADMIN') {
-      return { ok: false, error: 'Acesso negado' };
+      return { ok: false, error: MENSAGENS.semPermissao };
     }
 
     await prisma.post.delete({ where: { id } });
     return { ok: true };
   } catch (e) {
-    return { ok: false, error: String(e) };
+    return { ok: false, error: mensagemAmigavel(e, MENSAGENS.operacaoNaoConcluida) };
   }
 }
 
@@ -636,10 +704,10 @@ export async function createEvento(data: EventoFormData, authorEmail: string): P
     // Server-side validation
     const titulo = data.titulo?.trim();
     if (!titulo || titulo.length < 2) {
-      return { ok: false, error: 'Título do evento é obrigatório (mínimo 2 caracteres)' };
+      return { ok: false, error: MENSAGENS.campoObrigatorio('Título do evento') };
     }
     if (!data.data) {
-      return { ok: false, error: 'Data do evento é obrigatória' };
+      return { ok: false, error: MENSAGENS.campoObrigatorio('Data do evento') };
     }
 
     const author = await ensureUser(authorEmail);
@@ -647,8 +715,8 @@ export async function createEvento(data: EventoFormData, authorEmail: string): P
       data: {
         titulo: data.titulo,
         descricao: data.descricao ?? null,
-        data: new Date(data.data),
-        dataFim: data.dataFim ? new Date(data.dataFim) : null,
+        data: parseDataDoFormulario(data.data) as Date,
+        dataFim: data.dataFim ? parseDataDoFormulario(data.dataFim) : null,
         tipo: data.tipo,
         local: data.local ?? null,
         linkInscr: data.linkInscr ?? null,
@@ -658,7 +726,7 @@ export async function createEvento(data: EventoFormData, authorEmail: string): P
     });
     return { ok: true, data: { id: evento.id } };
   } catch (e) {
-    return { ok: false, error: String(e) };
+    return { ok: false, error: mensagemAmigavel(e, MENSAGENS.operacaoNaoConcluida) };
   }
 }
 
@@ -671,13 +739,13 @@ export async function updateEvento(id: string, data: Partial<EventoFormData>, ca
       where: { id },
       data: {
         ...data,
-        data: data.data ? new Date(data.data) : undefined,
-        dataFim: data.dataFim ? new Date(data.dataFim) : undefined,
+        data: data.data ? parseDataDoFormulario(data.data) ?? undefined : undefined,
+        dataFim: data.dataFim ? parseDataDoFormulario(data.dataFim) ?? undefined : undefined,
       },
     });
     return { ok: true };
   } catch (e) {
-    return { ok: false, error: String(e) };
+    return { ok: false, error: mensagemAmigavel(e, MENSAGENS.operacaoNaoConcluida) };
   }
 }
 
@@ -689,7 +757,7 @@ export async function deleteEvento(id: string, callerEmail: string): Promise<Act
     await prisma.evento.delete({ where: { id } });
     return { ok: true };
   } catch (e) {
-    return { ok: false, error: String(e) };
+    return { ok: false, error: mensagemAmigavel(e, MENSAGENS.operacaoNaoConcluida) };
   }
 }
 
@@ -713,11 +781,11 @@ export async function updateUserRole(userId: string, role: UserRole, projetoId: 
 
     const caller = await prisma.user.findUnique({ where: { email: callerEmail }, select: { id: true } });
     if (caller && caller.id === userId) {
-      return { ok: false, error: 'Você não pode alterar seu próprio papel.' };
+      return { ok: false, error: 'Você não pode alterar o seu próprio nível de acesso.' };
     }
 
     if (role === 'PROFESSOR' && !projetoId) {
-      return { ok: false, error: 'Um projeto deve ser selecionado para o Professor.' };
+      return { ok: false, error: 'Escolha a qual projeto este professor ficará vinculado.' };
     }
 
     // Só existe um Administrador Geral (ADMIN_EMAILS) — ninguém mais pode
@@ -728,7 +796,7 @@ export async function updateUserRole(userId: string, role: UserRole, projetoId: 
     if (role === 'ADMIN') {
       const target = await prisma.user.findUnique({ where: { id: userId }, select: { email: true } });
       if (!target || !isAdministradorGeral(target.email)) {
-        return { ok: false, error: 'Só existe um Administrador Geral, definido em ADMIN_EMAILS — não é possível promover outro usuário a Administrador.' };
+        return { ok: false, error: 'O portal tem um único Administrador Geral, definido na configuração do sistema. Não é possível promover outra pessoa a esse nível.' };
       }
     }
 
@@ -747,7 +815,7 @@ export async function updateUserRole(userId: string, role: UserRole, projetoId: 
 
     return { ok: true };
   } catch (e) {
-    return { ok: false, error: String(e) };
+    return { ok: false, error: mensagemAmigavel(e, MENSAGENS.operacaoNaoConcluida) };
   }
 }
 
@@ -760,13 +828,13 @@ export async function deleteUser(userId: string, callerEmail: string): Promise<A
 
     const caller = await prisma.user.findUnique({ where: { email: callerEmail }, select: { id: true } });
     if (caller && caller.id === userId) {
-      return { ok: false, error: 'Você não pode excluir sua própria conta.' };
+      return { ok: false, error: 'Você não pode excluir a sua própria conta enquanto está logado nela.' };
     }
 
     await prisma.user.delete({ where: { id: userId } });
     return { ok: true };
   } catch (e) {
-    return { ok: false, error: String(e) };
+    return { ok: false, error: mensagemAmigavel(e, MENSAGENS.operacaoNaoConcluida) };
   }
 }
 
@@ -776,12 +844,12 @@ export async function inviteUser(email: string, role: UserRole, projetoId: strin
     if (!auth.ok) return auth;
 
     if (role === 'PROFESSOR' && !projetoId) {
-      return { ok: false, error: 'Um projeto deve ser selecionado para o Professor.' };
+      return { ok: false, error: 'Escolha a qual projeto este professor ficará vinculado.' };
     }
 
     // Mesma regra de updateUserRole: só o Administrador Geral (ADMIN_EMAILS) pode ser ADMIN.
     if (role === 'ADMIN' && !isAdministradorGeral(email)) {
-      return { ok: false, error: 'Só existe um Administrador Geral, definido em ADMIN_EMAILS — não é possível convidar outro usuário como Administrador.' };
+      return { ok: false, error: 'O portal tem um único Administrador Geral, definido na configuração do sistema. Não é possível convidar outra pessoa com esse nível de acesso.' };
     }
 
     const user = await prisma.user.upsert({
@@ -803,7 +871,7 @@ export async function inviteUser(email: string, role: UserRole, projetoId: strin
 
     return { ok: true };
   } catch (e) {
-    return { ok: false, error: String(e) };
+    return { ok: false, error: mensagemAmigavel(e, MENSAGENS.operacaoNaoConcluida) };
   }
 }
 
@@ -827,10 +895,13 @@ export async function limparTabelas(
 ): Promise<ActionResult<{ deleted: Record<string, number> }>> {
   try {
     if (!MASTER_ADMIN_EMAIL) {
-      return { ok: false, error: 'ADMIN_EMAILS não configurado. Limpeza indisponível.' };
+      return {
+        ok: false,
+        error: 'A limpeza de dados está desativada porque o Administrador Geral não está configurado no ambiente. Fale com a equipe técnica do portal.',
+      };
     }
     if (confirmEmail !== MASTER_ADMIN_EMAIL) {
-      return { ok: false, error: 'Email de confirmação não confere' };
+      return { ok: false, error: 'O e-mail de confirmação digitado não confere. Digite exatamente o e-mail do Administrador Geral.' };
     }
 
     const deleted: Record<string, number> = {};
@@ -849,7 +920,7 @@ export async function limparTabelas(
 
     return { ok: true, data: { deleted } };
   } catch (e) {
-    return { ok: false, error: String(e) };
+    return { ok: false, error: mensagemAmigavel(e, MENSAGENS.operacaoNaoConcluida) };
   }
 }
 

@@ -8,6 +8,7 @@ import {
 import { useAuth } from '@/contexts/AuthContext';
 import { sendPasswordResetEmail } from 'firebase/auth';
 import { auth } from '@/lib/firebase';
+import { MENSAGENS, mensagemAmigavel } from '@/lib/mensagens';
 
 export default function EsqueciSenhaPage() {
   const { user, loading } = useAuth();
@@ -52,14 +53,14 @@ export default function EsqueciSenhaPage() {
       await sendPasswordResetEmail(auth, email, {
         url: `${window.location.origin}/admin/login`,
       });
-      setSuccess('Se existir uma conta com este e-mail, você vai receber um link de recuperação em instantes. Verifique sua caixa de entrada.');
+      setSuccess(MENSAGENS.emailEnviado);
     } catch (err: any) {
       if (err.code === 'auth/user-not-found') {
-        setSuccess('Se existir uma conta com este e-mail, você vai receber um link de recuperação em instantes. Verifique sua caixa de entrada.');
+        setSuccess(MENSAGENS.emailEnviado);
       } else if (err.code === 'auth/invalid-email') {
-        setError('E-mail inválido.');
+        setError(MENSAGENS.emailInvalido);
       } else {
-        setError('Erro ao enviar e-mail. Tente novamente.');
+        setError(mensagemAmigavel(err, MENSAGENS.falhaEnvioEmail));
       }
     } finally {
       setSubmitting(false);

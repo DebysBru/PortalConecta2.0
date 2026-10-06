@@ -6,6 +6,7 @@ import { listEventos, createEvento, updateEvento, deleteEvento, type EventoFormD
 import { useAuth } from '@/contexts/AuthContext';
 import { getStatusLabel, formatDateShort } from '@/lib/utils';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
+import { useMensagemErro } from '@/lib/use-mensagem-erro';
 
 type Evento = Awaited<ReturnType<typeof listEventos>>[number];
 
@@ -22,7 +23,7 @@ export default function AdminAgendaPage() {
   const [panelOpen, setPanelOpen] = useState(false);
   const [editing, setEditing] = useState<Evento | null>(null);
   const [form, setForm] = useState<EventoFormData>(EMPTY);
-  const [error, setError] = useState('');
+  const [error, setError] = useMensagemErro();
   const [isPending, startTransition] = useTransition();
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
@@ -66,7 +67,7 @@ export default function AdminAgendaPage() {
     setDeleting(true);
     startTransition(async () => {
       const r = await deleteEvento(deleteId, user!.email!);
-      if (r.ok) load(); else setError(r.error);
+      if (r.ok) load(); else setError(r.error, 'Não conseguimos excluir este evento. Tente novamente.');
       setDeleting(false);
       setDeleteId(null);
     });
@@ -76,7 +77,7 @@ export default function AdminAgendaPage() {
     e.preventDefault(); setError('');
     startTransition(async () => {
       const r = editing ? await updateEvento(editing.id, form, user!.email!) : await createEvento(form, user!.email!);
-      if (r.ok) { setPanelOpen(false); load(); } else setError(r.error);
+      if (r.ok) { setPanelOpen(false); load(); } else setError(r.error, 'Não conseguimos salvar o evento. Confira as datas e tente novamente.');
     });
   };
 

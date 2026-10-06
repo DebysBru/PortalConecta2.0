@@ -1,5 +1,5 @@
 import { prisma } from '@/lib/prisma';
-import { editalInteressaAoAlerta, resumoCategoriasAlerta } from '@/lib/minha-area';
+import { editalInteressaAoAlerta, resumoCategoriasAlerta, rotuloCategoriaEdital } from '@/lib/minha-area';
 import { criarNotificacao } from '@/lib/notificacoes';
 import { enviarAlertaEdital } from '@/lib/email';
 
@@ -81,7 +81,7 @@ export async function dispararAlertasDeEdital(editalId: string): Promise<Resulta
         const criada = await criarNotificacao({
           userId: alerta.user_id,
           titulo: `Novo edital: ${edital.titulo}`,
-          texto: `Categoria ${edital.categoria} — você pediu para acompanhar ${resumoCategoriasAlerta(alerta.categorias).toLowerCase()}.`,
+          texto: `Categoria ${rotuloCategoriaEdital(edital.categoria)} — você pediu para acompanhar ${resumoCategoriasAlerta(alerta.categorias).toLowerCase()}.`,
           link,
         });
         if (criada) resultado.portal++;

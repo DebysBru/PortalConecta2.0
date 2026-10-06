@@ -4,7 +4,7 @@ import React, { useEffect, useState, useTransition } from 'react';
 import Link from 'next/link';
 import {
   FolderOpen, Plus, Pencil, Trash2, X, Users, ChevronRight,
-  Search, TrendingUp, AlertCircle, Save,
+  Search, TrendingUp, AlertCircle, Save, ExternalLink,
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { listMyProjetos, updateMyProjeto, type MyProjetoFormData } from '@/actions/professor';
@@ -17,6 +17,7 @@ import {
   descreverCamposIgnorados,
 } from '@/lib/projetos-edicao';
 import { useToast } from '@/components/ui/toast';
+import { useMensagemErro } from '@/lib/use-mensagem-erro';
 
 type Projeto = Awaited<ReturnType<typeof listMyProjetos>>[number];
 
@@ -35,7 +36,7 @@ export default function ProfessorProjetosPage() {
     status: 'EM_EXECUCAO', corPrimaria: '#2F52D3',
     email: '', instagram: '', site: '', formularioExtra: [],
   });
-  const [error, setError] = useState('');
+  const [error, setError] = useMensagemErro();
   const [isPending, startTransition] = useTransition();
 
   const load = () => {
@@ -89,7 +90,7 @@ export default function ProfessorProjetosPage() {
           );
         }
       } else {
-        setError(result.error);
+        setError(result.error, 'Não conseguimos salvar o projeto. Confira os campos e tente novamente.');
       }
     });
   };
@@ -176,10 +177,13 @@ export default function ProfessorProjetosPage() {
                   </div>
                 </div>
 
-                {/* Ações */}
+                {/* Ações: três caminhos diferentes, com nomes que dizem para onde vão.
+                    "Gerenciar" = inscrições/vagas/posts (área do professor);
+                    "Ver no portal" = a página pública, o que o estudante vê. */}
                 <div className="flex gap-2">
                   <button
                     onClick={() => openEdit(projeto)}
+                    title="Editar os dados do projeto"
                     className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl border border-gray-200 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-all"
                   >
                     <Pencil className="w-3.5 h-3.5" />
@@ -187,10 +191,23 @@ export default function ProfessorProjetosPage() {
                   </button>
                   <Link
                     href={`/professor/projetos/${projeto.id}`}
+                    title="Inscrições, vagas e posts do projeto"
                     className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl bg-azul-eletrico text-white text-sm font-medium hover:bg-azul-eletrico/90 transition-all"
                   >
-                    Ver detalhes
+                    Gerenciar
                     <ChevronRight className="w-3.5 h-3.5" />
+                  </Link>
+                </div>
+                <div className="flex gap-2 mt-2">
+                  <Link
+                    href={`/projetos/${projeto.slug}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    title="Abrir a página pública do projeto (como o estudante vê)"
+                    className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl border border-dashed border-gray-200 text-sm text-gray-600 hover:bg-gray-50 hover:border-gray-300 transition-all"
+                  >
+                    <ExternalLink className="w-3.5 h-3.5" />
+                    Ver no portal
                   </Link>
                 </div>
               </div>

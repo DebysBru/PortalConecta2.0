@@ -15,7 +15,9 @@ do projeto, sobe junto com o logon do Windows). Para subir/parar na mão e para
 conferir se está no ar, veja [MIGRACAO_POSTGRES_LOCAL.md](DOCUMENTACAO/MIGRACAO_POSTGRES_LOCAL.md).
 
 ```bash
-npm test            # 232 testes (Vitest)
+npm test            # 454 testes (Vitest)
+
+> Datas do portal são SEMPRE no fuso do Brasil (America/Sao_Paulo). O serviço roda com Environment=TZ=America/Sao_Paulo (deploy/portal-conecta.service) e os testes fixam o mesmo fuso em itest.config.ts. Sem isso, data digitada no formulário aparece um dia antes em servidor fora do Brasil — ver Decisão 24 no DECISIONS.md.
 npm run typecheck   # tsc --noEmit
 ```
 

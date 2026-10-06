@@ -4,7 +4,7 @@ import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import {
-  ChevronRight, FileText, Plus, Pencil, Trash2, Eye, EyeOff,
+  ChevronRight, FileText, Plus, Pencil, Trash2, Eye, EyeOff, ExternalLink,
   ArrowLeft, Save, X,
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
@@ -13,6 +13,14 @@ import { formatDateShort } from '@/lib/utils';
 import { Prisma } from '@prisma/client';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { RichTextEditor } from '@/components/ui/RichTextEditor';
+import { PostAnexosUploader } from '@/components/ui/PostAnexosUploader';
+import { SeletorDeCapaDoPost } from '@/components/ui/SeletorDeCapaDoPost';
+import { PostCapa } from '@/components/ui/PostCapa';
+import { useToast } from '@/components/ui/toast';
+import { enviarArquivo } from '@/lib/upload-midia';
+import { anexosDoJson, type MidiaDoPost } from '@/lib/post-midias';
+import { chaveDeIconeValida, type ChaveIconePost } from '@/lib/post-capa';
+import { usePesoDasImagensDoTexto } from '@/lib/use-peso-midias';
 
 const isConteudoVazio = (html: string) => html.replace(/<[^>]*>/g, '').trim().length === 0;
 
@@ -21,21 +29,38 @@ type Post = Prisma.PostGetPayload<{}>;
 export default function ProfessorPostsPage({ params }: { params: { id: string } }) {
   const { user } = useAuth();
   const router = useRouter();
+  const { toast } = useToast();
   const [posts, setPosts] = useState<Post[]>([]);
   const [projetoNome, setProjetoNome] = useState('');
+  // O slug do projeto entra na URL pública do post (/projetos/<slug>/posts/<slug>).
+  const [projetoSlug, setProjetoSlug] = useState('');
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [editingPost, setEditingPost] = useState<Post | null>(null);
-  const [form, setForm] = useState({ titulo: '', conteudo: '', resumo: '', status: 'RASCUNHO' as 'RASCUNHO' | 'PUBLICADO' });
+  const [form, setForm] = useState({
+    titulo: '',
+    conteudo: '',
+    resumo: '',
+    status: 'RASCUNHO' as 'RASCUNHO' | 'PUBLICADO',
+    imagemUrl: '',
+    icone: null as ChaveIconePost | null,
+    anexos: [] as MidiaDoPost[],
+  });
   const [saving, setSaving] = useState(false);
   const [deletePostId, setDeletePostId] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
+
+  // Peso das imagens que estão DENTRO do texto (vem do servidor: elas podem ter
+  // sido enviadas noutra sessão e o navegador não sabe o tamanho).
+  const { bytesDasImagens, calculandoPeso, recalcularPesoDoTexto, resetarPeso } =
+    usePesoDasImagensDoTexto(user);
 
   useEffect(() => {
     if (!user?.email) return;
     getProjetoDetalhes(params.id, user.email).then((p) => {
       if (!p) { router.replace('/professor'); return; }
       setProjetoNome(p.nome);
+      setProjetoSlug(p.slug);
       return listPosts(params.id, user.email!);
     }).then((result) => {
       if (result && 'data' in result && Array.isArray(result.data)) setPosts(result.data);
@@ -43,36 +68,55 @@ export default function ProfessorPostsPage({ params }: { params: { id: string } 
   }, [user, params.id, router]);
 
   const resetForm = () => {
-    setForm({ titulo: '', conteudo: '', resumo: '', status: 'RASCUNHO' });
+    setForm({ titulo: '', conteudo: '', resumo: '', status: 'RASCUNHO', imagemUrl: '', icone: null, anexos: [] });
     setEditingPost(null);
     setShowForm(false);
+    resetarPeso();
   };
 
   const handleEdit = (post: Post) => {
-    setForm({ titulo: post.titulo, conteudo: post.conteudo, resumo: post.resumo || '', status: post.status });
+    setForm({
+      titulo: post.titulo,
+      conteudo: post.conteudo,
+      resumo: post.resumo || '',
+      status: post.status,
+      imagemUrl: post.imagemUrl ?? '',
+      icone: chaveDeIconeValida(post.icone) ? post.icone : null,
+      anexos: anexosDoJson(post.anexos),
+    });
     setEditingPost(post);
     setShowForm(true);
+    resetarPeso();
+    void recalcularPesoDoTexto(post.conteudo);
   };
 
   const handleSave = async () => {
     if (!user?.email || !form.titulo.trim() || isConteudoVazio(form.conteudo)) return;
     setSaving(true);
     try {
+      const result = editingPost
+        ? await updatePost(editingPost.id, form, user.email)
+        : await createPost(params.id, form, user.email);
+
+      // O erro do servidor precisa aparecer: é ele que recusa o post acima de
+      // 20 MB (a checagem da tela é só um aviso antecipado).
+      if (!result.ok) {
+        toast(result.error || 'Não conseguimos salvar o post. Tente novamente.', 'error');
+        return;
+      }
+
       if (editingPost) {
-        const result = await updatePost(editingPost.id, form, user.email);
-        if (result.ok) {
-          setPosts((prev) => prev.map((p) => p.id === editingPost.id ? { ...p, ...form } : p));
-        }
+        setPosts((prev) => prev.map((p) => p.id === editingPost.id ? { ...p, ...form } : p));
+        toast('Post atualizado.', 'success');
       } else {
-        const result = await createPost(params.id, form, user.email);
-        if (result.ok) {
-          const updated = await listPosts(params.id, user.email);
-          if (updated && 'data' in updated && Array.isArray(updated.data)) setPosts(updated.data);
-        }
+        const updated = await listPosts(params.id, user.email);
+        if (updated && 'data' in updated && Array.isArray(updated.data)) setPosts(updated.data);
+        toast('Post publicado no projeto.', 'success');
       }
       resetForm();
     } catch (e) {
       console.error(e);
+      toast('Não conseguimos salvar o post. Confira sua conexão e tente novamente.', 'error');
     } finally {
       setSaving(false);
     }
@@ -151,6 +195,18 @@ export default function ProfessorPostsPage({ params }: { params: { id: string } 
                 />
               </div>
               <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Capa</label>
+                <SeletorDeCapaDoPost
+                  imagemUrl={form.imagemUrl}
+                  icone={form.icone}
+                  onImagem={(url) => setForm((atual) => ({ ...atual, imagemUrl: url }))}
+                  onIcone={(chave) => setForm((atual) => ({ ...atual, icone: chave }))}
+                  obterToken={async () => (user ? user.getIdToken() : null)}
+                  subpasta={params.id}
+                />
+              </div>
+
+              <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Resumo (opcional)</label>
                 <input
                   type="text"
@@ -162,7 +218,35 @@ export default function ProfessorPostsPage({ params }: { params: { id: string } 
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Conteúdo</label>
-                <RichTextEditor value={form.conteudo} onChange={(html) => setForm({ ...form, conteudo: html })} />
+                <RichTextEditor
+                  value={form.conteudo}
+                  onChange={(html) => {
+                    setForm((atual) => ({ ...atual, conteudo: html }));
+                    void recalcularPesoDoTexto(html);
+                  }}
+                  onUploadImage={async (arquivo) => {
+                    if (!user) return { ok: false, error: 'Sua sessão expirou. Entre novamente para enviar imagens.' };
+                    const idToken = await user.getIdToken();
+                    const resultado = await enviarArquivo({ arquivo, idToken, subpasta: params.id });
+                    if (!resultado.ok) return { ok: false, error: resultado.error };
+                    return { ok: true, url: resultado.data.url };
+                  }}
+                />
+                <p className="text-xs text-gray-400 mt-1">
+                  Use o botão de imagem da barra para inserir imagens no meio do texto. Elas contam no limite de 20 MB do post.
+                </p>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Anexos</label>
+                <PostAnexosUploader
+                  obterToken={async () => (user ? user.getIdToken() : null)}
+                  subpasta={params.id}
+                  anexos={form.anexos}
+                  onChange={(anexos) => setForm((atual) => ({ ...atual, anexos }))}
+                  bytesNoTexto={bytesDasImagens}
+                  carregandoPeso={calculandoPeso}
+                />
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Status</label>
@@ -215,6 +299,11 @@ export default function ProfessorPostsPage({ params }: { params: { id: string } 
           {posts.map((post) => (
             <div key={post.id} className="bg-white rounded-2xl border border-gray-100 p-5 hover:shadow-sm transition-shadow">
               <div className="flex items-start justify-between gap-4">
+                {/* Mesma capa que o aluno vê no portal: imagem, ícone escolhido
+                    ou o padrão — assim o professor confere antes de publicar. */}
+                <div className="w-20 h-14 flex-shrink-0">
+                  <PostCapa post={post} tamanho="compact" />
+                </div>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 mb-1">
                     <h3 className="font-bold text-gray-900 truncate">{post.titulo}</h3>
@@ -230,6 +319,27 @@ export default function ProfessorPostsPage({ params }: { params: { id: string } 
                   </p>
                 </div>
                 <div className="flex items-center gap-1">
+                  {/* Ver o post como o estudante vê. O link só existe para post
+                      PUBLICADO: rascunho não tem página pública (a rota exige
+                      status PUBLICADO), então mostrar o botão levaria a um 404. */}
+                  {post.status === 'PUBLICADO' && projetoSlug ? (
+                    <Link
+                      href={`/projetos/${projetoSlug}/posts/${post.slug}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="p-2 rounded-lg hover:bg-gray-100 text-gray-400 hover:text-azul-eletrico transition-colors"
+                      title="Ver no portal (abre em outra aba)"
+                    >
+                      <ExternalLink className="w-4 h-4" />
+                    </Link>
+                  ) : (
+                    <span
+                      className="p-2 text-gray-300"
+                      title="Rascunho: aparece no portal só depois de publicado"
+                    >
+                      <EyeOff className="w-4 h-4" />
+                    </span>
+                  )}
                   <button
                     onClick={() => handleEdit(post)}
                     className="p-2 rounded-lg hover:bg-gray-100 text-gray-400 hover:text-azul-eletrico transition-colors"

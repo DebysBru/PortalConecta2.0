@@ -2,6 +2,7 @@
 
 import React, { useEffect, createContext, useContext, useState, useCallback } from 'react';
 import { CheckCircle, AlertCircle, X, Info } from 'lucide-react';
+import { mensagemAmigavel, MENSAGENS } from '@/lib/mensagens';
 
 type ToastType = 'success' | 'error' | 'info';
 
@@ -28,7 +29,14 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
 
   const toast = useCallback((message: string, type: ToastType = 'success') => {
     const id = Math.random().toString(36).slice(2);
-    setToasts((prev) => [...prev, { id, message, type }]);
+    // Erros vindos do servidor podem trazer texto técnico (Prisma, Firebase,
+    // IA). A normalização acontece aqui, na fronteira de exibição, para que
+    // nenhum ponto de chamada precise lembrar de fazer isso.
+    const texto =
+      type === 'error'
+        ? mensagemAmigavel(message, MENSAGENS.erroInesperadoOrientacao)
+        : message;
+    setToasts((prev) => [...prev, { id, message: texto, type }]);
   }, []);
 
   const dismiss = useCallback((id: string) => {
@@ -74,7 +82,7 @@ function ToastItem({ toast, onDismiss }: { toast: Toast; onDismiss: (id: string)
       aria-live="polite"
     >
       <Icon className={`w-5 h-5 flex-shrink-0 ${config.iconColor}`} />
-      <p className={`text-sm font-medium ${config.text}`}>{toast.message}</p>
+      <p className={`text-sm font-medium whitespace-pre-line ${config.text}`}>{toast.message}</p>
       <button
         onClick={() => onDismiss(toast.id)}
         className={`ml-2 p-0.5 rounded-lg hover:bg-black/5 ${config.text} opacity-60 hover:opacity-100 transition-opacity`}

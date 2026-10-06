@@ -12,6 +12,7 @@ import {
   getSuapStatusAction,
 } from '@/actions/suap';
 import { useAuth } from '@/contexts/AuthContext';
+import { mensagemAmigavel, MENSAGENS } from '@/lib/mensagens';
 
 // ─── Tipos ─────────────────────────────────────────────────────────────────────
 
@@ -183,10 +184,16 @@ export default function SuapSyncPage() {
         setTokenInput('');
         await fetchStatus();
       } else {
-        setTokenMessage({ type: 'error', text: result.error || 'Erro ao salvar token' });
+        setTokenMessage({
+          type: 'error',
+          text: mensagemAmigavel(result.error, MENSAGENS.suapErroSalvarToken),
+        });
       }
-    } catch {
-      setTokenMessage({ type: 'error', text: 'Erro ao salvar token' });
+    } catch (e) {
+      setTokenMessage({
+        type: 'error',
+        text: mensagemAmigavel(e, MENSAGENS.suapErroSalvarToken),
+      });
     } finally {
       setSavingToken(false);
     }
@@ -244,7 +251,7 @@ export default function SuapSyncPage() {
                 {suap?.baseUrl ?? 'https://suap.ifpr.edu.br'} · Campus: {suap?.campus ?? 'Ivaiporã'}
               </p>
               {suap?.conexao?.message && !suap.conexao.ok && (
-                <p className="text-xs text-red-600 mt-1 font-mono line-clamp-3">{suap.conexao.message}</p>
+                <p className="text-xs text-red-600 mt-1 line-clamp-3">{suap.conexao.message}</p>
               )}
             </div>
           </div>
@@ -481,8 +488,8 @@ export default function SuapSyncPage() {
           </div>
 
           {lastResult.result.error && (
-            <p className="text-red-700 text-sm mb-3 font-mono bg-red-50 rounded-lg p-3">
-              {lastResult.result.error}
+            <p className="text-red-700 text-sm mb-3 bg-red-50 rounded-lg p-3">
+              {mensagemAmigavel(lastResult.result.error, 'Não conseguimos concluir a sincronização. Tente novamente em alguns minutos.')}
             </p>
           )}
 

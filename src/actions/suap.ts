@@ -9,6 +9,7 @@ import { syncProjetos, syncEditais, getLastSyncLogs } from '@/lib/suap-sync';
 import { testSuapConnection, fetchSuapEndpoints } from '@/lib/suap-api';
 import { prisma } from '@/lib/prisma';
 import { isAdministradorGeral } from '@/lib/permissions';
+import { MENSAGENS, mensagemAmigavel } from '@/lib/mensagens';
 
 // ─── Sync Actions ──────────────────────────────────────────────────────────────
 //
@@ -22,7 +23,7 @@ export async function syncProjetosAction(dryRun = false, callerEmail?: string, f
   if (!callerEmail || !isAdministradorGeral(callerEmail)) {
     return {
       total: 0, criados: 0, atualizados: 0, preservados: 0, erros: 1,
-      detalhes: ['❌ Acesso negado: apenas o Administrador Geral pode sincronizar com o SUAP'],
+      detalhes: [`❌ ${MENSAGENS.semPermissaoAdminGeral}`],
     };
   }
   try {
@@ -30,7 +31,7 @@ export async function syncProjetosAction(dryRun = false, callerEmail?: string, f
   } catch (err) {
     return {
       total: 0, criados: 0, atualizados: 0, preservados: 0, erros: 1,
-      detalhes: [`❌ ${err instanceof Error ? err.message : String(err)}`],
+      detalhes: [`❌ ${mensagemAmigavel(err, 'Não conseguimos concluir a sincronização com o SUAP. Tente novamente em alguns minutos.')}`],
     };
   }
 }
@@ -39,7 +40,7 @@ export async function syncEditaisAction(dryRun = false, callerEmail?: string, fo
   if (!callerEmail || !isAdministradorGeral(callerEmail)) {
     return {
       total: 0, criados: 0, atualizados: 0, preservados: 0, erros: 1,
-      detalhes: ['❌ Acesso negado: apenas o Administrador Geral pode sincronizar com o SUAP'],
+      detalhes: [`❌ ${MENSAGENS.semPermissaoAdminGeral}`],
     };
   }
   try {
@@ -47,7 +48,7 @@ export async function syncEditaisAction(dryRun = false, callerEmail?: string, fo
   } catch (err) {
     return {
       total: 0, criados: 0, atualizados: 0, preservados: 0, erros: 1,
-      detalhes: [`❌ ${err instanceof Error ? err.message : String(err)}`],
+      detalhes: [`❌ ${mensagemAmigavel(err, 'Não conseguimos concluir a sincronização com o SUAP. Tente novamente em alguns minutos.')}`],
     };
   }
 }
@@ -64,7 +65,7 @@ export async function getSuapStatusAction(callerEmail?: string) {
         temClientCredentials: false,
         baseUrl: process.env.SUAP_BASE_URL ?? 'https://suap.ifpr.edu.br',
         campus: process.env.SUAP_CAMPUS ?? 'Ivaiporã',
-        conexao: { ok: false, message: 'Acesso negado: apenas o Administrador Geral pode ver o status do SUAP' },
+        conexao: { ok: false, message: MENSAGENS.semPermissaoAdminGeral },
       },
       banco: { totalProjetos: 0, totalEditais: 0, projetosDoSuap: 0, editaisDoSuap: 0 },
       logs: [],
@@ -103,7 +104,7 @@ export async function getSuapStatusAction(callerEmail?: string) {
       campus: process.env.SUAP_CAMPUS ?? 'Ivaiporã',
       conexao: conexao.status === 'fulfilled'
         ? conexao.value
-        : { ok: false, message: String(conexao.reason) },
+        : { ok: false, message: mensagemAmigavel(conexao.reason, MENSAGENS.suapIndisponivel) },
     },
     banco: {
       totalProjetos: totalProjetos.status === 'fulfilled' ? totalProjetos.value : 0,
@@ -119,11 +120,11 @@ export async function getSuapStatusAction(callerEmail?: string) {
 
 export async function getSuapEndpointsAction(callerEmail?: string) {
   if (!callerEmail || !isAdministradorGeral(callerEmail)) {
-    return { error: 'Acesso negado: apenas o Administrador Geral' };
+    return { error: MENSAGENS.semPermissaoAdminGeral };
   }
   try {
     return await fetchSuapEndpoints();
   } catch (err) {
-    return { error: err instanceof Error ? err.message : String(err) };
+    return { error: mensagemAmigavel(err, MENSAGENS.suapIndisponivel) };
   }
 }

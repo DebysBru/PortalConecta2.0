@@ -293,6 +293,16 @@ model Post {
   imagemUrl     String?
   videoUrl      String?
   arquivoPdfUrl String?
+  // Ícone nativo da capa (chave do catálogo em src/lib/post-capa.ts). Usado
+  // quando o post não tem imagem: dá significado ao card de "Últimas
+  // Atualizações" em vez de deixar um retângulo vazio.
+  icone         String?
+  // Arquivos anexados ao post, guardados no storage local da VPS:
+  // [{ path, url, nome, bytes, mime }]. O conjunto conta no orçamento de 20 MB
+  // por post (junto com as imagens do `conteudo`) — ver src/lib/post-midias.ts.
+  // JSON (e não uma tabela) porque é sempre lido/gravado junto com o post e
+  // nunca consultado por campo.
+  anexos        Json       @default("[]")
   linkExterno   String?
   status        StatusPost
   projetoId     String
@@ -394,6 +404,16 @@ model Inscricao {
   consentimento_lgpd Boolean  @default(false)
   campos_extra       Json     @default("{}")
   status             String   @default("recebida") // recebida, em_analise, selecionado, lista_espera, nao_selecionado, desistente
+  // Resposta do estudante a uma convocação (`selecionado`): 'aceito' | 'recusado'.
+  // Fica SEPARADO de `status` de propósito: o status continua sendo a decisão do
+  // coordenador (e é o que as contagens de vaga por `status = 'selecionado'` e os
+  // relatórios já usam), enquanto isto registra o que o ALUNO respondeu. Recusar
+  // uma convocação derruba o status para 'desistente' (libera a vaga) mas mantém
+  // `resposta_aluno = 'recusado'` — sem isso não daria para distinguir "recusou o
+  // convite" de "desistiu depois de aceitar".
+  resposta_aluno     String?  @map("resposta_aluno")
+  respondido_em      DateTime? @map("respondido_em")
+  desistiu_em        DateTime? @map("desistiu_em")
   observacao_interna String?
   created_at         DateTime @default(now())
   updated_at         DateTime @updatedAt
@@ -653,7 +673,17 @@ model PerfilAluno {
   userId              String   @unique @map("user_id")
   user                User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   telefone            String?
-  curso               String?
+  curso               String?  // sempre um valor do catálogo (src/lib/perfil-academico.ts)
+  // Ano de ingresso no curso (substituiu "Turma" no formulário).
+  anoIngresso         Int?     @map("ano_ingresso")
+  // Semestre do curso (1..10) + quando o estudante informou. Juntos, são o que
+  // permite o portal avançar o semestre sozinho a cada semestre letivo — ver
+  // `semestreAtual` em src/lib/perfil-academico.ts.
+  semestreAtual       Int?     @map("semestre_atual")
+  semestreReferencia  DateTime? @map("semestre_referencia")
+  // LEGADOS: não são mais editados na tela. Continuam aqui porque guardam o que
+  // o estudante já tinha digitado (turma/"2024.5" em texto livre) e servem de
+  // fallback para pré-preencher o perfil novo — ver `fonteDeLegado`.
   turma               String?
   semestre            String?
   matricula           String?

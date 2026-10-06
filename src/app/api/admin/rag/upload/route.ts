@@ -6,6 +6,7 @@ import { chunkDocument } from '@/lib/chunking';
 import { deactivateOldDocumentVersions } from '@/lib/busca-vetorial';
 import { curarDocumentoKb } from '@/lib/kb-worker';
 import { indexarDocumentoKb } from '@/lib/indexador';
+import { MENSAGENS, mensagemAmigavel } from '@/lib/mensagens';
 
 const MAX_FILE_SIZE_BYTES = 20 * 1024 * 1024;
 
@@ -23,21 +24,30 @@ export async function POST(request: NextRequest) {
   const adminEmail = formData.get('adminEmail') as string | null;
 
   if (!(await isAdmin(adminEmail))) {
-    return NextResponse.json({ error: 'Acesso negado: apenas administradores podem cadastrar documentos' }, { status: 403 });
+    return NextResponse.json({ error: MENSAGENS.semPermissaoAdmin }, { status: 403 });
   }
 
   if (!file || !titulo) {
-    return NextResponse.json({ error: 'Arquivo e título são obrigatórios' }, { status: 400 });
+    return NextResponse.json(
+      { error: `Para cadastrar um documento, informe ${!file ? 'o arquivo' : 'o título'}.` },
+      { status: 400 }
+    );
   }
 
   if (file.size > MAX_FILE_SIZE_BYTES) {
-    return NextResponse.json({ error: `Arquivo excede o limite de ${MAX_FILE_SIZE_BYTES / 1024 / 1024}MB` }, { status: 400 });
+    return NextResponse.json(
+      { error: MENSAGENS.arquivoGrande(`${MAX_FILE_SIZE_BYTES / 1024 / 1024} MB`) },
+      { status: 400 }
+    );
   }
 
   const fileType = detectFileType(file);
   if (!fileType) {
     return NextResponse.json(
-      { error: 'Tipo de arquivo não suportado', allowed: ALLOWED_EXTENSIONS.join(', ') },
+      {
+        error: `Este formato de arquivo não é aceito. Formatos aceitos: ${ALLOWED_EXTENSIONS.join(', ')}.`,
+        allowed: ALLOWED_EXTENSIONS.join(', '),
+      },
       { status: 400 }
     );
   }
@@ -48,7 +58,10 @@ export async function POST(request: NextRequest) {
   const existenteAtivo = await prisma.documentoKb.findFirst({ where: { hashArquivo, ativo: true } });
   if (existenteAtivo) {
     return NextResponse.json(
-      { error: 'Este arquivo (mesmo conteúdo) já está indexado e ativo', docId: existenteAtivo.id },
+      {
+        error: 'Este mesmo arquivo já está disponível na base de conhecimento. Se quiser substituí-lo, desative o documento atual antes de enviar de novo.',
+        docId: existenteAtivo.id,
+      },
       { status: 409 }
     );
   }
@@ -78,8 +91,8 @@ export async function POST(request: NextRequest) {
 
     if (!extracted.text.trim()) {
       const msg = extracted.hasTextLayer === false
-        ? 'PDF sem camada de texto (provavelmente escaneado). OCR ainda não é suportado nesta versão — converta para PDF pesquisável ou envie como .docx/.txt.'
-        : 'Não foi possível extrair texto do arquivo.';
+        ? 'Este PDF parece ser uma imagem digitalizada (escaneada), então não conseguimos ler o texto. Converta para PDF pesquisável ou envie o conteúdo em DOCX ou TXT.'
+        : 'Não conseguimos encontrar texto neste arquivo. Verifique se o documento não está vazio ou protegido e tente novamente.';
       await prisma.documentoKb.update({ where: { id: doc.id }, data: { status: 'failed', erro: msg } });
       await prisma.ragUploadLog.updateMany({ where: { docId: doc.id }, data: { status: 'error', error: msg } });
       return NextResponse.json({ error: msg }, { status: 400 });
@@ -127,7 +140,13 @@ export async function POST(request: NextRequest) {
       },
     });
   } catch (e) {
-    const msg = e instanceof Error ? e.message : 'Erro desconhecido ao processar documento';
+    // O texto cru do erro (Prisma/infra) fica no log e no registro do
+    // documento; a resposta ao painel recebe a versão amigável.
+    console.error('Falha ao processar documento do RAG:', e);
+    const msg = mensagemAmigavel(
+      e,
+      'Não conseguimos processar este documento. Tente enviar novamente — se o problema continuar, tente outro formato de arquivo.'
+    );
     await prisma.documentoKb.update({ where: { id: doc.id }, data: { status: 'failed', erro: msg } });
     await prisma.ragUploadLog.updateMany({ where: { docId: doc.id }, data: { status: 'error', error: msg } });
     return NextResponse.json({ error: msg }, { status: 500 });

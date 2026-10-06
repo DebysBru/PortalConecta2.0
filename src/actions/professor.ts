@@ -2,6 +2,7 @@
 
 import { prisma } from '@/lib/prisma';
 import { slugify, translatePrismaError } from '@/lib/utils';
+import { MENSAGENS } from '@/lib/mensagens';
 import { enviarAtualizacaoStatus } from '@/lib/email';
 import { cache } from '@/lib/cache';
 import { sincronizarProjetoSintetico } from '@/lib/projeto-sintetico';
@@ -9,8 +10,18 @@ import { sanitizeHtml } from '@/lib/rich-text';
 import type { PerguntaExtra } from '@/lib/formulario-extra';
 import { isAdministradorGeral, projetosAcessiveis, temAcessoAoProjeto, whereUsuarioTemAcessoAoProjeto } from '@/lib/permissions';
 // Meu trabalho (edição controlada + notificação no portal):
-import { camposBloqueadosParaEdicao, filtrarEdicaoProjeto } from '@/lib/projetos-edicao';
+import { camposBloqueadosParaEdicao, deveRegenerarSlugDoProjeto, filtrarEdicaoProjeto } from '@/lib/projetos-edicao';
 import { notificarMudancaStatusInscricao } from '@/lib/notificacoes';
+import { rotuloRespostaAluno } from '@/lib/inscricao-aluno';
+import { mensagemVagaLotada } from '@/lib/vagas';
+import { limparAnexosRemovidos, validarMidiasDoPost } from '@/lib/post-midias-server';
+import { chaveDeIconeValida } from '@/lib/post-capa';
+import { chaveDoDiaBrasil, fimDoDiaBrasil, inicioDoDiaBrasil, parseDataDoFormulario, formatarDataBrasil } from '@/lib/datas';
+import {
+  LIMITES, OPCOES, validarCampos, validarCorHexadecimal, validarEmail, validarJsonPequeno,
+  validarListaDeTextos, validarNumero, validarOpcao, validarSePresente, validarTexto,
+  validarTextoOpcional, validarUrl, validarUrls, type Validado,
+} from '@/lib/validacao';
 // Já existia em produção (armazenamento local de arquivos / eventos de edital):
 import { derivarEventosEdital } from '@/lib/evento-helpers';
 import { removerArquivo } from '@/lib/file-storage';
@@ -91,7 +102,7 @@ export async function getProjetoDetalhes(projetoId: string, userEmail: string) {
 
 export async function listInscricoes(projetoId: string, userEmail: string) {
   if (!(await temAcessoAoProjeto(projetoId, userEmail))) {
-    return { ok: false, error: 'Acesso negado' } as const;
+    return { ok: false, error: MENSAGENS.semPermissao } as const;
   }
 
   const inscricoes = await prisma.inscricao.findMany({
@@ -114,16 +125,17 @@ export async function updateMyProjeto(
     // `userEmail` sempre checado — nunca opcional. Ver mesmo raciocínio em
     // updateInscricaoStatus: torná-lo opcional permitia pular a checagem só
     // omitindo o parâmetro numa chamada direta à Server Action.
-    if (!userEmail) return { ok: false, error: 'Não autenticado' };
+    if (!userEmail) return { ok: false, error: MENSAGENS.naoAutenticado };
     if (!(await temAcessoAoProjeto(projetoId, userEmail))) {
-      return { ok: false, error: 'Acesso negado: você não é coordenador deste projeto' };
+      return { ok: false, error: MENSAGENS.semPermissaoCoordenador };
     }
 
     const atual = await prisma.projeto.findUnique({
       where: { id: projetoId },
-      select: { suapId: true, source: true },
+      // `nome` entra aqui para comparar antes de mexer no slug (ver abaixo).
+      select: { suapId: true, source: true, nome: true },
     });
-    if (!atual) return { ok: false, error: 'Projeto não encontrado' };
+    if (!atual) return { ok: false, error: 'Não encontramos este projeto. Ele pode ter sido removido por outra pessoa.' };
 
     // ROADMAP 2.10: em projeto vindo do SUAP, os campos institucionais são
     // bloqueados no SERVIDOR (desabilitar o input na tela é só conveniência).
@@ -144,21 +156,60 @@ export async function updateMyProjeto(
       bloqueados,
     );
 
+    // ── Limites de entrada ───────────────────────────────────────────────────
+    // Nome com 5 mil caracteres quebrava o card e a listagem; `site`/`instagram`
+    // viram `href` na página pública (nada de `javascript:`); e o
+    // `formularioExtra` é JSON que o aluno responde depois — sem teto, virava
+    // JSONB de centenas de KB lido em toda inscrição.
+    const v = validarCampos<{
+      nome: string | null;
+      coordenador: string | null;
+      area: string | null;
+      descricao: string | null;
+      corPrimaria: string | null;
+      email: string | null;
+      formularioExtra: unknown;
+      status: string | null;
+    }>({
+      nome: () => validarSePresente(permitido.nome, (x) => validarTexto(x, 'Nome do projeto', LIMITES.titulo)),
+      coordenador: () => validarSePresente(permitido.coordenador, (x) => validarTextoOpcional(x, 'Coordenador', LIMITES.linha)),
+      area: () => validarSePresente(permitido.area, (x) => validarTextoOpcional(x, 'Área', LIMITES.linha)),
+      descricao: () => validarSePresente(permitido.descricao, (x) => validarTextoOpcional(x, 'Descrição', LIMITES.texto)),
+      corPrimaria: () => validarSePresente(permitido.corPrimaria, (x) => validarCorHexadecimal(x, 'Cor do projeto')),
+      email: () => validarSePresente<string | null>(permitido.email, (x) =>
+        (typeof x === 'string' && x.trim() !== '' ? validarEmail(x, 'E-mail de contato') : { ok: true as const, valor: null }),
+      ),
+      formularioExtra: () => validarJsonPequeno(permitido.formularioExtra, 'Formulário de inscrição'),
+      status: () => validarSePresente(permitido.status, (x) => validarOpcao(x, 'Situação do projeto', OPCOES.statusProjeto)),
+    });
+    if (!v.ok) return v;
+
+    const urls = validarUrls({
+      site: { valor: permitido.site, rotulo: 'Site' },
+      instagram: { valor: permitido.instagram, rotulo: 'Instagram' },
+    });
+    if (!urls.ok) return urls;
+
     const update: Prisma.ProjetoUpdateInput = {};
-    if (permitido.nome !== undefined) {
-      update.nome = permitido.nome as string;
-      update.slug = slugify(permitido.nome as string);
+    if (permitido.nome !== undefined && v.valor.nome) {
+      const novoNome = v.valor.nome;
+      update.nome = novoNome;
+      // O slug é a URL PÚBLICA do projeto (a que o professor compartilha com os
+      // estudantes e a que o botão "Ver no portal" abre). Só regenera quando o
+      // nome muda de verdade — antes, qualquer salvamento (trocar a cor, a
+      // descrição) reescrevia o endereço por baixo.
+      if (deveRegenerarSlugDoProjeto(atual.nome, novoNome)) update.slug = slugify(novoNome);
     }
-    if (permitido.coordenador !== undefined) update.coordenador = permitido.coordenador as string;
-    if (permitido.area !== undefined) update.area = permitido.area as string;
-    if (permitido.status !== undefined) update.status = permitido.status as Prisma.ProjetoUpdateInput['status'];
-    if (permitido.descricao !== undefined) update.descricao = permitido.descricao as string | null;
-    if (permitido.corPrimaria !== undefined) update.corPrimaria = permitido.corPrimaria as string;
-    if (permitido.email !== undefined) update.email = permitido.email as string | null;
-    if (permitido.instagram !== undefined) update.instagram = permitido.instagram as string | null;
-    if (permitido.site !== undefined) update.site = permitido.site as string | null;
+    if (permitido.coordenador !== undefined) update.coordenador = v.valor.coordenador ?? '';
+    if (permitido.area !== undefined) update.area = v.valor.area ?? '';
+    if (permitido.status !== undefined) update.status = v.valor.status as Prisma.ProjetoUpdateInput['status'];
+    if (permitido.descricao !== undefined) update.descricao = v.valor.descricao;
+    if (permitido.corPrimaria !== undefined) update.corPrimaria = v.valor.corPrimaria ?? undefined;
+    if (permitido.email !== undefined) update.email = v.valor.email;
+    if (permitido.instagram !== undefined) update.instagram = urls.valor.instagram;
+    if (permitido.site !== undefined) update.site = urls.valor.site;
     if (permitido.formularioExtra !== undefined) {
-      update.formulario_extra = permitido.formularioExtra as Prisma.InputJsonValue;
+      update.formulario_extra = v.valor.formularioExtra as Prisma.InputJsonValue;
     }
 
     if (Object.keys(update).length === 0) {
@@ -188,7 +239,7 @@ export async function abrirInscricoes(
   data: { inscricaoInicio?: string; inscricaoFim: string }
 ): Promise<ActionResult<{ inscricoes_abertas: boolean }>> {
   try {
-    if (!(await temAcessoAoProjeto(projetoId, userEmail))) return { ok: false, error: 'Acesso negado' };
+    if (!(await temAcessoAoProjeto(projetoId, userEmail))) return { ok: false, error: MENSAGENS.semPermissao };
     if (!data.inscricaoFim) return { ok: false, error: 'Informe o prazo final das inscrições' };
 
     await prisma.projeto.update({
@@ -196,8 +247,10 @@ export async function abrirInscricoes(
       data: {
         inscricoes_abertas: true,
         status: 'INSCRICOES_ABERTAS',
-        inscricao_inicio: data.inscricaoInicio ? new Date(data.inscricaoInicio) : new Date(),
-        inscricao_fim: new Date(data.inscricaoFim),
+        // Datas do modal "Abrir inscrições" (input type="date"): gravadas ao
+        // meio-dia no Brasil para não caírem no dia anterior na tela.
+        inscricao_inicio: parseDataDoFormulario(data.inscricaoInicio) ?? new Date(),
+        inscricao_fim: parseDataDoFormulario(data.inscricaoFim) as Date,
       },
     });
     await sincronizarProjetoSintetico(projetoId).catch(console.error);
@@ -210,10 +263,10 @@ export async function abrirInscricoes(
 
 export async function toggleInscricoes(projetoId: string, userEmail: string): Promise<ActionResult<{ inscricoes_abertas: boolean }>> {
   try {
-    if (!(await temAcessoAoProjeto(projetoId, userEmail))) return { ok: false, error: 'Acesso negado' };
+    if (!(await temAcessoAoProjeto(projetoId, userEmail))) return { ok: false, error: MENSAGENS.semPermissao };
 
     const projeto = await prisma.projeto.findUnique({ where: { id: projetoId }, select: { inscricoes_abertas: true } });
-    if (!projeto) return { ok: false, error: 'Projeto não encontrado' };
+    if (!projeto) return { ok: false, error: 'Não encontramos este projeto. Ele pode ter sido removido por outra pessoa.' };
 
     const newValue = !projeto.inscricoes_abertas;
 
@@ -246,30 +299,41 @@ export async function updateInscricaoStatus(
     });
 
     if (!inscricaoAtual) {
-      return { ok: false, error: 'Inscrição não encontrada' };
+      return { ok: false, error: 'Não encontramos esta inscrição. Ela pode ter sido removida por outra pessoa.' };
     }
 
     // Verify caller is coordinator of the project — sempre checado, nunca opcional
     // (era `userEmail?: string` com essa checagem pulada quando omitido: qualquer
     // um conseguia alterar o status de qualquer inscrição sem autenticação nenhuma).
     if (!(await temAcessoAoProjeto(inscricaoAtual.projeto.id, userEmail))) {
-      return { ok: false, error: 'Acesso negado: você não é coordenador deste projeto' };
+      return { ok: false, error: MENSAGENS.semPermissaoCoordenador };
     }
 
-    // Seleção por vaga: não deixa selecionar além da quantidade de posições da vaga
+    // Seleção por vaga: não deixa selecionar além da quantidade de posições da
+    // vaga. Além de bloquear, a mensagem NOMEIA quem já está selecionado —
+    // antes ela só dizia "já está com todas as N posições preenchidas", e quem
+    // tinha acabado de mudar alguém para "desistente" ficava sem entender por
+    // que a vaga continuava cheia (o ocupante era OUTRA inscrição da mesma
+    // vaga, inclusive em estados antigos com mais selecionados que posições).
     if (status === 'selecionado' && inscricaoAtual.vaga_id) {
       const vaga = await prisma.vaga.findUnique({
         where: { id: inscricaoAtual.vaga_id },
         select: { titulo: true, quantidade: true },
       });
       if (vaga) {
-        const jaSelecionados = await prisma.inscricao.count({
+        const ocupantes = await prisma.inscricao.findMany({
           where: { vaga_id: inscricaoAtual.vaga_id, status: 'selecionado', id: { not: inscricaoId } },
+          orderBy: { created_at: 'asc' },
+          select: { nome_completo: true, protocolo: true },
         });
-        if (jaSelecionados >= vaga.quantidade) {
+        if (ocupantes.length >= vaga.quantidade) {
           return {
             ok: false,
-            error: `A vaga "${vaga.titulo}" já está com todas as ${vaga.quantidade} posição(ões) preenchida(s). Aumente a quantidade da vaga ou coloque este candidato em lista de espera.`,
+            error: mensagemVagaLotada({
+              titulo: vaga.titulo,
+              quantidade: vaga.quantidade,
+              ocupantes: ocupantes.map((o) => ({ nome: o.nome_completo, protocolo: o.protocolo })),
+            }),
           };
         }
       }
@@ -283,27 +347,40 @@ export async function updateInscricaoStatus(
       },
     });
 
-    // Enviar e-mail de atualização de status
+    // Efeitos colaterais DEPOIS da gravação: o status JÁ mudou no banco, então
+    // nem e-mail nem aviso podem transformar a ação em erro. O `Promise.resolve()`
+    // no início é de propósito — sem ele, uma falha SÍNCRONA (chave do Resend
+    // ausente, por exemplo, que lança antes de devolver a promessa) estouraria
+    // aqui e a coordenação veria "algo não saiu como esperado" para uma mudança
+    // que, de fato, foi aplicada — e repetir a operação não resolveria nada.
     if (inscricaoAtual.email) {
-      enviarAtualizacaoStatus({
-        protocolo: inscricaoAtual.protocolo,
-        nomeCompleto: inscricaoAtual.nome_completo,
-        email: inscricaoAtual.email,
-        projetoNome: inscricaoAtual.projeto.nome,
-        novoStatus: status,
-        observacao,
-      }).catch(console.error);
+      void Promise.resolve()
+        .then(() =>
+          enviarAtualizacaoStatus({
+            protocolo: inscricaoAtual.protocolo,
+            nomeCompleto: inscricaoAtual.nome_completo,
+            email: inscricaoAtual.email,
+            projetoNome: inscricaoAtual.projeto.nome,
+            novoStatus: status,
+            observacao,
+          }),
+        )
+        .catch(console.error);
     }
 
     // ROADMAP 6.2: espelha o aviso no portal (sino de notificações) para quem
-    // se inscreveu logado. Não bloqueia a resposta nem falha a action.
-    notificarMudancaStatusInscricao({
-      userId: inscricaoAtual.user_id,
-      protocolo: inscricaoAtual.protocolo,
-      projetoNome: inscricaoAtual.projeto.nome,
-      projetoSlug: inscricaoAtual.projeto.slug,
-      novoStatus: status,
-    }).catch(console.error);
+    // se inscreveu logado. Não bloqueia a resposta nem falha a action. O destino
+    // é "Meus Dados", onde o aluno responde à convocação (ver lib/notificacoes).
+    void Promise.resolve()
+      .then(() =>
+        notificarMudancaStatusInscricao({
+          userId: inscricaoAtual.user_id,
+          protocolo: inscricaoAtual.protocolo,
+          projetoNome: inscricaoAtual.projeto.nome,
+          novoStatus: status,
+        }),
+      )
+      .catch(console.error);
 
     return { ok: true };
   } catch (e) {
@@ -328,7 +405,53 @@ export type VagaFormData = {
 
 async function checkCoordenadorDoProjeto(projetoId: string, userEmail: string): Promise<{ ok: true } | { ok: false; error: string }> {
   const acesso = await temAcessoAoProjeto(projetoId, userEmail);
-  return acesso ? { ok: true } : { ok: false, error: 'Acesso negado: você não é coordenador deste projeto' };
+  return acesso ? { ok: true } : { ok: false, error: MENSAGENS.semPermissaoCoordenador };
+}
+
+/**
+ * Valida os campos da vaga (usado no create e no update).
+ *
+ * O valor da bolsa é o caso que a coordenação citou: sem teto, um `valorBolsa`
+ * de 1e308 ou negativo ia direto para o banco e aparecia no card público. Aqui
+ * ele fica entre 0 e 9.999,99 com duas casas — e o resto (quantidade, carga
+ * horária, vigência, tamanhos de texto) segue a mesma ideia.
+ */
+function validarCamposDaVaga(data: Partial<VagaFormData>): Validado<{
+  titulo: string | null;
+  tipo: 'BOLSISTA' | 'VOLUNTARIO' | 'AMBOS' | null;
+  descricao: string | null;
+  requisitos: string | null;
+  quantidade: number | null;
+  valorBolsa: number | null;
+  cargaHorariaSemanal: number | null;
+  vigenciaMeses: number | null;
+  fontePagadora: string | null;
+}> {
+  return validarCampos<{
+    titulo: string | null;
+    tipo: 'BOLSISTA' | 'VOLUNTARIO' | 'AMBOS' | null;
+    descricao: string | null;
+    requisitos: string | null;
+    quantidade: number | null;
+    valorBolsa: number | null;
+    cargaHorariaSemanal: number | null;
+    vigenciaMeses: number | null;
+    fontePagadora: string | null;
+  }>({
+    titulo: () => (data.titulo !== undefined
+      ? validarTexto(data.titulo, 'Título da vaga', LIMITES.titulo)
+      : { ok: true as const, valor: null }),
+    tipo: () => (data.tipo !== undefined
+      ? validarOpcao(data.tipo, 'Tipo da vaga', OPCOES.tipoInteresse)
+      : { ok: true as const, valor: null }),
+    descricao: () => validarTextoOpcional(data.descricao, 'Descrição', LIMITES.texto),
+    requisitos: () => validarTextoOpcional(data.requisitos, 'Requisitos', LIMITES.texto),
+    quantidade: () => validarNumero(data.quantidade, 'Quantidade de vagas', LIMITES.quantidadeVagas, { inteiro: true, opcional: true }),
+    valorBolsa: () => validarNumero(data.valorBolsa, 'Valor da bolsa', LIMITES.valorBolsa, { opcional: true }),
+    cargaHorariaSemanal: () => validarNumero(data.cargaHorariaSemanal, 'Carga horária semanal', LIMITES.cargaHoraria, { inteiro: true, opcional: true }),
+    vigenciaMeses: () => validarNumero(data.vigenciaMeses, 'Vigência (meses)', LIMITES.vigenciaMeses, { inteiro: true, opcional: true }),
+    fontePagadora: () => validarTextoOpcional(data.fontePagadora, 'Fonte pagadora', LIMITES.linha),
+  });
 }
 
 /** Lista as vagas do projeto, com o total já selecionado em cada uma. */
@@ -359,24 +482,25 @@ export async function createVaga(projetoId: string, data: VagaFormData, userEmai
     const auth = await checkCoordenadorDoProjeto(projetoId, userEmail);
     if (!auth.ok) return auth;
 
-    const titulo = data.titulo?.trim();
-    if (!titulo) return { ok: false, error: 'Título da vaga é obrigatório' };
-    if (!data.quantidade || data.quantidade < 1) return { ok: false, error: 'Quantidade deve ser pelo menos 1' };
+    const v = validarCamposDaVaga(data);
+    if (!v.ok) return v;
+    if (!v.valor.titulo) return { ok: false, error: MENSAGENS.campoObrigatorio('Título da vaga') };
+    if (!v.valor.quantidade) return { ok: false, error: 'Informe a quantidade de vagas (pelo menos 1).' };
 
     const vaga = await prisma.vaga.create({
       data: {
         projetoId,
-        titulo,
-        tipo: data.tipo,
-        descricao: data.descricao?.trim() || null,
-        requisitos: data.requisitos?.trim() || null,
-        quantidade: data.quantidade,
-        valorBolsa: data.valorBolsa ?? null,
-        cargaHorariaSemanal: data.cargaHorariaSemanal ?? null,
-        vigenciaMeses: data.vigenciaMeses ?? null,
-        fontePagadora: data.fontePagadora?.trim() || null,
+        titulo: v.valor.titulo,
+        tipo: v.valor.tipo ?? 'BOLSISTA',
+        descricao: v.valor.descricao,
+        requisitos: v.valor.requisitos,
+        quantidade: v.valor.quantidade,
+        valorBolsa: v.valor.valorBolsa,
+        cargaHorariaSemanal: v.valor.cargaHorariaSemanal,
+        vigenciaMeses: v.valor.vigenciaMeses,
+        fontePagadora: v.valor.fontePagadora,
         dataAbertura: new Date(),
-        dataEncerramento: data.dataEncerramento ? new Date(data.dataEncerramento) : null,
+        dataEncerramento: data.dataEncerramento ? parseDataDoFormulario(data.dataEncerramento) : null,
         status: 'ABERTA',
       },
     });
@@ -395,29 +519,32 @@ export async function updateVaga(
 ): Promise<ActionResult> {
   try {
     const vaga = await prisma.vaga.findUnique({ where: { id: vagaId }, select: { projetoId: true } });
-    if (!vaga) return { ok: false, error: 'Vaga não encontrada' };
+    if (!vaga) return { ok: false, error: 'Não encontramos esta vaga. Ela pode ter sido removida por outra pessoa.' };
 
     const auth = await checkCoordenadorDoProjeto(vaga.projetoId, userEmail);
     if (!auth.ok) return auth;
 
-    if (data.quantidade !== undefined && data.quantidade < 1) {
-      return { ok: false, error: 'Quantidade deve ser pelo menos 1' };
-    }
+    const v = validarCamposDaVaga(data);
+    if (!v.ok) return v;
 
     const updateData: Prisma.VagaUpdateInput = {};
-    if (data.titulo !== undefined) updateData.titulo = data.titulo.trim();
-    if (data.tipo !== undefined) updateData.tipo = data.tipo;
-    if (data.descricao !== undefined) updateData.descricao = data.descricao?.trim() || null;
-    if (data.requisitos !== undefined) updateData.requisitos = data.requisitos?.trim() || null;
-    if (data.quantidade !== undefined) updateData.quantidade = data.quantidade;
-    if (data.valorBolsa !== undefined) updateData.valorBolsa = data.valorBolsa;
-    if (data.cargaHorariaSemanal !== undefined) updateData.cargaHorariaSemanal = data.cargaHorariaSemanal;
-    if (data.vigenciaMeses !== undefined) updateData.vigenciaMeses = data.vigenciaMeses;
-    if (data.fontePagadora !== undefined) updateData.fontePagadora = data.fontePagadora?.trim() || null;
+    if (v.valor.titulo !== null) updateData.titulo = v.valor.titulo;
+    if (v.valor.tipo !== null) updateData.tipo = v.valor.tipo;
+    if (data.descricao !== undefined) updateData.descricao = v.valor.descricao;
+    if (data.requisitos !== undefined) updateData.requisitos = v.valor.requisitos;
+    if (v.valor.quantidade !== null) updateData.quantidade = v.valor.quantidade;
+    if (data.valorBolsa !== undefined) updateData.valorBolsa = v.valor.valorBolsa;
+    if (data.cargaHorariaSemanal !== undefined) updateData.cargaHorariaSemanal = v.valor.cargaHorariaSemanal;
+    if (data.vigenciaMeses !== undefined) updateData.vigenciaMeses = v.valor.vigenciaMeses;
+    if (data.fontePagadora !== undefined) updateData.fontePagadora = v.valor.fontePagadora;
     if (data.dataEncerramento !== undefined) {
-      updateData.dataEncerramento = data.dataEncerramento ? new Date(data.dataEncerramento) : null;
+      updateData.dataEncerramento = data.dataEncerramento ? parseDataDoFormulario(data.dataEncerramento) : null;
     }
-    if (data.status !== undefined) updateData.status = data.status;
+    if (data.status !== undefined) {
+      const status = validarOpcao(data.status, 'Situação da vaga', OPCOES.statusVaga);
+      if (!status.ok) return status;
+      updateData.status = status.valor;
+    }
 
     await prisma.vaga.update({ where: { id: vagaId }, data: updateData });
     cache.invalidate('chat:');
@@ -438,7 +565,7 @@ export async function updateVaga(
 export async function deleteVaga(vagaId: string, userEmail: string): Promise<ActionResult> {
   try {
     const vaga = await prisma.vaga.findUnique({ where: { id: vagaId }, select: { projetoId: true } });
-    if (!vaga) return { ok: false, error: 'Vaga não encontrada' };
+    if (!vaga) return { ok: false, error: 'Não encontramos esta vaga. Ela pode ter sido removida por outra pessoa.' };
 
     const auth = await checkCoordenadorDoProjeto(vaga.projetoId, userEmail);
     if (!auth.ok) return auth;
@@ -447,7 +574,7 @@ export async function deleteVaga(vagaId: string, userEmail: string): Promise<Act
     if (vinculadas > 0) {
       return {
         ok: false,
-        error: `Não é possível excluir: há ${vinculadas} inscrição(ões) vinculada(s) a esta vaga. Encerre a vaga em vez de excluir.`,
+        error: `${vinculadas === 1 ? 'Esta vaga tem 1 inscrição' : `Esta vaga tem ${vinculadas} inscrições`} e por isso não pode ser excluída. Encerre a vaga em vez de excluí-la, para preservar o histórico das inscrições.`,
       };
     }
 
@@ -519,7 +646,7 @@ export async function listProjetosParaEdital(email: string) {
 
 /** Editais vinculados aos projetos do professor (todos, se for o Administrador Geral). */
 export async function listMeusEditais(userEmail: string) {
-  if (!userEmail) return { ok: false, error: 'Não autenticado' } as const;
+  if (!userEmail) return { ok: false, error: MENSAGENS.naoAutenticado } as const;
 
   let where: Prisma.EditalWhereInput;
 
@@ -564,13 +691,13 @@ async function podeGerenciarEdital(
   editalId: string,
   userEmail: string
 ): Promise<{ ok: true; edital: { id: string; projetoId: string | null; authorId: string; pdfPath: string | null } } | { ok: false; error: string }> {
-  if (!userEmail) return { ok: false, error: 'Não autenticado' };
+  if (!userEmail) return { ok: false, error: MENSAGENS.naoAutenticado };
 
   const edital = await prisma.edital.findUnique({
     where: { id: editalId },
     select: { id: true, projetoId: true, authorId: true, pdfPath: true },
   });
-  if (!edital) return { ok: false, error: 'Edital não encontrado' };
+  if (!edital) return { ok: false, error: 'Não encontramos este edital. Ele pode ter sido removido por outra pessoa.' };
 
   if (isAdministradorGeral(userEmail)) return { ok: true, edital };
 
@@ -581,7 +708,7 @@ async function podeGerenciarEdital(
   const user = await prisma.user.findUnique({ where: { email: userEmail }, select: { id: true } });
   if (user && edital.authorId === user.id) return { ok: true, edital };
 
-  return { ok: false, error: 'Acesso negado: este edital não é de um projeto seu' };
+  return { ok: false, error: 'Este edital pertence a um projeto que você não coordena, então não é possível alterá-lo.' };
 }
 
 export async function createMeuEdital(
@@ -589,7 +716,7 @@ export async function createMeuEdital(
   userEmail: string
 ): Promise<ActionResult<{ id: string; slug: string }>> {
   try {
-    if (!userEmail) return { ok: false, error: 'Não autenticado' };
+    if (!userEmail) return { ok: false, error: MENSAGENS.naoAutenticado };
 
     const isAdmin = isAdministradorGeral(userEmail);
 
@@ -597,10 +724,26 @@ export async function createMeuEdital(
     // incompleto e sumir da página pública sem explicação.
     const titulo = data.titulo?.trim();
     const resumo = data.resumo?.trim();
-    if (!titulo || titulo.length < 2) return { ok: false, error: 'Título do edital é obrigatório (mínimo 2 caracteres)' };
-    if (!resumo) return { ok: false, error: 'Resumo é obrigatório' };
-    if (!data.dataEncerramento) return { ok: false, error: 'Data de encerramento é obrigatória' };
-    if (!data.linkOficial?.trim()) return { ok: false, error: 'Link oficial é obrigatório' };
+    if (!titulo || titulo.length < 2) return { ok: false, error: MENSAGENS.campoObrigatorio('Título do edital') };
+    if (!resumo) return { ok: false, error: MENSAGENS.campoObrigatorio('Resumo') };
+    if (!data.dataEncerramento) return { ok: false, error: MENSAGENS.campoObrigatorio('Data de encerramento') };
+    if (!data.linkOficial?.trim()) return { ok: false, error: MENSAGENS.campoObrigatorio('Link oficial') };
+
+    // Limites e URLs seguras: este edital vai para a página pública, e os campos
+    // de link viram `href` (nada de `javascript:`) — ver src/lib/validacao.ts.
+    const v = validarCampos<{ titulo: string; resumo: string; dataEncerramento: string }>({
+      titulo: () => validarTexto(data.titulo, 'Título do edital', LIMITES.tituloLongo),
+      resumo: () => validarTexto(data.resumo, 'Resumo', LIMITES.texto),
+      dataEncerramento: () => validarTexto(data.dataEncerramento, 'Data de encerramento', { min: 8, max: 40 }),
+    });
+    if (!v.ok) return v;
+
+    const urls = validarUrls({
+      linkOficial: { valor: data.linkOficial, rotulo: 'Link oficial' },
+      arquivoPdfUrl: { valor: data.arquivoPdfUrl, rotulo: 'Arquivo do edital' },
+    });
+    if (!urls.ok) return urls;
+    if (!urls.valor.linkOficial) return { ok: false, error: MENSAGENS.campoObrigatorio('Link oficial') };
 
     let projetoId: string | null = data.projetoId?.trim() || null;
 
@@ -613,12 +756,12 @@ export async function createMeuEdital(
 
     if (projetoId) {
       if (!(await temAcessoAoProjeto(projetoId, userEmail))) {
-        return { ok: false, error: 'Acesso negado: você não é coordenador do projeto selecionado' };
+        return { ok: false, error: 'Você só pode alterar editais dos projetos que coordena.' };
       }
     }
 
     const author = await prisma.user.findUnique({ where: { email: userEmail }, select: { id: true } });
-    if (!author) return { ok: false, error: 'Usuário não encontrado' };
+    if (!author) return { ok: false, error: MENSAGENS.usuarioNaoEncontrado };
 
     // Slug do edital precisa ser único no banco. Como dois editais podem ter o
     // mesmo título, o sufixo com timestamp elimina a colisão (o admin usa só
@@ -627,15 +770,15 @@ export async function createMeuEdital(
 
     const edital = await prisma.edital.create({
       data: {
-        titulo,
+        titulo: v.valor.titulo,
         slug,
         categoria: data.categoria,
-        resumo,
-        dataEncerramento: new Date(data.dataEncerramento),
+        resumo: v.valor.resumo,
+        dataEncerramento: new Date(v.valor.dataEncerramento),
         status: data.status,
-        linkOficial: data.linkOficial.trim(),
+        linkOficial: urls.valor.linkOficial,
         pdfPath: data.pdfPath ?? null,
-        arquivoPdfUrl: data.arquivoPdfUrl ?? null,
+        arquivoPdfUrl: urls.valor.arquivoPdfUrl,
         destaque: data.destaque ?? false,
         traducaoIFizinha: data.traducaoIFizinha,
         projetoId,
@@ -669,25 +812,36 @@ export async function updateMeuEdital(
     // projeto alheio e depois editá-lo por lá.
     if (data.projetoId !== undefined && data.projetoId !== null && data.projetoId !== '') {
       if (!(await temAcessoAoProjeto(data.projetoId, userEmail))) {
-        return { ok: false, error: 'Acesso negado: você não é coordenador do projeto selecionado' };
+        return { ok: false, error: 'Você só pode alterar editais dos projetos que coordena.' };
       }
     }
 
     if (data.titulo !== undefined && data.titulo.trim().length < 2) {
-      return { ok: false, error: 'Título do edital é obrigatório (mínimo 2 caracteres)' };
+      return { ok: false, error: MENSAGENS.campoObrigatorio('Título do edital') };
     }
+
+    // Limites de texto e URLs seguras (o edital é público; os links viram `href`).
+    const v = validarCampos<{
+      titulo: string | null; resumo: string | null; linkOficial: string | null; arquivoPdfUrl: string | null;
+    }>({
+      titulo: () => validarSePresente(data.titulo, (x) => validarTexto(x, 'Título do edital', LIMITES.tituloLongo)),
+      resumo: () => validarSePresente(data.resumo, (x) => validarTextoOpcional(x, 'Resumo', LIMITES.texto)),
+      linkOficial: () => validarSePresente(data.linkOficial, (x) => validarUrl(x, 'Link oficial', { opcional: true })),
+      arquivoPdfUrl: () => validarSePresente(data.arquivoPdfUrl, (x) => validarUrl(x, 'Arquivo do edital', { opcional: true })),
+    });
+    if (!v.ok) return v;
 
     await prisma.edital.update({
       where: { id: editalId },
       data: {
-        ...(data.titulo !== undefined ? { titulo: data.titulo.trim() } : {}),
+        ...(data.titulo !== undefined && v.valor.titulo ? { titulo: v.valor.titulo } : {}),
         ...(data.categoria !== undefined ? { categoria: data.categoria } : {}),
-        ...(data.resumo !== undefined ? { resumo: data.resumo.trim() } : {}),
-        ...(data.dataEncerramento ? { dataEncerramento: new Date(data.dataEncerramento) } : {}),
+        ...(data.resumo !== undefined ? { resumo: v.valor.resumo } : {}),
+        ...(data.dataEncerramento ? { dataEncerramento: parseDataDoFormulario(data.dataEncerramento) } : {}),
         ...(data.status !== undefined ? { status: data.status } : {}),
-        ...(data.linkOficial !== undefined ? { linkOficial: data.linkOficial.trim() } : {}),
+        ...(data.linkOficial !== undefined ? { linkOficial: v.valor.linkOficial } : {}),
         ...(data.pdfPath !== undefined ? { pdfPath: data.pdfPath } : {}),
-        ...(data.arquivoPdfUrl !== undefined ? { arquivoPdfUrl: data.arquivoPdfUrl } : {}),
+        ...(data.arquivoPdfUrl !== undefined ? { arquivoPdfUrl: v.valor.arquivoPdfUrl } : {}),
         ...(data.destaque !== undefined ? { destaque: data.destaque } : {}),
         ...(data.traducaoIFizinha !== undefined ? { traducaoIFizinha: data.traducaoIFizinha } : {}),
         ...(data.projetoId !== undefined ? { projetoId: data.projetoId || null } : {}),
@@ -739,11 +893,47 @@ export type PostFormData = {
   conteudo: string;
   resumo?: string;
   imagemUrl?: string;
+  /** Chave do ícone de capa (catálogo em src/lib/post-capa.ts). */
+  icone?: string | null;
   status: 'RASCUNHO' | 'PUBLICADO';
+  /** Anexos (PDF, ZIP, RAR) já enviados para o storage local. */
+  anexos?: unknown;
 };
 
+/**
+ * Valida os campos comuns de post (create e update).
+ *
+ * O `conteudo` é HTML do editor rico: já passa pelo `sanitizeHtml`, mas sem teto
+ * de tamanho — um post de 900 KB entraria no banco e seria carregado em toda
+ * listagem pública. A `imagemUrl` vira `<img src>` na página, então também
+ * precisa ser um endereço de verdade (nada de `javascript:`/`data:`).
+ */
+function validarCamposDoPost(data: PostFormData): Validado<{
+  titulo: string;
+  resumo: string | null;
+  conteudo: string;
+  imagemUrl: string | null;
+  status: 'RASCUNHO' | 'PUBLICADO';
+}> {
+  return validarCampos<{
+    titulo: string;
+    resumo: string | null;
+    conteudo: string;
+    imagemUrl: string | null;
+    status: 'RASCUNHO' | 'PUBLICADO';
+  }>({
+    titulo: () => validarTexto(data.titulo, 'Título', LIMITES.tituloLongo),
+    resumo: () => validarTextoOpcional(data.resumo, 'Resumo', LIMITES.resumo),
+    conteudo: () => validarTexto(data.conteudo, 'Conteúdo', { min: 1, max: LIMITES.html.max }),
+    imagemUrl: () => validarUrl(data.imagemUrl, 'Imagem de capa', { opcional: true }),
+    // O tipo diz que é RASCUNHO|PUBLICADO, mas quem chama a action direto pode
+    // mandar qualquer string — e ela iria direto para o banco.
+    status: () => validarOpcao(data.status, 'Situação do post', ['RASCUNHO', 'PUBLICADO'] as const),
+  });
+}
+
 export async function listPosts(projetoId: string, userEmail: string) {
-  if (!(await temAcessoAoProjeto(projetoId, userEmail))) return { ok: false, error: 'Acesso negado' } as const;
+  if (!(await temAcessoAoProjeto(projetoId, userEmail))) return { ok: false, error: MENSAGENS.semPermissao } as const;
 
   const posts = await prisma.post.findMany({
     where: { projetoId },
@@ -755,20 +945,31 @@ export async function listPosts(projetoId: string, userEmail: string) {
 
 export async function createPost(projetoId: string, data: PostFormData, userEmail: string): Promise<ActionResult> {
   try {
-    if (!(await temAcessoAoProjeto(projetoId, userEmail))) return { ok: false, error: 'Acesso negado' };
+    if (!(await temAcessoAoProjeto(projetoId, userEmail))) return { ok: false, error: MENSAGENS.semPermissao };
 
     const user = await prisma.user.findUnique({ where: { email: userEmail } });
-    if (!user) return { ok: false, error: 'Usuário não encontrado' };
+    if (!user) return { ok: false, error: MENSAGENS.usuarioNaoEncontrado };
 
-    const slug = slugify(data.titulo) + '-' + Date.now().toString(36);
+    const v = validarCamposDoPost(data);
+    if (!v.ok) return v;
+
+    const conteudo = sanitizeHtml(v.valor.conteudo);
+    const midias = await validarMidiasDoPost(conteudo, data.anexos);
+    if (!midias.ok) return { ok: false, error: midias.error };
+
+    const slug = slugify(v.valor.titulo) + '-' + Date.now().toString(36);
 
     await prisma.post.create({
       data: {
-        titulo: data.titulo,
+        titulo: v.valor.titulo,
         slug,
-        conteudo: sanitizeHtml(data.conteudo),
-        resumo: data.resumo || null,
-        imagemUrl: data.imagemUrl || null,
+        conteudo,
+        resumo: v.valor.resumo,
+        imagemUrl: v.valor.imagemUrl,
+        // Chave fora do catálogo vira `null` em vez de erro: o ícone é enfeite,
+        // não pode impedir a publicação (e a chave inválida nunca é gravada).
+        icone: chaveDeIconeValida(data.icone) ? data.icone : null,
+        anexos: midias.anexos as unknown as Prisma.InputJsonValue,
         status: data.status,
         projetoId,
         authorId: user.id,
@@ -783,21 +984,38 @@ export async function createPost(projetoId: string, data: PostFormData, userEmai
 
 export async function updatePost(postId: string, data: PostFormData, userEmail: string): Promise<ActionResult> {
   try {
-    const post = await prisma.post.findUnique({ where: { id: postId }, select: { projetoId: true } });
-    if (!post) return { ok: false, error: 'Post não encontrado' };
+    const post = await prisma.post.findUnique({
+      where: { id: postId },
+      select: { projetoId: true, anexos: true },
+    });
+    if (!post) return { ok: false, error: 'Não encontramos esta publicação. Ela pode ter sido removida por outra pessoa.' };
 
-    if (!(await temAcessoAoProjeto(post.projetoId, userEmail))) return { ok: false, error: 'Acesso negado' };
+    if (!(await temAcessoAoProjeto(post.projetoId, userEmail))) return { ok: false, error: MENSAGENS.semPermissao };
+
+    const v = validarCamposDoPost(data);
+    if (!v.ok) return v;
+
+    const conteudo = sanitizeHtml(v.valor.conteudo);
+    const midias = await validarMidiasDoPost(conteudo, data.anexos);
+    if (!midias.ok) return { ok: false, error: midias.error };
 
     await prisma.post.update({
       where: { id: postId },
       data: {
-        titulo: data.titulo,
-        conteudo: sanitizeHtml(data.conteudo),
-        resumo: data.resumo || null,
-        imagemUrl: data.imagemUrl || null,
+        titulo: v.valor.titulo,
+        conteudo,
+        resumo: v.valor.resumo,
+        imagemUrl: v.valor.imagemUrl,
+        icone: chaveDeIconeValida(data.icone) ? data.icone : null,
+        anexos: midias.anexos as unknown as Prisma.InputJsonValue,
         status: data.status,
       },
     });
+
+    // Anexo que saiu da lista sai do disco também (o botão "remover" promete
+    // isso, e arquivo órfão é espaço parado na VPS). A limpeza nunca derruba a
+    // atualização — ver `limparAnexosRemovidos`.
+    await limparAnexosRemovidos(post.anexos, midias.anexos);
 
     return { ok: true };
   } catch (e) {
@@ -808,9 +1026,9 @@ export async function updatePost(postId: string, data: PostFormData, userEmail: 
 export async function deletePost(postId: string, userEmail: string): Promise<ActionResult> {
   try {
     const post = await prisma.post.findUnique({ where: { id: postId }, select: { projetoId: true } });
-    if (!post) return { ok: false, error: 'Post não encontrado' };
+    if (!post) return { ok: false, error: 'Não encontramos esta publicação. Ela pode ter sido removida por outra pessoa.' };
 
-    if (!(await temAcessoAoProjeto(post.projetoId, userEmail))) return { ok: false, error: 'Acesso negado' };
+    if (!(await temAcessoAoProjeto(post.projetoId, userEmail))) return { ok: false, error: MENSAGENS.semPermissao };
 
     await prisma.post.delete({ where: { id: postId } });
 
@@ -839,7 +1057,7 @@ export async function exportInscricoesCSV(
     orderBy: { created_at: 'asc' },
   });
 
-  const headers = ['Protocolo', 'Nome', 'Email', 'Telefone', 'Curso', 'Turma', 'Semestre', 'Tipo Interesse', 'Status', 'Data'];
+  const headers = ['Protocolo', 'Nome', 'Email', 'Telefone', 'Curso', 'Turma', 'Semestre', 'Tipo Interesse', 'Status', 'Resposta do Aluno', 'Data'];
   const rows = inscricoes.map((i) => [
     i.protocolo,
     i.nome_completo,
@@ -850,7 +1068,10 @@ export async function exportInscricoesCSV(
     i.semestre ?? '',
     i.tipo_interesse,
     i.status,
-    i.created_at.toLocaleDateString('pt-BR'),
+    // Aceite/recusa de convocação — sem esta coluna, o coordenador exportava a
+    // lista e não conseguia saber quem já confirmou presença.
+    rotuloRespostaAluno(i.resposta_aluno) ?? '',
+    formatarDataBrasil(i.created_at, { day: '2-digit', month: '2-digit', year: 'numeric' }),
   ]);
 
   const csv = [headers.join(','), ...rows.map((r) => r.map((c) => `"${c}"`).join(','))].join('\n');

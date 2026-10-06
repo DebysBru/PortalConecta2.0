@@ -54,13 +54,21 @@ export function ChatWidget() {
       } else {
         setMessages((prev) => [
           ...prev,
-          { role: 'assistant', content: 'Desculpe, tive um problema para processar sua mensagem. Tente novamente.' },
+          {
+            role: 'assistant',
+            content:
+              'Não consegui responder agora. Tente reformular a pergunta ou envie novamente em alguns instantes.',
+          },
         ]);
       }
     } catch {
       setMessages((prev) => [
         ...prev,
-        { role: 'assistant', content: 'Erro de conexão. Verifique sua internet e tente novamente.' },
+        {
+          role: 'assistant',
+          content:
+            'Parece que sua conexão caiu no meio do caminho. Confira a internet e me pergunte de novo.',
+        },
       ]);
     } finally {
       setIsLoading(false);

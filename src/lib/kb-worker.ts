@@ -10,6 +10,7 @@
 
 import { prisma } from '@/lib/prisma';
 import { curarDocumento } from '@/lib/curador';
+import { mensagemAmigavel } from '@/lib/mensagens';
 import type { Prisma } from '@prisma/client';
 import { createLogger } from '@/lib/logger';
 
@@ -75,11 +76,15 @@ export async function curarDocumentoKb(documentoId: string): Promise<void> {
     await prisma.job.update({ where: { id: job.id }, data: { status: 'ok' } });
     log.info('Curadoria concluída', { documentoId, jobId: job.id, categoria: curadoria.categoria, totalTags: curadoria.tags.length });
   } catch (e) {
-    const msg = e instanceof Error ? e.message : String(e);
-    log.error('Curadoria falhou — documento segue disponível sem metadados de IA', { documentoId, jobId: job.id, erro: msg });
+    const tecnico = e instanceof Error ? e.message : String(e);
+    log.error('Curadoria falhou — documento segue disponível sem metadados de IA', { documentoId, jobId: job.id, erro: tecnico });
     await prisma.job.update({
       where: { id: job.id },
-      data: { status: 'erro', erro: msg, tentativas: { increment: 1 } },
+      data: {
+        status: 'erro',
+        erro: mensagemAmigavel(e, 'Não conseguimos gerar os metadados de IA deste documento. O conteúdo continua disponível na busca.'),
+        tentativas: { increment: 1 },
+      },
     });
     // Curadoria é enriquecimento, não extração — o documento segue disponível
     // com os chunks determinísticos da Etapa 2, só sem os metadados de IA.

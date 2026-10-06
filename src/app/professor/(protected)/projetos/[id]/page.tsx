@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation';
 import {
   ChevronRight, Users, FolderOpen, Calendar, Mail,
   Download, Search, Filter, AlertCircle, CheckCircle,
-  Clock, XCircle, Eye, ArrowLeft, FileText, Plus, Trash2, Briefcase, Loader2,
+  Clock, XCircle, Eye, ArrowLeft, FileText, Plus, Trash2, Briefcase, Loader2, ExternalLink,
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import {
@@ -14,6 +14,8 @@ import {
   listVagas, createVaga, updateVaga, deleteVaga, type VagaFormData,
 } from '@/actions/professor';
 import { getStatusLabel, getStatusColor, formatDateShort } from '@/lib/utils';
+import { rotuloRespostaAluno } from '@/lib/inscricao-aluno';
+import { vagaExcedeCota } from '@/lib/vagas';
 import { parsePerguntasExtra, resolverRespostasExtra } from '@/lib/formulario-extra';
 import { AbrirInscricoesModal } from '@/components/ui/AbrirInscricoesModal';
 import { Prisma } from '@prisma/client';
@@ -83,19 +85,19 @@ export default function ProfessorProjetoDetalhePage({ params }: { params: { id: 
       setEditingVaga(null);
       recarregarVagas();
     } else {
-      toast(result.error || 'Erro ao salvar vaga', 'error');
+      toast(result.error || 'Não conseguimos salvar a vaga. Confira os campos e tente novamente.', 'error');
     }
   };
 
   const handleDeleteVaga = async (vaga: Vaga) => {
     if (!user?.email) return;
-    if (!confirm(`Excluir a vaga "${vaga.titulo}"?`)) return;
+    if (!confirm(`Excluir a vaga "${vaga.titulo}"?\n\nEsta ação não pode ser desfeita.`)) return;
     const result = await deleteVaga(vaga.id, user.email);
     if (result.ok) {
       toast('Vaga excluída', 'success');
       recarregarVagas();
     } else {
-      toast(result.error || 'Erro ao excluir vaga', 'error');
+      toast(result.error || 'Não conseguimos excluir esta vaga. Tente novamente.', 'error');
     }
   };
 
@@ -105,8 +107,12 @@ export default function ProfessorProjetoDetalhePage({ params }: { params: { id: 
     const result = await updateVaga(vaga.id, { status: novoStatus }, user.email);
     if (result.ok) {
       recarregarVagas();
+      toast(
+        novoStatus === 'ABERTA' ? 'Vaga reaberta para inscrições' : 'Vaga encerrada',
+        'success'
+      );
     } else {
-      toast(result.error || 'Erro ao alterar status da vaga', 'error');
+      toast(result.error || 'Não conseguimos alterar a situação desta vaga. Tente novamente.', 'error');
     }
   };
 
@@ -117,9 +123,9 @@ export default function ProfessorProjetoDetalhePage({ params }: { params: { id: 
       setInscricoes((prev) =>
         prev.map((i) => (i.id === inscricaoId ? { ...i, status: newStatus } : i))
       );
-      toast(`Status alterado para "${newStatus.replace(/_/g, ' ')}"`, 'success');
+      toast(`Status alterado para "${getStatusLabel(newStatus)}"`, 'success');
     } else {
-      toast(result.error || 'Erro ao alterar status', 'error');
+      toast(result.error || 'Não conseguimos alterar o status desta inscrição. Tente novamente.', 'error');
     }
   };
 
@@ -221,7 +227,19 @@ export default function ProfessorProjetoDetalhePage({ params }: { params: { id: 
         </div>
 
         {/* Ações rápidas */}
-        <div className="px-6 py-3 border-b border-gray-50 flex gap-2">
+        <div className="px-6 py-3 border-b border-gray-50 flex flex-wrap gap-2">
+          {/* Página pública: o professor confere o que o estudante vê sem sair
+              do painel (abre em outra aba). */}
+          <Link
+            href={`/projetos/${projeto.slug}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            title="Abrir a página pública do projeto (como o estudante vê)"
+            className="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-gray-200 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+          >
+            <ExternalLink className="w-3.5 h-3.5" />
+            Ver no portal
+          </Link>
           <Link
             href={`/professor/projetos/${params.id}/posts`}
             className="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-gray-200 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
@@ -317,9 +335,21 @@ export default function ProfessorProjetoDetalhePage({ params }: { params: { id: 
                   <p className="text-xs text-gray-500 mt-0.5">
                     {vaga.tipo === 'AMBOS' ? 'Bolsista ou Voluntário' : vaga.tipo === 'BOLSISTA' ? 'Bolsista' : 'Voluntário'}
                     {' · '}
-                    <strong className="text-gray-700">{vaga.selecionados}/{vaga.quantidade}</strong> preenchida(s)
+                    <strong className={vagaExcedeCota(vaga.selecionados, vaga.quantidade) ? 'text-red-600' : 'text-gray-700'}>
+                      {vaga.selecionados}/{vaga.quantidade}
+                    </strong> preenchida(s)
                     {vaga.valorBolsa ? ` · R$ ${vaga.valorBolsa.toFixed(2)}/mês` : ''}
                   </p>
+                  {/* Estado antigo, de antes de o portal limitar a seleção por
+                      vaga: mais gente selecionada do que posições. Sem este
+                      aviso, a coordenação só descobria o problema ao tentar
+                      selecionar mais alguém e receber o bloqueio. */}
+                  {vagaExcedeCota(vaga.selecionados, vaga.quantidade) && (
+                    <p className="text-xs text-red-600 mt-1">
+                      {vaga.selecionados} selecionados para {vaga.quantidade} posição(ões): coloque alguém em
+                      lista de espera ou aumente a quantidade de posições.
+                    </p>
+                  )}
                 </div>
                 <div className="flex items-center gap-1.5">
                   <button
@@ -429,9 +459,10 @@ export default function ProfessorProjetoDetalhePage({ params }: { params: { id: 
                       <p className="text-xs text-gray-500">{inscricao.email}</p>
                     </td>
                     <td className="px-5 py-3 text-gray-600">{inscricao.curso ?? '—'}</td>
-                    <td className="px-5 py-3 text-gray-600">
-                      {inscricao.vaga_id ? (vagaPorId.get(inscricao.vaga_id)?.titulo ?? 'Vaga removida') : '—'}
-                    </td>
+                    <CelulaVagaInscricao
+                      vagaId={inscricao.vaga_id}
+                      vaga={inscricao.vaga_id ? vagaPorId.get(inscricao.vaga_id) : undefined}
+                    />
                     <td className="px-5 py-3 text-gray-600">{inscricao.tipo_interesse}</td>
                     <td className="px-5 py-3 text-gray-500 text-xs">
                       {formatDateShort(inscricao.created_at)}
@@ -449,27 +480,39 @@ export default function ProfessorProjetoDetalhePage({ params }: { params: { id: 
                         <option value="nao_selecionado">Não selecionado</option>
                         <option value="desistente">Desistente</option>
                       </select>
+                      {/* O que o ALUNO respondeu à convocação. Fica visível na
+                          lista (e não só no detalhe) porque é a informação que
+                          decide se a vaga está realmente preenchida. */}
+                      {rotuloRespostaAluno(inscricao.resposta_aluno) && (
+                        <p className={`text-[11px] font-semibold mt-1 ${
+                          inscricao.resposta_aluno === 'aceito' ? 'text-green-700' : 'text-orange-700'
+                        }`}>
+                          {rotuloRespostaAluno(inscricao.resposta_aluno)}
+                        </p>
+                      )}
                     </td>
                     <td className="px-5 py-3">
                       <button
                         onClick={() => {
                           const perguntasExtra = parsePerguntasExtra(projeto?.formulario_extra);
                           const respostasExtra = resolverRespostasExtra(perguntasExtra, inscricao.campos_extra);
-                          const detail = JSON.stringify({
-                            protocolo: inscricao.protocolo,
-                            nome: inscricao.nome_completo,
-                            email: inscricao.email,
-                            telefone: inscricao.telefone,
-                            curso: inscricao.curso,
-                            turma: inscricao.turma,
-                            semestre: inscricao.semestre,
-                            justificativa: inscricao.justificativa,
-                            experiencia: inscricao.experiencia_previa,
-                            ...(respostasExtra.length > 0 ? {
-                              perguntas_do_projeto: Object.fromEntries(respostasExtra.map((r) => [r.pergunta, r.resposta])),
-                            } : {}),
-                          }, null, 2);
-                          alert(detail);
+                          // Antes era um `alert()` nativo (trava a aba e não
+                          // segue o visual do portal). Agora é um toast, com os
+                          // mesmos dados e rótulos legíveis.
+                          const linhas: string[] = [`Protocolo ${inscricao.protocolo} — ${inscricao.nome_completo}`];
+                          if (inscricao.email) linhas.push(`E-mail: ${inscricao.email}`);
+                          if (inscricao.telefone) linhas.push(`Telefone: ${inscricao.telefone}`);
+                          if (inscricao.curso) linhas.push(`Curso: ${inscricao.curso}`);
+                          if (inscricao.turma) linhas.push(`Turma: ${inscricao.turma}`);
+                          if (inscricao.semestre) linhas.push(`Semestre: ${inscricao.semestre}`);
+                          // Resposta do próprio aluno a uma convocação — é o
+                          // que diz se ele topou a vaga ou abriu mão dela.
+                          const resposta = rotuloRespostaAluno(inscricao.resposta_aluno);
+                          if (resposta) linhas.push(`Resposta do aluno: ${resposta}`);
+                          if (inscricao.justificativa) linhas.push(`Justificativa: ${inscricao.justificativa}`);
+                          if (inscricao.experiencia_previa) linhas.push(`Experiência: ${inscricao.experiencia_previa}`);
+                          respostasExtra.forEach((r) => linhas.push(`${r.pergunta}: ${r.resposta || '(sem resposta)'}`));
+                          toast(linhas.join('\n'), 'info');
                         }}
                         className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition-colors"
                         title="Ver detalhes"
@@ -635,5 +678,28 @@ function Field({ label, required, children }: { label: string; required?: boolea
       </label>
       {children}
     </div>
+  );
+}
+
+/**
+ * Célula da vaga na tabela de inscrições: título + quantos já estão
+ * selecionados sobre as posições. Existe porque "selecionado" é limitado PELA
+ * VAGA (não pelo projeto) e a tabela não mostrava essa informação: a
+ * coordenação levava um "vaga cheia" sem ver quem ocupava o quê.
+ */
+function CelulaVagaInscricao({ vagaId, vaga }: { vagaId: string | null; vaga?: Vaga }) {
+  if (!vagaId) return <td className="px-5 py-3 text-gray-400">—</td>;
+  if (!vaga) return <td className="px-5 py-3 text-gray-400">Vaga removida</td>;
+
+  return (
+    <td className="px-5 py-3 text-gray-600">
+      {vaga.titulo}{' '}
+      <span
+        className={`font-semibold text-xs ${vagaExcedeCota(vaga.selecionados, vaga.quantidade) ? 'text-red-600' : 'text-gray-400'}`}
+        title="Selecionados / posições desta vaga"
+      >
+        ({vaga.selecionados}/{vaga.quantidade})
+      </span>
+    </td>
   );
 }

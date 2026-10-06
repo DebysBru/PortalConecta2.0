@@ -2,6 +2,7 @@ import type { NextRequest } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { verifySessionToken } from '@/lib/auth-helpers';
 import { isAdministradorGeral } from '@/lib/permissions';
+import { MENSAGENS } from '@/lib/mensagens';
 
 /**
  * Autorização das rotas administrativas por ID token do Firebase.
@@ -53,7 +54,7 @@ export async function exigirAdmin(request: NextRequest): Promise<ResultadoAuthAd
   });
 
   if (user?.role !== 'ADMIN') {
-    return { ok: false, status: 403, error: 'Acesso negado: apenas administradores' };
+    return { ok: false, status: 403, error: MENSAGENS.semPermissaoAdmin };
   }
 
   return { ok: true, email: autenticacao.email };
@@ -65,7 +66,7 @@ export async function exigirAdministradorGeral(request: NextRequest): Promise<Re
   if (!autenticacao.ok) return autenticacao;
 
   if (!isAdministradorGeral(autenticacao.email)) {
-    return { ok: false, status: 403, error: 'Acesso negado: apenas o Administrador Geral' };
+    return { ok: false, status: 403, error: MENSAGENS.semPermissaoAdminGeral };
   }
 
   return { ok: true, email: autenticacao.email };

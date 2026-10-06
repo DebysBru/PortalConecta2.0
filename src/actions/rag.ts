@@ -6,13 +6,28 @@ import { chunkDocument } from '@/lib/chunking';
 import { deactivateOldDocumentVersions } from '@/lib/busca-vetorial';
 import { curarDocumentoKb } from '@/lib/kb-worker';
 import { indexarDocumentoKb } from '@/lib/indexador';
+import { MENSAGENS, mensagemAmigavel } from '@/lib/mensagens';
+import { getVerifiedServerSession } from '@/lib/session';
 
 type ActionResult<T = void> = { ok: true; data?: T } | { ok: false; error: string };
 
+/**
+ * Exige ADMIN — e que o e-mail informado seja o da SESSÃO verificada.
+ *
+ * Antes bastava o e-mail pertencer a um admin no banco: como o e-mail chega do
+ * cliente e os administrativos são públicos na documentação do projeto, qualquer
+ * pessoa podia chamar estas actions direto (mesma classe do achado S1).
+ */
 async function requireAdminEmail(email?: string): Promise<{ ok: true } | { ok: false; error: string }> {
-  if (!email) return { ok: false, error: 'Não autenticado' };
+  if (!email) return { ok: false, error: MENSAGENS.naoAutenticado };
+
+  const sessao = await getVerifiedServerSession();
+  if (!sessao?.email || sessao.email.toLowerCase() !== email.toLowerCase()) {
+    return { ok: false, error: MENSAGENS.semPermissaoAdmin };
+  }
+
   const user = await prisma.user.findUnique({ where: { email }, select: { role: true } });
-  if (user?.role !== 'ADMIN') return { ok: false, error: 'Acesso negado: apenas administradores' };
+  if (user?.role !== 'ADMIN') return { ok: false, error: MENSAGENS.semPermissaoAdmin };
   return { ok: true };
 }
 
@@ -32,7 +47,7 @@ export async function getDocumentoKbDetail(id: string, callerEmail?: string) {
     where: { id },
     include: { chunks: { orderBy: { chunkIndex: 'asc' } } },
   });
-  if (!doc) return { ok: false, error: 'Documento não encontrado' } as const;
+  if (!doc) return { ok: false, error: 'Não encontramos este documento. Ele pode ter sido removido por outra pessoa.' } as const;
   return { ok: true, data: doc } as const;
 }
 
@@ -46,13 +61,16 @@ export async function createDocumentoKbFromText(
   try {
     const titulo = data.titulo?.trim();
     const conteudo = data.conteudo?.trim();
-    if (!titulo) return { ok: false, error: 'Título é obrigatório' };
-    if (!conteudo) return { ok: false, error: 'Conteúdo é obrigatório' };
+    if (!titulo) return { ok: false, error: MENSAGENS.campoObrigatorio('Título') };
+    if (!conteudo) return { ok: false, error: MENSAGENS.campoObrigatorio('Conteúdo') };
 
     const hashArquivo = createHash('sha256').update(conteudo).digest('hex');
     const existenteAtivo = await prisma.documentoKb.findFirst({ where: { hashArquivo, ativo: true } });
     if (existenteAtivo) {
-      return { ok: false, error: 'Já existe um documento ativo com este conteúdo exato' };
+      return {
+        ok: false,
+        error: 'Este conteúdo já está cadastrado e disponível na base de conhecimento. Se quiser atualizá-lo, edite o documento existente em vez de criar outro.',
+      };
     }
 
     const versaoAnterior = await prisma.documentoKb.findFirst({
@@ -96,7 +114,7 @@ export async function createDocumentoKbFromText(
 
     return { ok: true, data: { id: doc.id, chunks: chunks.length } };
   } catch (e) {
-    return { ok: false, error: e instanceof Error ? e.message : String(e) };
+    return { ok: false, error: mensagemAmigavel(e, 'Não conseguimos salvar o documento. Tente novamente em alguns instantes.') };
   }
 }
 
@@ -108,7 +126,7 @@ export async function deleteDocumentoKb(id: string, callerEmail?: string): Promi
     await prisma.documentoKb.delete({ where: { id } });
     return { ok: true };
   } catch (e) {
-    return { ok: false, error: e instanceof Error ? e.message : String(e) };
+    return { ok: false, error: mensagemAmigavel(e, 'Não conseguimos excluir este documento. Tente novamente.') };
   }
 }
 
@@ -118,14 +136,14 @@ export async function toggleDocumentoKb(id: string, callerEmail?: string): Promi
 
   try {
     const doc = await prisma.documentoKb.findUnique({ where: { id } });
-    if (!doc) return { ok: false, error: 'Documento não encontrado' };
+    if (!doc) return { ok: false, error: 'Não encontramos este documento. Ele pode ter sido removido por outra pessoa.' };
 
     const updated = await prisma.documentoKb.update({ where: { id }, data: { ativo: !doc.ativo } });
     await prisma.chunkKb.updateMany({ where: { documentoId: id }, data: { ativo: updated.ativo } });
 
     return { ok: true, data: { ativo: updated.ativo } };
   } catch (e) {
-    return { ok: false, error: e instanceof Error ? e.message : String(e) };
+    return { ok: false, error: mensagemAmigavel(e, 'Não conseguimos mudar a situação deste documento. Tente novamente.') };
   }
 }
 
@@ -135,10 +153,10 @@ export async function updateDocumentoKbTitulo(id: string, titulo: string, caller
 
   try {
     const trimmed = titulo.trim();
-    if (!trimmed) return { ok: false, error: 'Título é obrigatório' };
+    if (!trimmed) return { ok: false, error: MENSAGENS.campoObrigatorio('Título') };
     await prisma.documentoKb.update({ where: { id }, data: { titulo: trimmed } });
     return { ok: true };
   } catch (e) {
-    return { ok: false, error: e instanceof Error ? e.message : String(e) };
+    return { ok: false, error: mensagemAmigavel(e, 'Não conseguimos renomear este documento. Tente novamente.') };
   }
 }

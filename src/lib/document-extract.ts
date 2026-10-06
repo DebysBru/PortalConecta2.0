@@ -60,7 +60,9 @@ export async function extractDocument(buffer: Buffer, fileType: string): Promise
     }
 
     default:
-      throw new Error(`Tipo de arquivo não suportado: ${fileType}`);
+      throw new Error(
+        'Não conseguimos ler este formato de arquivo. Envie um PDF, DOCX, TXT, MD, CSV ou planilha XLSX.'
+      );
   }
 }
 

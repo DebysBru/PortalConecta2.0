@@ -14,10 +14,34 @@
  *    usuário (/meus-dados).
  */
 import { prisma } from '@/lib/prisma';
+import { getVerifiedServerSession } from '@/lib/session';
 import type { Prisma, UserRole } from '@prisma/client';
 
 const ALLOWED_STAFF_DOMAIN = (process.env.ALLOWED_PROFESSOR_DOMAIN || 'ifpr.edu.br').toLowerCase();
 const MASTER_ADMIN_EMAIL = process.env.ADMIN_EMAILS?.split(',')[0]?.trim().toLowerCase();
+
+/**
+ * O e-mail informado é o MESMO da sessão verificada no servidor?
+ *
+ * POR QUE ISTO EXISTE: todas as funções deste arquivo recebem um `email` — e, nas
+ * Server Actions do painel, esse e-mail vem do CLIENTE (`user.email` do contexto
+ * de autenticação). Só conferir "esse e-mail é coordenador/admin no banco" NÃO é
+ * autenticação: qualquer pessoa pode chamar a Server Action direto (o id da ação
+ * está no bundle) passando `ronan.lopes@ifpr.edu.br` — que está na documentação
+ * pública do projeto — e receber poderes de admin/coordenador. É a mesma classe
+ * dos achados S1/S2/S3 do RELATORIO_TESTES.md.
+ *
+ * A identidade de verdade sai do **cookie de sessão httpOnly**, verificado com a
+ * chave do Firebase (`getVerifiedServerSession`), que o cliente não consegue
+ * forjar. O e-mail do parâmetro continua sendo usado para consultar o banco — mas
+ * só depois de bater com o da sessão.
+ */
+async function emailConfereComSessao(email: string): Promise<boolean> {
+  if (!email) return false;
+  const sessao = await getVerifiedServerSession();
+  if (!sessao?.email) return false;
+  return sessao.email.toLowerCase() === email.toLowerCase();
+}
 
 export function isDominioInstitucional(email: string): boolean {
   return email.toLowerCase().endsWith(`@${ALLOWED_STAFF_DOMAIN}`);
@@ -81,14 +105,24 @@ export async function isCoordenadorOuViceDoProjeto(projetoId: string, email: str
  * Checagem de acesso a um projeto que o Administrador Geral sempre passa
  * (vê e edita tudo), e um Professor só passa se for coordenador/vice/admin
  * daquele projeto específico.
+ *
+ * ⚠️ O `email` precisa ser o da sessão verificada: quem chama isto são as Server
+ * Actions do painel, onde o e-mail chega do cliente. Sem a conferência, bastava
+ * mandar o e-mail de um coordenador para editar o projeto dele.
  */
 export async function temAcessoAoProjeto(projetoId: string, email: string): Promise<boolean> {
+  if (!(await emailConfereComSessao(email))) return false;
   if (isAdministradorGeral(email)) return true;
   return isCoordenadorOuViceDoProjeto(projetoId, email);
 }
 
-/** Lista os projetos visíveis para o e-mail: todos para o Administrador Geral, só os próprios para os demais. */
+/**
+ * Lista os projetos visíveis para o e-mail: todos para o Administrador Geral, só os próprios para os demais.
+ * Mesma exigência de sessão de `temAcessoAoProjeto`.
+ */
 export async function projetosAcessiveis(email: string) {
+  if (!(await emailConfereComSessao(email))) return [];
+
   if (isAdministradorGeral(email)) {
     return prisma.projeto.findMany({
       orderBy: { updatedAt: 'desc' },

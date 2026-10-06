@@ -14,6 +14,10 @@ function getAdminApp(): App {
   const privateKey  = process.env.FIREBASE_ADMIN_PRIVATE_KEY?.replace(/\\n/g, '\n');
 
   if (!clientEmail || !privateKey || !projectId) {
+    // Mensagem técnica de propósito: este erro só acontece em ambiente mal
+    // configurado. Toda rota que a captura devolve ao usuário um texto
+    // amigável (via `mensagemAmigavel`), então aqui o detalhe é para quem
+    // está configurando o sistema.
     throw new Error(
       'Firebase Admin não configurado. Adicione ao .env.local:\n' +
       '  FIREBASE_ADMIN_PROJECT_ID\n' +

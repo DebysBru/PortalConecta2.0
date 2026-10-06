@@ -1,6 +1,7 @@
 import { db } from '@/lib/prisma';
 import { UserRole } from '@prisma/client';
 import { getAdminAuth } from '@/lib/firebase-admin';
+import { MENSAGENS } from '@/lib/mensagens';
 
 /**
  * Verifica o ID token do Firebase no servidor (via firebase-admin) e retorna
@@ -18,13 +19,13 @@ import { getAdminAuth } from '@/lib/firebase-admin';
 export async function verifySessionToken(
   idToken?: string
 ): Promise<{ ok: true; uid: string; email: string } | { ok: false; error: string }> {
-  if (!idToken) return { ok: false, error: 'Não autenticado' };
+  if (!idToken) return { ok: false, error: MENSAGENS.naoAutenticado };
   try {
     const decoded = await getAdminAuth().verifyIdToken(idToken);
-    if (!decoded.email) return { ok: false, error: 'Sessão sem e-mail associado' };
+    if (!decoded.email) return { ok: false, error: MENSAGENS.sessaoInvalida };
     return { ok: true, uid: decoded.uid, email: decoded.email };
   } catch {
-    return { ok: false, error: 'Sessão inválida ou expirada — faça login novamente' };
+    return { ok: false, error: MENSAGENS.sessaoExpirada };
   }
 }
 
@@ -87,11 +88,11 @@ export async function ensureUserProfile(userId: string, email: string, name?: st
  */
 export async function requireRole(userId: string, requiredRole: UserRole | UserRole[]) {
   const user = await db.user.findUnique({ where: { id: userId } });
-  if (!user) throw new Error('Usuário não encontrado');
+  if (!user) throw new Error(MENSAGENS.usuarioNaoEncontrado);
 
   const roles = Array.isArray(requiredRole) ? requiredRole : [requiredRole];
   if (!roles.includes(user.role)) {
-    throw new Error('Acesso negado: permissão insuficiente');
+    throw new Error(MENSAGENS.semPermissao);
   }
 
   return user;
@@ -109,7 +110,7 @@ export async function requireProjectCoordinator(userId: string, projectId: strin
   });
 
   if (!coordinator) {
-    throw new Error('Acesso negado: você não coordena este projeto');
+    throw new Error(MENSAGENS.semPermissaoCoordenador);
   }
 
   return coordinator;

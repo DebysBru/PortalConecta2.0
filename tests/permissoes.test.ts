@@ -29,6 +29,20 @@ const prismaMock = vi.hoisted(() => ({
 
 vi.mock('@/lib/prisma', () => ({ prisma: prismaMock, db: prismaMock }));
 
+/**
+ * Sessão verificada (cookie httpOnly). É o que o servidor de fato conhece: o
+ * e-mail que as Server Actions recebem do cliente NÃO prova identidade, então
+ * `temAcessoAoProjeto`/`projetosAcessiveis` só aceitam o e-mail que bate com o
+ * da sessão. Aqui a sessão é controlada por teste.
+ */
+const sessaoMock = vi.hoisted(() => ({ getVerifiedServerSession: vi.fn() }));
+vi.mock('@/lib/session', () => sessaoMock);
+
+/** Simula "o navegador desta pessoa está logado com este e-mail". */
+function logadoComo(email: string | null) {
+  sessaoMock.getVerifiedServerSession.mockResolvedValue(email ? { uid: 'uid-teste', email } : null);
+}
+
 const MASTER = 'master@ifpr.edu.br';
 
 vi.stubEnv('ADMIN_EMAILS', `${MASTER},segundo@ifpr.edu.br`);
@@ -46,6 +60,8 @@ afterAll(() => {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  // Por padrão ninguém está logado: cada teste que precisa de acesso diz como.
+  logadoComo(null);
 });
 
 describe('domínio institucional (critério: não promover quem é de fora)', () => {
@@ -72,10 +88,29 @@ describe('Administrador Geral', () => {
   });
 
   it('passa em qualquer checagem de projeto SEM consultar o banco', async () => {
+    logadoComo(MASTER);
+
     const temAcesso = await perms.temAcessoAoProjeto('projeto-de-outro', MASTER);
 
     expect(temAcesso).toBe(true);
     expect(prismaMock.projeto.findUnique).not.toHaveBeenCalled();
+  });
+
+  it('NÃO passa quando o e-mail do admin é afirmado sem sessão (o furo corrigido)', async () => {
+    // Cenário do ataque: chamar a Server Action com o e-mail do Administrador
+    // Geral — que é público na documentação — sem estar logado como ele.
+    logadoComo(null);
+
+    expect(await perms.temAcessoAoProjeto('projeto-de-outro', MASTER)).toBe(false);
+    expect(await perms.projetosAcessiveis(MASTER)).toEqual([]);
+    expect(prismaMock.projeto.findMany).not.toHaveBeenCalled();
+  });
+
+  it('NÃO passa quando a sessão é de OUTRA pessoa', async () => {
+    logadoComo('invasor@ifpr.edu.br');
+
+    expect(await perms.temAcessoAoProjeto('projeto-de-outro', MASTER)).toBe(false);
+    expect(await perms.projetosAcessiveis(MASTER)).toEqual([]);
   });
 });
 
@@ -108,12 +143,14 @@ describe('acesso a projeto — professor só entra no que é dele', () => {
   });
 
   it('nega projeto de outro professor (busca no banco)', async () => {
+    logadoComo('prof@ifpr.edu.br');
     prismaMock.projeto.findUnique.mockResolvedValue(null);
 
     expect(await perms.temAcessoAoProjeto('projeto-alheio', 'prof@ifpr.edu.br')).toBe(false);
   });
 
   it('nega quando o e-mail não é coordenador do projeto encontrado', async () => {
+    logadoComo('prof@ifpr.edu.br');
     prismaMock.projeto.findUnique.mockResolvedValue({
       coordenadorEmail: 'outro@ifpr.edu.br',
       viceCoordenadorEmail: null,
@@ -127,6 +164,7 @@ describe('acesso a projeto — professor só entra no que é dele', () => {
 
 describe('projetosAcessiveis — escopo da listagem', () => {
   it('Administrador Geral lista todos (sem filtro de vínculo)', async () => {
+    logadoComo(MASTER);
     prismaMock.projeto.findMany.mockResolvedValue([]);
 
     await perms.projetosAcessiveis(MASTER);
@@ -136,6 +174,7 @@ describe('projetosAcessiveis — escopo da listagem', () => {
   });
 
   it('professor lista somente os projetos em que tem vínculo', async () => {
+    logadoComo('prof@ifpr.edu.br');
     prismaMock.projeto.findMany.mockResolvedValue([]);
 
     await perms.projetosAcessiveis('prof@ifpr.edu.br');

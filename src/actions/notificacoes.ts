@@ -74,7 +74,7 @@ export async function marcarNotificacaoLida(
     });
     return { ok: true };
   } catch {
-    return { ok: false, error: 'Não foi possível marcar como lida' };
+    return { ok: false, error: 'Não conseguimos marcar este aviso como lido agora. Tente novamente.' };
   }
 }
 
@@ -91,6 +91,6 @@ export async function marcarTodasNotificacoesLidas(
     });
     return { ok: true, atualizadas: count };
   } catch {
-    return { ok: false, error: 'Não foi possível marcar as notificações como lidas' };
+    return { ok: false, error: 'Não conseguimos marcar seus avisos como lidos agora. Tente novamente.' };
   }
 }
