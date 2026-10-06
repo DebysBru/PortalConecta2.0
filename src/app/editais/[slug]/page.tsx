@@ -131,6 +131,10 @@ export default async function EditalDetalhePage({ params }: { params: { slug: st
         etiqueta={getStatusLabel(edital.categoria)}
         titulo={edital.titulo}
         cor="text-azul-eletrico"
+        mascote={{
+          nome: 'relogio',
+          dica: 'Fica de olho no prazo — e confira a versão que eu expliquei!',
+        }}
       >
         {/* Situação do edital, em versão clara */}
         <div className="mt-3 flex flex-wrap items-center gap-2">
@@ -166,8 +170,8 @@ export default async function EditalDetalhePage({ params }: { params: { slug: st
         </div>
       </PageHero>
 
-      {/* Aviso */}
-      <div className="bg-blue-50 border-b border-blue-100">
+      {/* Aviso — opaco e com z-10 para cobrir a sobra da mascote do cabeçalho */}
+      <div className="relative z-10 bg-blue-50 border-b border-blue-100">
         <div className="container mx-auto px-4 max-w-4xl py-3">
           <div className="flex items-center gap-2 text-blue-700">
             <AlertCircle className="w-4 h-4 flex-shrink-0" />
@@ -179,7 +183,8 @@ export default async function EditalDetalhePage({ params }: { params: { slug: st
       </div>
 
       {/* Conteúdo */}
-      <div className="container mx-auto px-4 max-w-4xl py-8 space-y-6">
+      <div className="relative z-10 bg-gray-50">
+        <div className="container mx-auto px-4 max-w-4xl py-8 space-y-6">
         {/* Tabs: IFizinha / Oficial */}
         <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
           <div className="p-6">
@@ -332,6 +337,7 @@ export default async function EditalDetalhePage({ params }: { params: { slug: st
             <ArrowLeft className="w-5 h-5" />
             Voltar
           </Link>
+        </div>
         </div>
       </div>
     </div>

@@ -4,10 +4,11 @@ import React, { useEffect, useRef, useState, useTransition } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import {
-  Search, Filter, Users, ArrowRight, Sparkles, FolderOpen,
+  Search, Filter, Users, ArrowRight, Sparkles,
   ChevronLeft, ChevronRight, X, Loader2,
 } from 'lucide-react';
 import { getStatusLabel } from '@/lib/utils';
+import { MascoteInterativa } from '@/components/ifizinha/MascoteInterativa';
 import {
   buildProjetosHref,
   paginasVisiveis,
@@ -205,8 +206,10 @@ export function ProjetosExplorer({
         </div>
 
         {projetos.length === 0 ? (
-          <div className="text-center py-16 text-gray-500 bg-white rounded-2xl border border-gray-100">
-            <FolderOpen className="w-10 h-10 mx-auto mb-3 opacity-40" />
+          <div className="text-center py-14 text-gray-500 bg-white rounded-2xl border border-gray-100">
+            <div className="mx-auto mb-3 w-[130px]">
+              <MascoteInterativa nome="chat" />
+            </div>
             <p className="font-medium">Nenhum projeto encontrado com esses filtros</p>
             <button onClick={limparFiltros} className="mt-3 text-sm text-azul-eletrico hover:underline">
               Limpar filtros

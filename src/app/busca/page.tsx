@@ -1,5 +1,7 @@
 
-import { PageHero } from '@/components/layout/PageHero';import React from 'react';
+import { PageHero } from '@/components/layout/PageHero';
+import { MascoteInterativa } from '@/components/ifizinha/MascoteInterativa';
+import React from 'react';
 import Link from 'next/link';
 import {
   ArrowRight,
@@ -185,9 +187,16 @@ export default async function BuscaPage({
         descricao="Projetos, editais e publicações do IFPR Campus Ivaiporã em um só lugar."
         icone={<Search className="h-7 w-7 text-azul-eletrico" />}
         fundoIcone="bg-azul-50"
+        mascote={{
+          nome: 'de-costas',
+          dica: 'Escreve uma palavra-chave que eu procuro no portal inteiro!',
+        }}
       >
         <BuscaForm termoInicial={params.q} />
       </PageHero>
+
+      {/* Conteúdo — fundo próprio e `z-10` para cobrir a sobra da mascote */}
+      <div className="relative z-10 bg-gray-50">
 
       <div className="container mx-auto px-4 max-w-5xl py-10">
         {/* Sem termo: orienta em vez de listar o portal inteiro */}
@@ -265,8 +274,8 @@ export default async function BuscaPage({
         {nadaEncontrado && (
           <div className="space-y-8">
             <div className="bg-white rounded-2xl border border-gray-100 p-8 text-center">
-              <div className="w-14 h-14 bg-gray-50 rounded-2xl flex items-center justify-center mx-auto mb-4">
-                <Search className="w-7 h-7 text-gray-400" />
+              <div className="mx-auto mb-4 w-[130px]">
+                <MascoteInterativa nome="chat" />
               </div>
               <h2 className="text-xl font-black text-gray-900 mb-2">
                 Nenhum resultado para “{resultado.termo}”
@@ -326,6 +335,7 @@ export default async function BuscaPage({
             </div>
           </div>
         )}
+      </div>
       </div>
     </div>
   );

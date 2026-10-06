@@ -6,6 +6,7 @@ import { prisma } from '@/lib/prisma';
 import { EDITAL_PUBLICO_WHERE } from '@/lib/editais-publicos';
 import { withCache } from '@/lib/cache';
 import { PageHero } from '@/components/layout/PageHero';
+import { MascoteInterativa } from '@/components/ifizinha/MascoteInterativa';
 import type { Metadata } from 'next';
 
 export const dynamic = 'force-dynamic';
@@ -93,8 +94,10 @@ export default async function EditaisPage() {
 
         {/* Lista de editais */}
         {editais.length === 0 ? (
-          <div className="text-center py-16 text-gray-400">
-            <BookOpen className="w-12 h-12 mx-auto mb-3 opacity-40" />
+          <div className="text-center py-14 text-gray-400">
+            <div className="mx-auto mb-4 w-[130px]">
+              <MascoteInterativa nome="chat" />
+            </div>
             <p className="font-medium text-lg">Nenhum edital publicado</p>
             <p className="text-sm mt-1">Volte em breve para conferir as oportunidades!</p>
           </div>

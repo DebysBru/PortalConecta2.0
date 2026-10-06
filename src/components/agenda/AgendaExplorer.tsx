@@ -7,6 +7,7 @@ import {
   ExternalLink, Loader2, MapPin, Search, Sparkles, X,
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
+import { MascoteInterativa } from '@/components/ifizinha/MascoteInterativa';
 import {
   alternarAcompanhamentoEvento, definirSeguirCalendarioInteiro, listarAcompanhamento, seguirEventos,
 } from '@/actions/agenda';
@@ -505,8 +506,11 @@ export function AgendaExplorer({ eventos }: { eventos: EventoAgenda[] }) {
 
       {/* ── Linha do tempo ── */}
       {filtrados.length === 0 ? (
-        <div className="rounded-2xl border border-dashed border-gray-200 bg-gray-50 px-6 py-16 text-center">
-          <Calendar className="mx-auto mb-3 h-10 w-10 text-gray-300" />
+        <div className="rounded-2xl border border-dashed border-gray-200 bg-gray-50 px-6 py-14 text-center">
+          {/* Estado vazio com a mascote pensando — em vez do ícone cinza de sempre */}
+          <div className="mx-auto mb-4 w-[130px]">
+            <MascoteInterativa nome="chat" />
+          </div>
           <p className="font-semibold text-gray-700">Nenhum evento neste filtro</p>
           <p className="mt-1 text-sm text-gray-500">
             {eventos.length === 0

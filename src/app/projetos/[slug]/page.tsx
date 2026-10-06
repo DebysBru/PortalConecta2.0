@@ -10,6 +10,7 @@ import { stripHtml } from '@/lib/rich-text';
 import { SafeHtml } from '@/components/ui/SafeHtml';
 import { BotaoFavorito } from '@/components/ui/BotaoFavorito';
 import { PostCapa } from '@/components/ui/PostCapa';
+import { MascoteInterativa } from '@/components/ifizinha/MascoteInterativa';
 import { prisma } from '@/lib/prisma';
 import type { Metadata } from 'next';
 
@@ -88,9 +89,25 @@ export default async function ProjetoPage({ params }: { params: Params }) {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* Header */}
-      <div className="pt-20 pb-10" style={{ background: `linear-gradient(135deg, ${projeto.corPrimaria} 0%, ${projeto.corPrimaria}cc 100%)` }}>
-        <div className="container mx-auto px-4 max-w-5xl">
+      {/* Header — mantém a cor do projeto (é a identidade dele), mas ganha a
+          mascote à direita. Pose neutra (a do tablet): na cor do projeto, pose
+          que gesticula para a direita apontaria para fora da tela, e pose de
+          fundo sólido deixaria retângulo sobre o gradiente. */}
+      <div
+        className="relative overflow-x-clip pt-20 pb-10"
+        style={{ background: `linear-gradient(135deg, ${projeto.corPrimaria} 0%, ${projeto.corPrimaria}cc 100%)` }}
+      >
+        <div className="pointer-events-none absolute bottom-0 right-0 hidden w-[180px] xl:block">
+          <div className="-mr-6 -mb-10">
+            <MascoteInterativa
+              nome="hero"
+              dica="Dá uma olhada em como participar deste projeto!"
+              className="drop-shadow-[0_10px_18px_rgba(15,23,42,0.28)]"
+            />
+          </div>
+        </div>
+
+        <div className="container relative mx-auto px-4 max-w-5xl xl:pr-[170px]">
           <div className="flex items-center gap-2 text-white/70 text-sm mb-6">
             <Link href="/" className="hover:text-white transition-colors">Início</Link>
             <ChevronRight className="w-4 h-4" />
@@ -132,8 +149,9 @@ export default async function ProjetoPage({ params }: { params: Params }) {
         </div>
       </div>
 
-      {/* Conteúdo */}
-      <div className="container mx-auto px-4 max-w-5xl py-8">
+      {/* Conteúdo — opaco e com z-10 para cobrir a sobra da mascote do cabeçalho */}
+      <div className="relative z-10 bg-gray-50">
+        <div className="container mx-auto px-4 max-w-5xl py-8">
         <Link href="/projetos" className="inline-flex items-center gap-2 text-sm text-gray-500 hover:text-gray-900 transition-colors mb-6">
           <ArrowLeft className="w-4 h-4" />
           Voltar aos projetos
@@ -457,6 +475,7 @@ export default async function ProjetoPage({ params }: { params: Params }) {
             </div>
           </div>
         </div>
+      </div>
       </div>
     </div>
   );

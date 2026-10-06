@@ -1576,6 +1576,19 @@ segura" e "o CSS desliga o movimento em reduced-motion"); `tsc --noEmit` limpo;
 hover conferido no navegador com emulação de `no-preference`: balão `opacity 0 → 1`,
 `transform: matrix(1.03, 0, 0, 1.03, 0, -6)` e `animation-play-state: paused`.
 
+**Extensão (mesma entrega, depois):** o mesmo tratamento foi para as páginas de
+detalhe e a busca, e a mascote entrou nos **estados vazios**:
+
+| Página | Pose | Observação |
+|---|---|---|
+| `/editais/[slug]` | `relogio` | "fica de olho no prazo" |
+| `/projetos/[slug]` | `hero` | mantém o cabeçalho **na cor do projeto** (identidade dele) e só ganha a mascote; pose neutra, porque sobre o gradiente colorido pose de fundo sólido apareceria como retângulo |
+| `/busca` | `de-costas` | ela olha os resultados |
+| estados vazios (agenda sem resultado, projetos sem resultado, nenhum edital, busca sem resultado) | `chat` | a pose deitada com o queixo nas mãos ("pensando") no lugar do ícone cinza — é onde a mascote rende mais simpatia |
+
+O teste de poses passou a cobrir as seis páginas, e um bloco novo garante que os
+quatro estados vazios continuam com a mascote (19 testes no arquivo).
+
 ---
 
 ## Resumo de impactos
@@ -1609,7 +1622,7 @@ hover conferido no navegador com emulação de `no-preference`: balão `opacity 
 | **Redesign com a IFizinha, fases 0 e 1 (Dec. 28)** | Assets de 14,7 MB → 1,9 MB em `public/ifizinha/` (script com Pillow) + componente `MascoteIFizinha`; header claro com o logo oficial e botão "Pergunte à IFizinha"; rodapé azul com a mascote | **no ar** (06/10, BUILD_ID `BQJ44sJ7trRYlP8SEagLg`) | Backup em 3 camadas (tag `pre-redesign-2026-10-06`); nenhum link removido; fase 2 = home |
 | **Redesign — fases 2 e 4: home e metadados (Dec. 29)** | Home com capa clara, 4 atalhos com ícones 3D, seções do mockup, **notícias dos projetos** (posts públicos) e chat embutido; ícones do PWA na marca nova, OG image no compartilhamento, robots/sitemap e ajustes de contraste (WCAG AA) | **no ar** (06/10, BUILD_ID `J6xWG1OV6O3LqbeoY1dmD`) | Mascotes ancoradas nas bordas; `.bg-hero-gradient` deixou de usar o atalho `background` (resetava `background-clip`); produção ainda sem post publicado → seção de notícias no estado vazio; **fase 3 pendente** |
 | **Redesign — fase 3: páginas internas e 404 (Dec. 30)** | Cabeçalho claro reutilizável (`PageHero`) em editais, edital, projetos, agenda, busca, inscrição e meus-dados; telas de autenticação no tema claro; 404 com a arte da IFizinha | **no ar** (06/10, BUILD_ID `e_jnDaWmVJDRmAMLIdwRk`) | `pt-28` embutido resolve o Header fixo; nenhuma lógica tocada nas telas de auth (auditado no diff); restam só os ajustes de conteúdo e os chips de filtro da agenda |
-| **Calendário acadêmico importável + acompanhamento (Dec. 31)** | Modelo CSV/JSON (110 eventos do Calendário 2026), importação idempotente por `ref` no painel, filtros da agenda funcionando de verdade e aluno podendo acompanhar evento/filtro/calendário inteiro | **no ar** (06/10) | `prisma db push` (o projeto não usa migrations); datas ao meio-dia de Brasília; acompanhamento reaproveita a tabela `Favorito` |
+| **Calendário acadêmico importável + acompanhamento (Dec. 31)** | Modelo CSV/JSON (110 eventos do Calendário 2026), importação idempotente por `ref` no painel, filtros da agenda funcionando de verdade e aluno podendo acompanhar evento/filtro/calendário inteiro | **no ar** (06/10) | `prisma db push` (o projeto não usa migrations); datas ao meio-dia de Brasília; acompanhamento reaproveita a tabela `Favorito` |
 | **Mascote interativa nas páginas internas (Dec. 32)** | IFizinha nos cabeçalhos de Editais, Projetos e Agenda: hover (sobe 3%/6px), respiração de 6s que pausa no hover, balão de dica e sombras de profundidade nos cards | **no ar** (06/10) | Pose escolhida pela direção do gesto (§29) e pelo fundo medido; `prefers-reduced-motion` desliga tudo; exige `pointer-events-auto` (o wrapper é `pointer-events-none`) |
 
 ---

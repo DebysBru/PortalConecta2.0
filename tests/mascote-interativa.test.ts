@@ -107,24 +107,49 @@ describe('PageHero com mascote', () => {
 });
 
 describe('poses usadas nos cabeçalhos', () => {
-  // O cabeçalho é branco: pose de fundo `cinza` (#F7F7F7) deixaria um retângulo
-  // visível, e pose que gesticula para a direita apontaria para fora da tela.
-  const PERMITIDAS: Record<string, string[]> = {
-    '/editais': ['hero'],
-    '/projetos': ['de-costas'],
-    '/agenda': ['relogio'],
-  };
+  // O cabeçalho é branco (ou a cor do projeto, no caso do /projetos/[slug]):
+  // pose de fundo `cinza` (#F7F7F7) deixaria um retângulo visível, e pose que
+  // gesticula para a direita apontaria para fora da tela.
+  const PAGINAS: { rota: string; arquivo: string; poses: string[] }[] = [
+    { rota: '/editais', arquivo: 'src/app/editais/page.tsx', poses: ['hero'] },
+    { rota: '/editais/[slug]', arquivo: 'src/app/editais/[slug]/page.tsx', poses: ['relogio'] },
+    { rota: '/projetos', arquivo: 'src/app/projetos/page.tsx', poses: ['de-costas'] },
+    { rota: '/projetos/[slug]', arquivo: 'src/app/projetos/[slug]/page.tsx', poses: ['hero'] },
+    { rota: '/agenda', arquivo: 'src/app/agenda/page.tsx', poses: ['relogio'] },
+    { rota: '/busca', arquivo: 'src/app/busca/page.tsx', poses: ['de-costas'] },
+  ];
 
-  for (const [rota, poses] of Object.entries(PERMITIDAS)) {
+  for (const { rota, arquivo, poses } of PAGINAS) {
     it(`${rota} usa pose segura no cabeçalho`, () => {
-      const arquivo = rota === '/editais' ? 'editais' : rota.slice(1);
-      const fonte = readFileSync(join(process.cwd(), 'src', 'app', arquivo, 'page.tsx'), 'utf8');
-      const usada = fonte.match(/mascote=\{\{\s*nome:\s*'([a-z-]+)'/)?.[1];
+      const fonte = readFileSync(join(process.cwd(), ...arquivo.split('/')), 'utf8');
+      // aceita o slot do PageHero (`mascote={{ nome: 'x' }}`) e o uso direto do
+      // componente (`<MascoteInterativa nome="x"`), como em /projetos/[slug]
+      const usada =
+        fonte.match(/mascote=\{\{\s*nome:\s*'([a-z-]+)'/)?.[1] ??
+        fonte.match(/<MascoteInterativa\s+nome="([a-z-]+)"/)?.[1];
       expect(usada, `mascote do cabeçalho de ${rota}`).toBeDefined();
       expect(poses).toContain(usada as string);
-      // o fundo da pose precisa ser transparente ou branco (o cabeçalho é branco)
+      // o fundo da pose precisa ser transparente ou branco
       const fundo = MASCOTES[usada as keyof typeof MASCOTES].fundo;
       expect(['transparente', 'branco']).toContain(fundo);
+    });
+  }
+});
+
+describe('mascote nos estados vazios', () => {
+  // "Nada encontrado" é onde a mascote mais rende: ela pensa em vez de um ícone
+  // cinza. O teste garante que ninguém troque de volta por um ícone sem querer.
+  const VAZIOS = [
+    { onde: 'agenda (filtro sem resultado)', arquivo: 'src/components/agenda/AgendaExplorer.tsx' },
+    { onde: 'projetos (filtro sem resultado)', arquivo: 'src/app/projetos/ProjetosExplorer.tsx' },
+    { onde: 'editais (nenhum publicado)', arquivo: 'src/app/editais/page.tsx' },
+    { onde: 'busca (nenhum resultado)', arquivo: 'src/app/busca/page.tsx' },
+  ];
+
+  for (const { onde, arquivo } of VAZIOS) {
+    it(`${onde} mostra a mascote`, () => {
+      const fonte = readFileSync(join(process.cwd(), ...arquivo.split('/')), 'utf8');
+      expect(fonte).toContain('<MascoteInterativa nome="chat"');
     });
   }
 });
