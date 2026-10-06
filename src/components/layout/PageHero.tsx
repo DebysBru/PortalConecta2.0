@@ -1,6 +1,8 @@
 import React from 'react';
 import Link from 'next/link';
 import { ChevronRight } from 'lucide-react';
+import { MascoteInterativa } from '@/components/ifizinha/MascoteInterativa';
+import type { NomeMascote } from '@/components/ifizinha/MascoteIFizinha';
 
 type ItemTrilha = { href?: string; label: string };
 
@@ -17,6 +19,19 @@ type PageHeroProps = {
   icone?: React.ReactNode;
   /** Fundo do quadrado do ícone (ex.: "bg-azul-50"). */
   fundoIcone?: string;
+  /**
+   * Mascote à direita do cabeçalho, com hover, respiração e balão de dica.
+   *
+   * Escolha a pose pela **direção do gesto** (ver §29 do DECISIONS): aqui ela
+   * fica no canto direito, então só entram poses que olham/gesticulam para a
+   * esquerda (`relogio`) ou neutras (`hero`, `chat`, `de-costas`). Poses que
+   * gesticulam para a direita (`apontando`, `apresentando`, `projetos`) ficariam
+   * apontando para fora da tela.
+   *
+   * Atenção ao `fundo` da pose em MASCOTES: o cabeçalho é branco, então pose de
+   * fundo `cinza` (#F7F7F7) deixaria um retângulo visível.
+   */
+  mascote?: { nome: NomeMascote; dica?: string };
   /** Chips, estatísticas ou dicas abaixo da descrição. */
   children?: React.ReactNode;
 };
@@ -41,11 +56,25 @@ export function PageHero({
   cor = 'text-azul-eletrico',
   icone,
   fundoIcone = 'bg-azul-50',
+  mascote,
   children,
 }: PageHeroProps) {
   return (
-    <section className="relative overflow-hidden border-b border-gray-100 bg-white pt-28 pb-10">
-      <div className="container mx-auto max-w-7xl px-4">
+    <section className="relative overflow-x-clip border-b border-gray-100 bg-white pt-28 pb-10">
+      {/* Mascote do cabeçalho: encosta na borda direita e atravessa a divisão —
+          o bloco de conteúdo logo abaixo (que tem fundo próprio e `z-10`) cobre a
+          sobra, então ela termina exatamente na divisão em vez de aparecer
+          cortada no meio do branco. `overflow-x-clip` corta só a lateral, sem
+          criar barra de rolagem. */}
+      {mascote && (
+        <div className="pointer-events-none absolute bottom-0 right-0 hidden w-[190px] xl:block 2xl:w-[210px]">
+          <div className="-mr-6 -mb-10">
+            <MascoteInterativa nome={mascote.nome} dica={mascote.dica} />
+          </div>
+        </div>
+      )}
+
+      <div className={`container mx-auto max-w-7xl px-4 ${mascote ? 'xl:pr-[190px] 2xl:pr-[220px]' : ''}`}>
         <nav aria-label="Trilha" className="mb-4 flex flex-wrap items-center gap-1.5 text-sm text-gray-500">
           {trilha.map((item, i) => (
             <React.Fragment key={`${item.label}-${i}`}>

@@ -147,7 +147,7 @@ export function ProjetosExplorer({
           <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
             {destaques.map((projeto) => (
               <Link key={projeto.id} href={`/projetos/${projeto.slug}`} className="group block">
-                <div className="bg-white rounded-2xl border border-gray-100 hover:border-gray-200 hover:shadow-xl transition-all duration-300 hover:-translate-y-1 overflow-hidden h-full flex flex-col">
+                <div className="bg-white rounded-2xl border border-gray-100 shadow-[0_1px_2px_rgba(15,23,42,0.04)] hover:border-gray-200 hover:shadow-card-hover transition-all duration-300 hover:-translate-y-1 overflow-hidden h-full flex flex-col">
                   <div className="h-24 relative flex items-end p-4" style={{ background: `linear-gradient(135deg, ${projeto.corPrimaria} 0%, ${projeto.corPrimaria}cc 100%)` }}>
                     <div className="w-14 h-14 bg-white/20 rounded-2xl flex items-center justify-center text-white font-black text-2xl border border-white/30">
                       {projeto.nome.charAt(0)}
@@ -216,7 +216,7 @@ export function ProjetosExplorer({
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
             {projetos.map((projeto) => (
               <Link key={projeto.id} href={`/projetos/${projeto.slug}`} className="group block">
-                <div className="bg-white rounded-2xl border border-gray-100 hover:border-gray-200 hover:shadow-md transition-all duration-200 hover:-translate-y-0.5 overflow-hidden">
+                <div className="bg-white rounded-2xl border border-gray-100 shadow-[0_1px_2px_rgba(15,23,42,0.04)] hover:border-gray-200 hover:shadow-card-brand transition-all duration-200 hover:-translate-y-0.5 overflow-hidden">
                   <div className="h-2 w-full" style={{ backgroundColor: projeto.corPrimaria }} />
                   <div className="p-4">
                     <div className="flex items-start gap-3 mb-3">

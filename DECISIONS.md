@@ -1520,6 +1520,64 @@ de console); `.ics` conferido com e sem filtro (118 eventos no total, 13 feriado
 
 ---
 
+## 32. Mascote interativa nas páginas internas (Editais, Projetos, Agenda)
+
+**Pedido:** "quando a Agenda estiver 100% pronta, acrescentar a mascote nas telas de
+Editais, Projetos, Agenda, para o site ficar mais interativo; com efeitos no hover
+e sombras para dar profundidade."
+
+**Onde:** o `PageHero` (cabeçalho claro das páginas internas) ganhou um slot
+opcional `mascote={{ nome, dica }}`. Quando existe, o conteúdo do cabeçalho ganha
+`xl:pr-[190px]` para não passar por baixo dela.
+
+| Página | Pose | Por quê |
+|---|---|---|
+| `/editais` | `hero` (tablet) | neutra — "lendo o edital" |
+| `/projetos` | `de-costas` | neutra por construção: ela está **olhando a página** (de costas), apontando o logo da camiseta |
+| `/agenda` | `relogio` | olha e aponta para a esquerda (o relógio) — a pose do assunto |
+
+As poses foram escolhidas pela **direção do gesto** (§29) e pelo **fundo** medido
+(`MASCOTES[x].fundo`): como o cabeçalho é branco, só entram poses transparentes ou
+de fundo branco — `de-costas` é #FEFEFE (medido: diferença de 1/255 do branco,
+invisível). Pose de fundo `cinza` (#F7F7F7) deixaria um retângulo, e pose que
+gesticula para a direita apontaria para fora da tela.
+
+**Ancoragem:** a imagem atravessa a divisão em ~39px e o primeiro bloco de conteúdo
+de cada página (que ganhou fundo próprio + `relative z-10`) cobre a sobra — a mesma
+técnica do §29, medida no navegador. Efeito colateral bom: o conteúdo de
+`/editais` e `/projetos` passou a ser uma faixa `gray-50` com os cards brancos, o
+que dá contraste e deixa a divisão visível.
+
+**Interação** (`src/components/ifizinha/MascoteInterativa.tsx`, componente **de
+servidor** — nada de JavaScript novo no navegador):
+
+1. **hover**: sobe 6px, cresce 3% e a sombra fica mais funda e difusa;
+2. **respiração** (`animate-respira`, 6s, ±6px) que **pausa** no hover;
+3. **balão de dica** contextual por página, que aparece no hover.
+
+**Acessibilidade:** `prefers-reduced-motion` desliga animação e transições
+(globals.css) — e isso foi *verificado sem querer*: o Chrome headless reporta
+"reduce" por padrão, e no primeiro teste o hover não mexia nada até eu emular
+"no-preference". Nada de informação existe só no hover e a imagem é decorativa
+(`aria-hidden`).
+
+**Profundidade nos cards:** os cards de edital, projeto e evento ganharam sombra
+suave em repouso e `shadow-card-hover`/`shadow-card-brand` no hover (tokens que já
+existiam no tema), mantendo o `hover:-translate-y-*`.
+
+**Detalhe que quase passou:** o wrapper que posiciona a mascote é
+`pointer-events-none` (para não roubar cliques) — com isso o `:hover` **nunca**
+dispara, porque o navegador não testa o elemento. A solução foi
+`pointer-events-auto` no próprio grupo da mascote.
+
+**Verificação:** 516 testes em 32 arquivos (12 novos em
+`tests/mascote-interativa.test.ts`, incluindo "a pose do cabeçalho de cada página é
+segura" e "o CSS desliga o movimento em reduced-motion"); `tsc --noEmit` limpo;
+hover conferido no navegador com emulação de `no-preference`: balão `opacity 0 → 1`,
+`transform: matrix(1.03, 0, 0, 1.03, 0, -6)` e `animation-play-state: paused`.
+
+---
+
 ## Resumo de impactos
 
 | Decisão | Impacto | Fase | Notas |
@@ -1550,8 +1608,9 @@ de console); `.ics` conferido com e sem filtro (118 eventos no total, 13 feriado
 | **Rodapé institucional + lição de deploy (Dec. 27)** | Endereço completo, mapa (embed sem chave, `loading="lazy"`) e contatos oficiais no rodapé; `@ifpr.ivaipora` (errado) → `@ifpr.campus.ivaipora`; script de troca passa a não assumir que `-old` existe | **no ar** (06/10, BUILD_ID `CaA2WYgwrI0QuGuwzy73p`) | `mv A B` com B existente move A para dentro de B — causou 20 s de queda; agora `/root/troca-portal.sh` na VPS e runbook corrigido |
 | **Redesign com a IFizinha, fases 0 e 1 (Dec. 28)** | Assets de 14,7 MB → 1,9 MB em `public/ifizinha/` (script com Pillow) + componente `MascoteIFizinha`; header claro com o logo oficial e botão "Pergunte à IFizinha"; rodapé azul com a mascote | **no ar** (06/10, BUILD_ID `BQJ44sJ7trRYlP8SEagLg`) | Backup em 3 camadas (tag `pre-redesign-2026-10-06`); nenhum link removido; fase 2 = home |
 | **Redesign — fases 2 e 4: home e metadados (Dec. 29)** | Home com capa clara, 4 atalhos com ícones 3D, seções do mockup, **notícias dos projetos** (posts públicos) e chat embutido; ícones do PWA na marca nova, OG image no compartilhamento, robots/sitemap e ajustes de contraste (WCAG AA) | **no ar** (06/10, BUILD_ID `J6xWG1OV6O3LqbeoY1dmD`) | Mascotes ancoradas nas bordas; `.bg-hero-gradient` deixou de usar o atalho `background` (resetava `background-clip`); produção ainda sem post publicado → seção de notícias no estado vazio; **fase 3 pendente** |
-| **Redesign — fase 3: páginas internas e 404 (Dec. 30)** | Cabeçalho claro reutilizável (`PageHero`) em editais, edital, projetos, agenda, busca, inscrição e meus-dados; telas de autenticação no tema claro; 404 com a arte da IFizinha | **no ar** (06/10, BUILD_ID `e_jnDaWmVJDRmAMLIdwRk`) | `pt-28` embutido resolve o Header fixo; nenhuma lógica tocada nas telas de auth (auditado no diff); restam só os ajustes de conteúdo e os chips de filtro da agenda |
-| **Calendário acadêmico importável + acompanhamento (Dec. 31)** | Modelo CSV/JSON (110 eventos do Calendário 2026), importação idempotente por `ref` no painel, filtros da agenda funcionando de verdade e aluno podendo acompanhar evento/filtro/calendário inteiro | **no ar** (06/10) | `prisma db push` (o projeto não usa migrations); datas ao meio-dia de Brasília; acompanhamento reaproveita a tabela `Favorito` |
+| **Redesign — fase 3: páginas internas e 404 (Dec. 30)** | Cabeçalho claro reutilizável (`PageHero`) em editais, edital, projetos, agenda, busca, inscrição e meus-dados; telas de autenticação no tema claro; 404 com a arte da IFizinha | **no ar** (06/10, BUILD_ID `e_jnDaWmVJDRmAMLIdwRk`) | `pt-28` embutido resolve o Header fixo; nenhuma lógica tocada nas telas de auth (auditado no diff); restam só os ajustes de conteúdo e os chips de filtro da agenda |
+| **Calendário acadêmico importável + acompanhamento (Dec. 31)** | Modelo CSV/JSON (110 eventos do Calendário 2026), importação idempotente por `ref` no painel, filtros da agenda funcionando de verdade e aluno podendo acompanhar evento/filtro/calendário inteiro | **no ar** (06/10) | `prisma db push` (o projeto não usa migrations); datas ao meio-dia de Brasília; acompanhamento reaproveita a tabela `Favorito` |
+| **Mascote interativa nas páginas internas (Dec. 32)** | IFizinha nos cabeçalhos de Editais, Projetos e Agenda: hover (sobe 3%/6px), respiração de 6s que pausa no hover, balão de dica e sombras de profundidade nos cards | **no ar** (06/10) | Pose escolhida pela direção do gesto (§29) e pelo fundo medido; `prefers-reduced-motion` desliga tudo; exige `pointer-events-auto` (o wrapper é `pointer-events-none`) |
 
 ---
 

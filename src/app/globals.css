@@ -110,6 +110,23 @@
   animation: fadeInUp 0.6s ease-out forwards;
 }
 
+/* Mascote da IFizinha: a "respiração" (translateY lento) e o hover existem para
+   dar vida e profundidade às páginas internas. Quem pediu ao sistema para reduzir
+   movimento não recebe nenhuma das duas — a informação nunca depende delas. */
+@media (prefers-reduced-motion: reduce) {
+  .animate-respira,
+  .animate-float,
+  .animate-fade-in-up {
+    animation: none !important;
+  }
+
+  .ifizinha-hover,
+  .ifizinha-hover * {
+    transition: none !important;
+    transform: none !important;
+  }
+}
+
 /* Efeito glassmorphism */
 .glass {
   backdrop-filter: blur(16px);

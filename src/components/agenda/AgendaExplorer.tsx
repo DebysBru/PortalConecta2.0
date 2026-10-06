@@ -546,7 +546,7 @@ export function AgendaExplorer({ eventos }: { eventos: EventoAgenda[] }) {
                     return (
                       <div
                         key={evento.id}
-                        className={`relative rounded-2xl border p-5 transition-all ${info.bg} ${passou ? 'opacity-60' : ''}`}
+                        className={`relative rounded-2xl border p-5 shadow-[0_1px_2px_rgba(15,23,42,0.04)] transition-all duration-200 hover:-translate-y-0.5 hover:shadow-card-brand ${info.bg} ${passou ? 'opacity-60' : ''}`}
                       >
                         <div className="flex flex-col gap-4 sm:flex-row sm:items-start">
                           <div className="flex flex-shrink-0 items-center gap-3 sm:w-16 sm:flex-col sm:items-center sm:text-center">

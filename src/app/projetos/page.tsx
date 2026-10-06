@@ -45,6 +45,10 @@ export default async function ProjetosPage({
         cor="text-roxo-luminoso"
         icone={<FolderOpen className="h-7 w-7 text-roxo-luminoso" />}
         fundoIcone="bg-roxo-50"
+        mascote={{
+          nome: 'de-costas',
+          dica: 'Estes são os projetos do campus — tem vaga aberta em vários!',
+        }}
       >
         {/* Estatísticas em chips claros (antes ficavam sobre a faixa escura) */}
         <div className="mt-6 flex flex-wrap gap-3">
@@ -65,8 +69,10 @@ export default async function ProjetosPage({
         </div>
       </PageHero>
 
-      {/* Conteúdo */}
-      <div className="container mx-auto px-4 max-w-7xl py-10">
+      {/* Conteúdo — fundo próprio e `z-10` para cobrir a sobra da mascote do
+          cabeçalho (é o que faz ela terminar exatamente na divisão) */}
+      <div className="relative z-10 bg-gray-50">
+        <div className="container mx-auto px-4 max-w-7xl py-10">
         <ProjetosExplorer
           projetos={resultado.itens}
           destaques={resultado.destaques}
@@ -97,6 +103,7 @@ export default async function ProjetosPage({
               <ArrowRight className="w-4 h-4" />
             </Link>
           </div>
+        </div>
         </div>
       </div>
     </div>

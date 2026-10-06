@@ -50,6 +50,10 @@ export default async function EditaisPage() {
         descricao="Todos os editais do IFPR Ivaiporã traduzidos pela IFizinha. Linguagem simples, estrutura clara — você entende tudo."
         icone={<BookOpen className="h-7 w-7 text-azul-eletrico" />}
         fundoIcone="bg-azul-50"
+        mascote={{
+          nome: 'hero',
+          dica: 'Todo edital tem uma versão explicada por mim — é só abrir!',
+        }}
       >
         {/* Dica da IFizinha (fundo claro, como no resto do portal) */}
         <div className="mt-6 flex max-w-2xl items-start gap-3 rounded-2xl border border-purple-100 bg-gradient-to-br from-blue-50 to-purple-50 p-4">
@@ -66,7 +70,7 @@ export default async function EditaisPage() {
 
       {/* Alertas urgentes */}
       {editaisAtivos.some((e) => e.dataEncerramento && getDaysUntil(e.dataEncerramento) <= 7) && (
-        <div className="bg-orange-50 border-b border-orange-100">
+        <div className="relative z-10 bg-orange-50 border-b border-orange-100">
           <div className="container mx-auto px-4 max-w-7xl py-3">
             <div className="flex items-center gap-2 text-orange-700">
               <AlertCircle className="w-4 h-4 flex-shrink-0" />
@@ -78,10 +82,12 @@ export default async function EditaisPage() {
         </div>
       )}
 
-      {/* Conteúdo principal */}
-      <div className="container mx-auto px-4 max-w-7xl py-10">
-        {/* Resultado count */}
-        <p className="text-sm text-gray-500 mb-6">
+      {/* Conteúdo principal — fundo próprio e `z-10` para cobrir a sobra da
+          mascote do cabeçalho (é o que faz ela terminar exatamente na divisão) */}
+      <div className="relative z-10 bg-gray-50">
+        <div className="container mx-auto px-4 max-w-7xl py-10">
+          {/* Resultado count */}
+          <p className="text-sm text-gray-500 mb-6">
           Mostrando <strong className="text-gray-900">{editais.length}</strong> editais
         </p>
 
@@ -106,7 +112,7 @@ export default async function EditaisPage() {
                   href={`/editais/${edital.slug}`}
                   className="block group"
                 >
-                  <div className={`bg-white rounded-2xl border p-6 transition-all duration-200 hover:shadow-lg hover:-translate-y-0.5 ${
+                  <div className={`bg-white rounded-2xl border p-6 shadow-[0_1px_2px_rgba(15,23,42,0.04)] transition-all duration-200 hover:shadow-card-hover hover:-translate-y-1 ${
                     isUrgent ? 'border-orange-200 ring-1 ring-orange-100' :
                     isExpired ? 'border-gray-100 opacity-70' :
                     'border-gray-100 hover:border-azul-eletrico/30'
@@ -179,6 +185,7 @@ export default async function EditaisPage() {
             })}
           </div>
         )}
+        </div>
       </div>
     </div>
   );

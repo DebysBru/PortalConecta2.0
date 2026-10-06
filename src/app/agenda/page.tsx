@@ -91,6 +91,10 @@ export default async function AgendaPage() {
         cor="text-rosa-600"
         icone={<Calendar className="h-7 w-7 text-rosa-600" />}
         fundoIcone="bg-rosa-50"
+        mascote={{
+          nome: 'relogio',
+          dica: 'Filtre pelo que te interessa e eu te aviso das datas!',
+        }}
       >
         <div className="mt-6 flex flex-wrap gap-3 text-sm text-gray-500">
           <span className="inline-flex items-center gap-2 rounded-xl border border-gray-100 bg-gray-50 px-3 py-2">
@@ -107,7 +111,10 @@ export default async function AgendaPage() {
         </div>
       </PageHero>
 
-      <div className="container mx-auto max-w-5xl space-y-8 px-4 py-10">
+      {/* Conteúdo — fundo próprio e `z-10` para cobrir a sobra da mascote do
+          cabeçalho (é o que faz ela terminar exatamente na divisão) */}
+      <div className="relative z-10 bg-gray-50">
+        <div className="container mx-auto max-w-5xl space-y-8 px-4 py-10">
         {/* O que vence logo: fica no topo, com link para o evento */}
         {urgentes.length > 0 && (
           <div className="rounded-2xl border border-orange-100 bg-orange-50 p-5">
@@ -148,6 +155,7 @@ export default async function AgendaPage() {
             Ver os projetos do campus
             <ArrowRight className="h-4 w-4" />
           </Link>
+        </div>
         </div>
       </div>
     </div>
