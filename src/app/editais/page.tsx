@@ -5,6 +5,7 @@ import { formatDateShort, getDaysUntil, getStatusLabel, getStatusColor, getCateg
 import { prisma } from '@/lib/prisma';
 import { EDITAL_PUBLICO_WHERE } from '@/lib/editais-publicos';
 import { withCache } from '@/lib/cache';
+import { PageHero } from '@/components/layout/PageHero';
 import type { Metadata } from 'next';
 
 export const dynamic = 'force-dynamic';
@@ -42,40 +43,26 @@ export default async function EditaisPage() {
 
   return (
     <div className="min-h-screen">
-      {/* Hero */}
-      <div className="bg-hero-gradient pt-24 pb-16">
-        <div className="container mx-auto px-4 max-w-7xl">
-          <div className="flex items-center gap-2 text-white/70 text-sm mb-4">
-            <Link href="/" className="hover:text-white transition-colors">Início</Link>
-            <ChevronRight className="w-4 h-4" />
-            <span className="text-white">Editais</span>
-          </div>
-          <div className="flex items-start gap-4">
-            <div className="w-14 h-14 bg-white/15 rounded-2xl flex items-center justify-center border border-white/30 flex-shrink-0">
-              <BookOpen className="w-7 h-7 text-white" />
-            </div>
-            <div>
-              <h1 className="text-3xl md:text-4xl font-black text-white mb-2">Editais & Oportunidades</h1>
-              <p className="text-white/80 text-lg max-w-2xl">
-                Todos os editais do IFPR Ivaiporã traduzidos pela IFizinha.
-                Linguagem simples, estrutura clara — você entende tudo.
-              </p>
-            </div>
-          </div>
-
-          {/* IFizinha tip */}
-          <div className="mt-8 bg-white/15 backdrop-blur-sm rounded-2xl p-4 border border-white/20 max-w-2xl flex items-start gap-3">
-            <span className="text-2xl flex-shrink-0">✨</span>
-            <div>
-              <p className="text-white font-semibold text-sm mb-0.5">Dica da IFizinha</p>
-              <p className="text-white/80 text-sm">
-                Cada edital tem duas abas: a versão simplificada que preparei com carinho,
-                e o edital original completo. Sempre confirme os detalhes no documento oficial, tá?
-              </p>
-            </div>
+      <PageHero
+        trilha={[{ href: '/', label: 'Início' }, { label: 'Editais' }]}
+        etiqueta="Oportunidades"
+        titulo="Editais & Oportunidades"
+        descricao="Todos os editais do IFPR Ivaiporã traduzidos pela IFizinha. Linguagem simples, estrutura clara — você entende tudo."
+        icone={<BookOpen className="h-7 w-7 text-azul-eletrico" />}
+        fundoIcone="bg-azul-50"
+      >
+        {/* Dica da IFizinha (fundo claro, como no resto do portal) */}
+        <div className="mt-6 flex max-w-2xl items-start gap-3 rounded-2xl border border-purple-100 bg-gradient-to-br from-blue-50 to-purple-50 p-4">
+          <Sparkles className="mt-0.5 h-5 w-5 flex-shrink-0 text-roxo-luminoso" />
+          <div>
+            <p className="mb-0.5 text-sm font-semibold text-gray-900">Dica da IFizinha</p>
+            <p className="text-sm leading-relaxed text-gray-600">
+              Cada edital tem duas abas: a versão simplificada que preparei com carinho, e o edital
+              original completo. Sempre confirme os detalhes no documento oficial, tá?
+            </p>
           </div>
         </div>
-      </div>
+      </PageHero>
 
       {/* Alertas urgentes */}
       {editaisAtivos.some((e) => e.dataEncerramento && getDaysUntil(e.dataEncerramento) <= 7) && (

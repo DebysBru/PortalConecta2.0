@@ -8,6 +8,7 @@ import {
   ThumbsUp, ThumbsDown, Ban, CalendarDays,
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
+import { PageHero } from '@/components/layout/PageHero';
 import { getMinhasInscricoes, exportMinhasInscricoesCSV, solicitarExclusaoDados } from '@/actions/meus-dados';
 import { getMeuPerfilAluno, updateMeuPerfilAluno, type PerfilAlunoFormData } from '@/actions/perfil';
 import { desistirDaInscricao, responderConvocacao } from '@/actions/minhas-inscricoes';
@@ -306,18 +307,14 @@ export default function MeusDadosPage() {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* Header */}
-      <div className="bg-hero-gradient pt-24 pb-8">
-        <div className="container mx-auto px-4 max-w-3xl">
-          <div className="flex items-center gap-2 text-white/70 text-sm mb-4">
-            <Link href="/" className="hover:text-white transition-colors">Início</Link>
-            <ChevronRight className="w-4 h-4" />
-            <span className="text-white">Meus Dados</span>
-          </div>
-          <h1 className="text-2xl font-black text-white mb-1">Meus Dados</h1>
-          <p className="text-white/80 text-sm">Visualize e gerencie suas inscrições no Portal Conecta</p>
-        </div>
-      </div>
+      <PageHero
+        trilha={[{ href: '/', label: 'Início' }, { label: 'Meus Dados' }]}
+        etiqueta="Minha área"
+        titulo="Meus Dados"
+        descricao="Visualize e gerencie suas inscrições no Portal Conecta"
+        icone={<User className="h-7 w-7 text-azul-eletrico" />}
+        fundoIcone="bg-azul-50"
+      />
 
       <div className="container mx-auto px-4 max-w-3xl py-8 space-y-6">
         {/* Info do usuário */}

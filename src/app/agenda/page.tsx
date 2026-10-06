@@ -1,4 +1,5 @@
-import React from 'react';
+
+import { PageHero } from '@/components/layout/PageHero';import React from 'react';
 import Link from 'next/link';
 import { Calendar, Clock, ChevronRight, AlertCircle, MapPin, ExternalLink, Sparkles, Download } from 'lucide-react';
 import { formatDate, getDaysUntil } from '@/lib/utils';
@@ -97,48 +98,38 @@ export default async function AgendaPage() {
 
   return (
     <div className="min-h-screen">
-      {/* Hero */}
-      <div className="bg-hero-gradient pt-24 pb-16">
-        <div className="container mx-auto px-4 max-w-5xl">
-          <div className="flex items-center gap-2 text-white/70 text-sm mb-4">
-            <Link href="/" className="hover:text-white transition-colors">Início</Link>
-            <ChevronRight className="w-4 h-4" />
-            <span className="text-white">Agenda</span>
+      <PageHero
+        trilha={[{ href: '/', label: 'Início' }, { label: 'Agenda' }]}
+        etiqueta="Datas importantes"
+        titulo="Agenda Escolar"
+        descricao="Prazos de editais, eventos do campus e atividades dos projetos de extensão. Nunca mais perca uma data importante!"
+        cor="text-rosa-600"
+        icone={<Calendar className="h-7 w-7 text-rosa-600" />}
+        fundoIcone="bg-rosa-50"
+      >
+        {/* Legenda + exportação (.ics), em versão clara */}
+        <div className="mt-6 flex flex-wrap items-center gap-4">
+          <div className="flex flex-wrap gap-2">
+            {Object.entries(tipoConfig).map(([key, cfg]) => (
+              <div
+                key={key}
+                className="flex items-center gap-2 rounded-full border border-gray-100 bg-gray-50 px-3 py-1.5 text-sm text-gray-600"
+              >
+                <span className={`h-2 w-2 rounded-full ${cfg.dot}`} aria-hidden />
+                {cfg.label}
+              </div>
+            ))}
           </div>
-          <div className="flex items-start gap-4">
-            <div className="w-14 h-14 bg-white/15 rounded-2xl flex items-center justify-center border border-white/30 flex-shrink-0">
-              <Calendar className="w-7 h-7 text-white" />
-            </div>
-            <div>
-              <h1 className="text-3xl md:text-4xl font-black text-white mb-2">Agenda Escolar</h1>
-              <p className="text-white/80 text-lg max-w-2xl">
-                Prazos de editais, eventos do campus e atividades dos projetos de extensão.
-                Nunca mais perca uma data importante!
-              </p>
-            </div>
-          </div>
-
-          {/* Legenda + Export */}
-          <div className="mt-6 flex flex-wrap items-center justify-between gap-4">
-            <div className="flex flex-wrap gap-3">
-              {Object.entries(tipoConfig).map(([key, cfg]) => (
-                <div key={key} className="flex items-center gap-2 bg-white/15 rounded-full px-3 py-1.5 text-sm text-white">
-                  <div className={`w-2 h-2 rounded-full ${cfg.dot}`} />
-                  {cfg.label}
-                </div>
-              ))}
-            </div>
-            <a
-              href="/api/events/ics"
-              download
-              className="flex items-center gap-2 bg-white/15 backdrop-blur-sm text-white font-semibold px-4 py-2 rounded-xl hover:bg-white/25 transition-all border border-white/20 text-sm"
-            >
-              <Download className="w-4 h-4" />
-              Exportar .ics
-            </a>
-          </div>
+          <a
+            href="/api/events/ics"
+            download
+            className="flex items-center gap-2 rounded-xl border border-gray-200 px-4 py-2 text-sm font-semibold text-gray-700 transition-colors hover:border-gray-300 hover:bg-gray-50"
+          >
+            <Download className="h-4 w-4" />
+            Exportar .ics
+          </a>
         </div>
-      </div>
+      </PageHero>
 
       <div className="container mx-auto px-4 max-w-5xl py-8">
         {/* Alertas urgentes */}

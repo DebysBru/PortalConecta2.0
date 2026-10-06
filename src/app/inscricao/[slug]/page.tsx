@@ -4,8 +4,9 @@ import React, { useState, useTransition } from 'react';
 import Link from 'next/link';
 import {
   ChevronRight, CheckCircle, AlertCircle, ArrowLeft,
-  Loader2, FileText, Clock, ClipboardCheck,
+  Loader2, FileText, Clock, ClipboardCheck, ClipboardList,
 } from 'lucide-react';
+import { PageHero } from '@/components/layout/PageHero';
 import { criarInscricao } from '@/actions/inscricao';
 import { getDadosAcademicosInscricao } from '@/actions/perfil';
 import { formatDate } from '@/lib/utils';
@@ -268,22 +269,18 @@ export default function InscricaoPage({ params }: { params: { slug: string } }) 
 
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* Header */}
-      <div className="bg-hero-gradient pt-24 pb-8">
-        <div className="container mx-auto px-4 max-w-2xl">
-          <div className="flex items-center gap-2 text-white/70 text-sm mb-4">
-            <Link href="/" className="hover:text-white transition-colors">Início</Link>
-            <ChevronRight className="w-4 h-4" />
-            <Link href="/projetos" className="hover:text-white transition-colors">Projetos</Link>
-            <ChevronRight className="w-4 h-4" />
-            <span className="text-white">Inscrição</span>
-          </div>
-          <h1 className="text-2xl font-black text-white mb-1">Inscreva-se</h1>
-          <p className="text-white/80 text-sm">
-            Projeto: <strong>{projeto?.nome}</strong>
-          </p>
-        </div>
-      </div>
+      <PageHero
+        trilha={[
+          { href: '/', label: 'Início' },
+          { href: '/projetos', label: 'Projetos' },
+          { label: 'Inscrição' },
+        ]}
+        etiqueta="Inscrição"
+        titulo="Inscreva-se"
+        descricao={projeto?.nome ? `Projeto: ${projeto.nome}` : undefined}
+        icone={<ClipboardList className="h-7 w-7 text-azul-eletrico" />}
+        fundoIcone="bg-azul-50"
+      />
 
       {/* Info do projeto */}
       <div className="container mx-auto px-4 max-w-2xl py-6">
