@@ -2,6 +2,7 @@
 
 import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
+import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import {
   Mail, Lock, User, AlertCircle, Loader2, CheckCircle, Sparkles,
@@ -47,8 +48,8 @@ export default function CadastroPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-hero-gradient flex items-center justify-center">
-        <Sparkles className="w-8 h-8 text-dourado-500 animate-sparkle" />
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <Sparkles className="w-8 h-8 text-azul-eletrico animate-sparkle" />
       </div>
     );
   }
@@ -110,22 +111,29 @@ export default function CadastroPage() {
     }
   };
 
+  // `pt-24` porque o Header é `fixed` (o PublicWrapper monta Header/Footer em
+  // qualquer rota que não seja /admin) — sem isso o cartão fica embaixo do menu.
   return (
-    <div className="min-h-screen bg-hero-gradient flex items-center justify-center p-4">
+    <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4 pt-24">
       <div className="w-full max-w-sm">
         <div className="text-center mb-8">
-          <Link href="/" className="inline-block">
-            <div className="w-16 h-16 bg-dourado-500 rounded-2xl flex items-center justify-center text-3xl mx-auto mb-4 shadow-glow-dourado">
-              ✨
-            </div>
+          <Link href="/" className="inline-block" aria-label="Portal Conecta — página inicial">
+            <Image
+              src="/ifizinha/logo-completo.webp"
+              alt="Portal Conecta — IFPR Campus Ivaiporã"
+              width={1400}
+              height={467}
+              unoptimized
+              className="mx-auto mb-4 h-10 w-auto"
+            />
           </Link>
-          <h1 className="text-2xl font-black text-white">Criar Conta</h1>
-          <p className="text-white/65 text-sm mt-1">Portal Conecta IFPR</p>
+          <h1 className="text-2xl font-black text-gray-900">Criar Conta</h1>
+          <p className="text-gray-500 text-sm mt-1">Portal Conecta IFPR</p>
         </div>
 
-        <div className="bg-white/10 backdrop-blur-md rounded-3xl p-6 border border-white/20 shadow-2xl">
+        <div className="bg-white rounded-3xl p-6 border border-gray-100 shadow-xl">
           {success && (
-            <div className="flex items-start gap-2 bg-green-500/20 border border-green-400/30 rounded-xl p-3 text-green-200 text-xs mb-4">
+            <div className="flex items-start gap-2 bg-green-50 border border-green-200 rounded-xl p-3 text-green-700 text-xs mb-4">
               <CheckCircle className="w-4 h-4 flex-shrink-0 mt-0.5" />
               {success}
             </div>
@@ -133,61 +141,61 @@ export default function CadastroPage() {
 
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
-              <label className="block text-white/80 text-xs font-medium mb-1.5">Nome completo</label>
+              <label className="label-field">Nome completo</label>
               <div className="relative">
-                <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-white/40" />
+                <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
                 <input
                   type="text"
                   value={name}
                   onChange={(e) => setName(e.target.value)}
                   required
                   placeholder="Seu nome"
-                  className="w-full bg-white/10 border border-white/20 text-white placeholder-white/30 rounded-xl pl-9 pr-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-dourado-500/50 focus:border-dourado-500/50"
+                  className="input-field !pl-9"
                 />
               </div>
             </div>
 
             <div>
-              <label className="block text-white/80 text-xs font-medium mb-1.5">E-mail</label>
+              <label className="label-field">E-mail</label>
               <div className="relative">
-                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-white/40" />
+                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
                 <input
                   type="email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   required
                   placeholder="seu@email.com"
-                  className="w-full bg-white/10 border border-white/20 text-white placeholder-white/30 rounded-xl pl-9 pr-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-dourado-500/50 focus:border-dourado-500/50"
+                  className="input-field !pl-9"
                 />
               </div>
             </div>
 
             <div>
-              <label className="block text-white/80 text-xs font-medium mb-1.5">Senha</label>
+              <label className="label-field">Senha</label>
               <div className="relative">
-                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-white/40" />
+                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
                 <input
                   type="password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   required
                   placeholder="Mínimo 6 caracteres"
-                  className="w-full bg-white/10 border border-white/20 text-white placeholder-white/30 rounded-xl pl-9 pr-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-dourado-500/50 focus:border-dourado-500/50"
+                  className="input-field !pl-9"
                 />
               </div>
             </div>
 
             <div>
-              <label className="block text-white/80 text-xs font-medium mb-1.5">Confirmar senha</label>
+              <label className="label-field">Confirmar senha</label>
               <div className="relative">
-                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-white/40" />
+                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
                 <input
                   type="password"
                   value={confirmPassword}
                   onChange={(e) => setConfirmPassword(e.target.value)}
                   required
                   placeholder="Repita a senha"
-                  className="w-full bg-white/10 border border-white/20 text-white placeholder-white/30 rounded-xl pl-9 pr-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-dourado-500/50 focus:border-dourado-500/50"
+                  className="input-field !pl-9"
                 />
               </div>
             </div>
@@ -195,7 +203,7 @@ export default function CadastroPage() {
             <TurnstileWidget onVerify={setCaptchaToken} />
 
             {error && (
-              <div className="flex items-start gap-2 bg-red-500/20 border border-red-400/30 rounded-xl p-3 text-red-200 text-xs">
+              <div className="flex items-start gap-2 bg-red-50 border border-red-200 rounded-xl p-3 text-red-700 text-xs">
                 <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5" />
                 {error}
               </div>
@@ -204,16 +212,16 @@ export default function CadastroPage() {
             <button
               type="submit"
               disabled={submitting}
-              className="w-full flex items-center justify-center gap-2 bg-dourado-500 hover:bg-dourado-400 text-gray-900 font-bold py-3 rounded-xl transition-all shadow-glow-dourado disabled:opacity-60 text-sm"
+              className="w-full flex items-center justify-center gap-2 bg-hero-gradient hover:opacity-90 text-white font-bold py-3 rounded-xl transition-all shadow-card-brand disabled:opacity-60 text-sm"
             >
               {submitting ? <><Loader2 className="w-4 h-4 animate-spin" /> Criando...</> : 'Criar Conta'}
             </button>
           </form>
         </div>
 
-        <p className="text-white/50 text-xs text-center mt-6">
+        <p className="text-gray-500 text-xs text-center mt-6">
           Já tem conta?{' '}
-          <Link href="/admin/login" className="text-dourado-400 hover:text-dourado-300 font-semibold">
+          <Link href="/admin/login" className="text-azul-eletrico hover:text-azul-700 font-semibold">
             Entrar
           </Link>
         </p>
