@@ -21,7 +21,7 @@ import { useMensagemErro } from '@/lib/use-mensagem-erro';
  * esbarra no CAPTCHA, mas do navegador logado a API responde. O usuário roda o
  * script de captura, cola o JSON aqui e confere a prévia antes de gravar.
  */
-export function ImportarSuapClient({ codigoCaptura }: { codigoCaptura: string }) {
+export function ImportarSuapClient({ codigoCaptura, siglaCampus }: { codigoCaptura: string; siglaCampus: string }) {
   const { user, userRole, isMasterAdmin } = useAuth();
   const [error, setError] = useMensagemErro();
 
@@ -166,9 +166,20 @@ export function ImportarSuapClient({ codigoCaptura }: { codigoCaptura: string })
             entre com a sua conta normalmente.
           </li>
           <li><strong>2.</strong> Abra o Console do navegador: <code className="rounded bg-gray-100 px-1">F12</code> → aba <strong>Console</strong>.</li>
-          <li><strong>3.</strong> Cole o código (botão acima) e aperte <strong>Enter</strong>. Ele busca as páginas de extensão e pesquisa usando a sua própria sessão — <strong>nenhum token é necessário</strong>.</li>
+          <li>
+            <strong>3.</strong> Cole o código (botão acima) e aperte <strong>Enter</strong>. Ele busca as páginas de
+            extensão e pesquisa usando a sua própria sessão — <strong>nenhum token é necessário</strong> — e{' '}
+            <strong>já traz só os projetos do campus {siglaCampus}</strong> (por isso o arquivo sai pequeno). Se a
+            API aceitar filtrar por campus, ele aproveita; se não aceitar, ele percorre as páginas e filtra aqui.
+          </li>
           <li><strong>4.</strong> Ao terminar, o JSON já está na área de transferência (se o navegador bloquear, ele baixa o arquivo). Volte aqui e cole no passo 2.</li>
         </ol>
+
+        <p className="mb-4 rounded-xl border border-gray-100 bg-gray-50 p-3 text-xs text-gray-600">
+          Precisa capturar <strong>outro campus</strong>? Rode antes no Console:{' '}
+          <code className="rounded bg-white px-1">{`window.__portalConectaCampus = 'SIGLA'`}</code> e depois o script.
+          Se nenhum projeto do campus aparecer, o próprio script lista as siglas que encontrou no SUAP.
+        </p>
 
         <details className="rounded-xl border border-gray-100 bg-gray-50 p-4">
           <summary className="cursor-pointer text-sm font-semibold text-gray-700">

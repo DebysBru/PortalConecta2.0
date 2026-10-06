@@ -67,6 +67,33 @@ feita lá — **sem token nenhum**:
 4. o JSON fica na área de transferência (se o navegador bloquear, ele baixa um
    `.json`).
 
+### O script já traz só o campus (IVAIPODG)
+
+A lista do SUAP **não é filtrada por campus** pela API (o parâmetro documentado é
+só `page`), então o script resolve isso por conta própria, em duas etapas:
+
+1. ele **testa** se a API aceita `campus_sigla=IVAIPODG` (o total devolvido cai e a
+   página vem só com o campus). Se aceitar, usa o filtro do servidor;
+2. se a API ignorar o filtro, ele percorre as páginas e **filtra no navegador**.
+
+Nos dois casos o JSON final tem **somente** os projetos do campus configurado. Medido
+com a API simulada (2.500 projetos por fonte, 10% do campus):
+
+| Cenário | Projetos no arquivo | Requisições | Tamanho |
+|---|---|---|---|
+| API aceita o filtro de campus | 250 extensão + 250 pesquisa | 10 | 42 KB |
+| API ignora o filtro (filtra no navegador) | 250 + 250 | 52 | 43 KB |
+| Paginação de 20 em 20 | 30 + 30 | 32 | 5 KB |
+
+Para capturar outro campus sem editar o arquivo, rode antes no Console:
+
+```js
+window.__portalConectaCampus = 'SIGLA'
+```
+
+Se nenhum projeto do campus aparecer, o script avisa e **lista as siglas que
+encontrou** no SUAP (em vez de devolver um arquivo vazio sem explicação).
+
 Depois, no portal: **Painel → SUAP → "Importar do SUAP"** → cole (ou envie o
 arquivo) → **conferir a captura** (prévia com totais por fonte, situação e campus,
 mais os itens com problema) → **Importar**.

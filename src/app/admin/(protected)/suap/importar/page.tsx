@@ -1,4 +1,4 @@
-﻿import React from 'react';
+import React from 'react';
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { ImportarSuapClient } from './ImportarSuapClient';
@@ -26,5 +26,10 @@ export default async function ImportarSuapPage() {
     // Sem o arquivo a tela continua útil (dá para colar o JSON na mão).
   }
 
-  return <ImportarSuapClient codigoCaptura={codigoCaptura} />;
+  return (
+    <ImportarSuapClient
+      codigoCaptura={codigoCaptura}
+      siglaCampus={process.env.SUAP_CAMPUS_SIGLA ?? 'IVAIPODG'}
+    />
+  );
 }
