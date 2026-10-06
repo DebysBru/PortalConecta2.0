@@ -146,18 +146,23 @@ export async function ProjetosGrid() {
   const demais = projetos.filter((p) => !p.destaque).slice(0, 2);
 
   return (
-    <section className="relative overflow-hidden bg-white py-16">
+    <section className="relative z-10 overflow-x-clip bg-gray-100 py-16">
       <div className="container relative mx-auto px-4 max-w-7xl">
 
-        {/* Mascote apresentando, saindo da borda esquerda */}
+        {/* Mascote apresentando: do lado esquerdo ela gesticula para a direita,
+            ou seja, para os cards. O recuo do conteúdo (xl:pl-[210px]) considera
+            a mão dela, que chega a ~99% da largura da imagem — com 170px ela
+            encostava no primeiro card. O `-mb-12` atravessa a divisão e a seção
+            seguinte (branca, z-10) cobre a sobra: ela termina exatamente na
+            divisão, sem corte aparente. */}
         <div className="pointer-events-none absolute bottom-0 left-0 hidden w-[230px] xl:block">
-          <div className="-ml-12 -mb-12">
+          <div className="-ml-12 -mb-24">
             <MascoteIFizinha nome="apresentando" />
           </div>
         </div>
 
         {/* Section header */}
-        <div className="mb-10 flex items-end justify-between gap-6 xl:pl-[170px]">
+        <div className="mb-10 flex items-end justify-between gap-6 xl:pl-[210px]">
           <div>
             <div className="mb-2 flex items-center gap-2">
               <div className="h-6 w-1 rounded-full bg-hero-gradient" />
@@ -183,7 +188,7 @@ export async function ProjetosGrid() {
 
         {/* ── Row 1: 3 featured cards with gradient header ── */}
         {destaques.length > 0 && (
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-5 mb-5 xl:pl-[170px]">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-5 mb-5 xl:pl-[210px]">
             {destaques.map((p) => (
               <DestaqueCard key={p.slug} projeto={p} />
             ))}
@@ -192,7 +197,7 @@ export async function ProjetosGrid() {
 
         {/* ── Row 2: 2 compact cards ── */}
         {demais.length > 0 && (
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-5 mb-8 xl:pl-[170px]">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-5 mb-8 xl:pl-[210px]">
             {demais.map((p) => (
               <CompactCard key={p.slug} projeto={p} />
             ))}
@@ -200,7 +205,7 @@ export async function ProjetosGrid() {
         )}
 
         {/* Stats bar + CTA */}
-        <div className="bg-gradient-to-r from-azul-eletrico/5 via-roxo-luminoso/5 to-rosa-vibrante/5 rounded-2xl p-5 border border-gray-100 flex flex-col sm:flex-row items-center justify-between gap-4 xl:ml-[170px]">
+        <div className="bg-gradient-to-r from-azul-eletrico/5 via-roxo-luminoso/5 to-rosa-vibrante/5 rounded-2xl p-5 border border-gray-100 flex flex-col sm:flex-row items-center justify-between gap-4 xl:ml-[210px]">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 bg-hero-gradient rounded-xl flex items-center justify-center flex-shrink-0">
               <Sparkles className="w-5 h-5 text-white" />

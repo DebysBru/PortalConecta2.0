@@ -42,7 +42,7 @@ export function HeroIFizinha({ config = {} }: HeroIFizinhaProps) {
   const ctaProjetos = config.hero_cta_projetos || 'Explorar projetos';
 
   return (
-    <section className="relative overflow-hidden bg-white">
+    <section className="relative overflow-x-clip bg-white">
       {/* Foto do campus (lg+): fica atrás da mascote, com véu branco da esquerda
           para a direita, senão o texto perde contraste. */}
       <div className="absolute inset-y-0 right-0 hidden w-[64%] lg:block" aria-hidden>
@@ -122,7 +122,11 @@ export function HeroIFizinha({ config = {} }: HeroIFizinhaProps) {
               Conectando você com o que importa!
             </div>
 
-            <div className="w-[240px] sm:w-[300px] lg:w-[400px] xl:w-[440px] lg:-mr-8">
+            {/* `-mb-8`: a imagem atravessa a divisão e a faixa cinza da seção
+                seguinte (que tem z-10) cobre a sobra — assim ela termina
+                exatamente na divisão, em vez de aparecer cortada na altura da
+                cintura dentro do branco. */}
+            <div className="w-[240px] -mb-8 sm:w-[300px] lg:w-[400px] xl:w-[440px] lg:-mr-8">
               <MascoteIFizinha
                 nome="hero"
                 prioridade

@@ -125,9 +125,9 @@ export default async function HomePage() {
       <HeroIFizinha config={siteConfig} />
 
       {/* === O QUE VOCÊ PROCURA? === */}
-      {/* Faixa cinza de propósito: a seção seguinte (editais) é branca, porque a
-          mascote dela tem fundo #FEFEFE — é o que dá o ritmo de bandas. */}
-      <section className="relative overflow-hidden bg-[#F7F7F7] py-16">
+      {/* Faixa cinza: além do ritmo de bandas, é ela que cobre a sobra da mascote
+          da capa (ver a regra de ancoragem em MascoteIFizinha). */}
+      <section className="relative z-10 overflow-hidden bg-gray-100 py-16">
         <div className="container relative mx-auto max-w-7xl px-4">
           {/* Mascote apontando para os cards: fica ao lado do título e a grade
               ganha recuo à esquerda para ela não cobrir o primeiro card. */}
@@ -185,20 +185,24 @@ export default async function HomePage() {
       </section>
 
       {/* === EDITAIS EM DESTAQUE === */}
-      <section className="relative overflow-hidden bg-white py-16">
+      <section className="relative overflow-x-clip bg-white py-16">
         <div className="container relative mx-auto max-w-7xl px-4">
-          {/* Mascote à direita: é a pose da prancheta com joinha, cujo gesto fica
-              do lado ESQUERDO da imagem — apontando para os cards. A pose
-              "apresentando" (que estava aqui) gesticula para a direita, então
-              neste canto ela apontava para fora da tela. Fundo branco porque o
-              fundo do arquivo dela é #FEFEFE. */}
-          <div className="pointer-events-none absolute bottom-0 right-0 hidden w-[230px] xl:block">
-            <div className="-mr-8 -mb-8">
+          {/* Mascote à ESQUERDA: é a pose da prancheta com joinha. Ela fica de
+              perfil olhando para a direita, então do lado esquerdo ela olha (e
+              aponta o joinha) para os cards — do lado direito ela olhava para
+              fora da tela. Fundo branco porque o fundo do arquivo é #FEFEFE.
+              `-mb-24` deixa a imagem atravessar a divisão: a faixa cinza da
+              seção seguinte (que tem z-10) cobre a sobra, então ela sempre
+              termina exatamente na divisão, sem parecer cortada. O valor conta
+              com o `py-16` da seção, porque o `bottom-0` é relativo ao container
+              — que termina 64px antes do fim da seção. */}
+          <div className="pointer-events-none absolute bottom-0 left-0 hidden w-[230px] xl:block">
+            <div className="-ml-12 -mb-24">
               <MascoteIFizinha nome="editais" />
             </div>
           </div>
 
-          <div className="mb-10 flex items-end justify-between gap-6 xl:pr-[200px]">
+          <div className="mb-10 flex items-end justify-between gap-6 xl:pl-[210px]">
             <div>
               <div className="mb-2 flex items-center gap-2">
                 <div className="h-6 w-1 rounded-full bg-hero-gradient" />
@@ -222,7 +226,7 @@ export default async function HomePage() {
             </Link>
           </div>
 
-          <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
+          <div className="grid grid-cols-1 gap-6 md:grid-cols-3 xl:pl-[210px]">
             {editaisDestaque.map((edital) => {
               const daysLeft = edital.dataEncerramento ? getDaysUntil(edital.dataEncerramento) : null;
               const isUrgent = daysLeft !== null && daysLeft <= 7 && daysLeft > 0;
@@ -296,13 +300,14 @@ export default async function HomePage() {
       <ProjetosGrid />
 
       {/* === PRÓXIMOS EVENTOS === */}
-      <section className="relative overflow-hidden bg-[#F7F7F7] py-16">
+      <section className="relative z-10 overflow-x-clip bg-white py-16">
         <div className="container relative mx-auto max-w-7xl px-4">
-          {/* Mascote apontando para o relógio — combina com prazos (mesmo fundo
-              #F7F7F7 do arquivo, então ela encaixa sem emenda) */}
-          <div className="pointer-events-none absolute bottom-0 right-0 hidden w-[220px] xl:block">
-            <div className="-mr-6 -mb-6">
-              <MascoteIFizinha nome="prazos" />
+          {/* Mascote à direita: a pose "relogio" aponta o relógio e olha para a
+              esquerda (para o conteúdo). A seção seguinte (faixa cinza) cobre a
+              sobra do `-mb-10`, então ela termina na divisão. */}
+          <div className="pointer-events-none absolute bottom-0 right-0 hidden w-[210px] xl:block">
+            <div className="-mr-6 -mb-24">
+              <MascoteIFizinha nome="relogio" />
             </div>
           </div>
 
