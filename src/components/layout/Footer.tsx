@@ -59,10 +59,13 @@ export function Footer() {
       {/* Mascote decorativa (telas largas): ancorada no canto — o fundo da imagem
           encosta no fim do rodapé, então ela parece "sair" de dentro dele, em vez
           de flutuar solta no meio do espaço vazio. A barra final ganha respiro à
-          direita para o texto não passar por baixo dela. */}
+          direita para o texto não passar por baixo dela.
+          Pose: a do tablet ("hero"), que é **neutra** (segura o tablet com as
+          duas mãos). As poses de "apresentar" gesticulam para a direita da
+          imagem — neste canto elas apontariam para fora da tela. */}
       <div className="pointer-events-none absolute bottom-0 right-0 hidden w-48 select-none xl:block 2xl:w-56" aria-hidden>
         <div className="-mr-4">
-          <MascoteIFizinha nome="apresentando" />
+          <MascoteIFizinha nome="hero" />
         </div>
       </div>
       {/* IFizinha CTA */}

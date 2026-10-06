@@ -125,7 +125,9 @@ export default async function HomePage() {
       <HeroIFizinha config={siteConfig} />
 
       {/* === O QUE VOCÊ PROCURA? === */}
-      <section className="relative overflow-hidden bg-white py-16">
+      {/* Faixa cinza de propósito: a seção seguinte (editais) é branca, porque a
+          mascote dela tem fundo #FEFEFE — é o que dá o ritmo de bandas. */}
+      <section className="relative overflow-hidden bg-[#F7F7F7] py-16">
         <div className="container relative mx-auto max-w-7xl px-4">
           {/* Mascote apontando para os cards: fica ao lado do título e a grade
               ganha recuo à esquerda para ela não cobrir o primeiro card. */}
@@ -183,14 +185,16 @@ export default async function HomePage() {
       </section>
 
       {/* === EDITAIS EM DESTAQUE === */}
-      <section className="relative overflow-hidden bg-[#F7F7F7] py-16">
+      <section className="relative overflow-hidden bg-white py-16">
         <div className="container relative mx-auto max-w-7xl px-4">
-          {/* Mascote saindo da borda direita. O fundo aqui é #F7F7F7 de
-              propósito: é exatamente o fundo do arquivo dela (JPEG), então não
-              aparece retângulo nenhum em volta. */}
+          {/* Mascote à direita: é a pose da prancheta com joinha, cujo gesto fica
+              do lado ESQUERDO da imagem — apontando para os cards. A pose
+              "apresentando" (que estava aqui) gesticula para a direita, então
+              neste canto ela apontava para fora da tela. Fundo branco porque o
+              fundo do arquivo dela é #FEFEFE. */}
           <div className="pointer-events-none absolute bottom-0 right-0 hidden w-[230px] xl:block">
             <div className="-mr-8 -mb-8">
-              <MascoteIFizinha nome="projetos" />
+              <MascoteIFizinha nome="editais" />
             </div>
           </div>
 
