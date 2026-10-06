@@ -1350,8 +1350,25 @@ corpo ficam com o **próprio corte alinhado ao fim da seção** (o arquivo termi
 cintura) e cada uma ganhou uma calha — recuo na grade — para não cobrir card
 nenhum; a pose deitada do bloco de chat aparece inteira (cortar a lateral
 deceparia as pernas); e as poses em **JPEG só entram em seções com o mesmo fundo**
-(#F7F7F7), senão aparece o retângulo. No rodapé ela foi reancorada no canto
-(`bottom-0`), deixando de flutuar no vazio.
+(#F7F7F7 ou #FEFEFE), senão aparece o retângulo.
+
+**Regra da direção do gesto** (corrigida depois, a pedido): cada pose gesticula
+para um lado da imagem, então ela só pode ficar no canto **oposto** ao conteúdo —
+do contrário aponta para fora da tela. Mapa medido e usado hoje:
+
+| Pose | Gesticula para | Onde pode ficar |
+|---|---|---|
+| `mascote-apontando` | direita | lado esquerdo ("O que você procura?") |
+| `mascote-apresentando` | direita | lado esquerdo (projetos) |
+| `mascote-relogio` | esquerda | lado direito |
+| `mascote-hero` | neutra (segura o tablet) | qualquer lado (capa e rodapé) |
+| `mascote-chat` | neutra (deitada) | qualquer lado (bloco do chat) |
+| `pose-editais` (prancheta + joinha) | esquerda | lado direito (editais) |
+| `pose-prazos` (aponta o relógio) | esquerda | lado direito (agenda) |
+| `pose-projetos` (duas mãos abertas) | direita | **não usar à direita** — era o que apontava para fora |
+
+No rodapé ela foi reancorada no canto (`bottom-0`) e recebeu a pose neutra, para
+deixar de flutuar no vazio e de apontar para fora.
 
 **Correção de raiz achada no caminho:** `.bg-hero-gradient` (globals.css) usava o
 atalho `background:`, que **reseta `background-clip`** — qualquer elemento que
@@ -1418,7 +1435,7 @@ agenda que aparecem no mockup.
 | **Cadastro quebrava a página (Dec. 25)** | `/cadastro` redireciona em `useEffect` (era `router.replace` durante o render → React error #310 → tela branca ao criar conta); recarga automática quando um chunk do build anterior some; deploy passa a preservar `.next/static` e copiar `public/` | **no ar** (05/10, BUILD_ID `887zxvLK3wAiaOVHIqLIf`) | `public/` agora versionado; favicon e ícones do PWA voltaram a 200; runbook em `deploy/DEPLOY_BLUE_GREEN.md` |
 | **E-mail e CAPTCHA desligados por opção (Dec. 26)** | Sem `RESEND_API_KEY` o envio devolve `{ ok: false }` sem stack trace no journal (aviso no portal segue); sem Turnstile não há CAPTCHA no cadastro/inscrição | **no ar** (05/10, BUILD_ID `hq8XoWCjwi7QgyUDrTe_X`) | Decisão do responsável; ligar exige preencher as chaves **e** rebuildar (a site key é embutida no build) |
 | **Rodapé institucional + lição de deploy (Dec. 27)** | Endereço completo, mapa (embed sem chave, `loading="lazy"`) e contatos oficiais no rodapé; `@ifpr.ivaipora` (errado) → `@ifpr.campus.ivaipora`; script de troca passa a não assumir que `-old` existe | **no ar** (06/10, BUILD_ID `CaA2WYgwrI0QuGuwzy73p`) | `mv A B` com B existente move A para dentro de B — causou 20 s de queda; agora `/root/troca-portal.sh` na VPS e runbook corrigido |
-| **Redesign com a IFizinha, fases 0 e 1 (Dec. 28)** | Assets de 14,7 MB → 1,9 MB em `public/ifizinha/` (script com Pillow) + componente `MascoteIFizinha`; header claro com o logo oficial e botão "Pergunte à IFizinha"; rodapé azul com a mascote | **no ar** (06/10, BUILD_ID `BQJ44sJ7trRYlP8SEagLg`) | Backup em 3 camadas (tag `pre-redesign-2026-10-06`); nenhum link removido; fase 2 = home |
+| **Redesign com a IFizinha, fases 0 e 1 (Dec. 28)** | Assets de 14,7 MB → 1,9 MB em `public/ifizinha/` (script com Pillow) + componente `MascoteIFizinha`; header claro com o logo oficial e botão "Pergunte à IFizinha"; rodapé azul com a mascote | **no ar** (06/10, BUILD_ID `BQJ44sJ7trRYlP8SEagLg`) | Backup em 3 camadas (tag `pre-redesign-2026-10-06`); nenhum link removido; fase 2 = home |
 | **Redesign — fases 2 e 4: home e metadados (Dec. 29)** | Home com capa clara, 4 atalhos com ícones 3D, seções do mockup, **notícias dos projetos** (posts públicos) e chat embutido; ícones do PWA na marca nova, OG image no compartilhamento, robots/sitemap e ajustes de contraste (WCAG AA) | **no ar** (06/10, BUILD_ID `J6xWG1OV6O3LqbeoY1dmD`) | Mascotes ancoradas nas bordas; `.bg-hero-gradient` deixou de usar o atalho `background` (resetava `background-clip`); produção ainda sem post publicado → seção de notícias no estado vazio; **fase 3 pendente** |
 
 ---
