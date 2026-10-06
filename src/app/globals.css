@@ -57,7 +57,12 @@
   }
 
   .bg-hero-gradient {
-    background: linear-gradient(135deg, #2F52D3 0%, #7B24C7 60%, #E83D89 100%);
+    /* `background-image` (e não o atalho `background`) de propósito: o atalho
+       também reseta `background-clip`/`-webkit-background-clip`, então qualquer
+       elemento que combinasse esta classe com `bg-clip-text` (texto com
+       gradiente) perdia o recorte e virava um retângulo colorido. Para texto com
+       gradiente use a `.text-gradient` abaixo. */
+    background-image: linear-gradient(135deg, #2F52D3 0%, #7B24C7 60%, #E83D89 100%);
   }
 
   .card-hover {

@@ -6,13 +6,19 @@ import { MENSAGENS } from '@/lib/mensagens';
 
 /**
  * Configuração padrão do site
+ *
+ * Os textos da capa foram atualizados junto com o redesign (06/10/2026): a home
+ * é uma capa clara com a IFizinha, então o título passou a ser a chamada curta
+ * do mockup e o subtítulo a segunda linha. Ninguém tinha linha gravada em
+ * `SiteConfig` (nenhuma tela do painel expõe essas chaves), então o padrão é o
+ * que aparece no ar — e, se algum dia alguém gravar, o valor do banco vence.
  */
 const DEFAULT_SITE_CONFIG = {
-  hero_titulo: 'Tudo do IFPR traduzido pra você',
-  hero_subtitulo: 'Editais, projetos, agenda acadêmica — linguagem simples, informação completa',
-  hero_cta_editais: 'Ver Editais Abertos',
-  hero_cta_projetos: 'Explorar Projetos',
-  hero_cta_chat: 'Falar com a IFizinha',
+  hero_titulo: 'Tudo do IFPR.',
+  hero_subtitulo: 'Só que explicado direto.',
+  hero_cta_editais: 'Ver oportunidades',
+  hero_cta_projetos: 'Explorar projetos',
+  hero_cta_chat: 'Pergunte à IFizinha',
   numero_editais_destaque: 3,
   numero_projetos_destaque: 3,
   rodape_texto: '© 2026 IFPR Campus Ivaiporã — Portal Conecta',

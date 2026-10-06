@@ -95,17 +95,6 @@ export function Header() {
 
           {/* CTA + Admin + Mobile Toggle */}
           <div className="flex items-center gap-2">
-            <Link
-              href="/editais"
-              className={cn(
-                'hidden md:flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold transition-all',
-                'bg-hero-gradient text-white shadow hover:opacity-90 hover:shadow-md'
-              )}
-            >
-              <Sparkles className="w-4 h-4" />
-              Ver Editais
-            </Link>
-
             {/* Abre o chat da IFizinha (o widget vive no layout raiz e escuta
                 o evento — ver src/lib/ifizinha-chat.ts). Rótulo só a partir de
                 lg para o header não apertar em telas médias. */}

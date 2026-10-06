@@ -1,24 +1,39 @@
 import React from 'react';
 import Link from 'next/link';
+import Image from 'next/image';
 import {
-  Sparkles, FolderOpen, ChevronRight,
-  Clock, ArrowRight, Users, FileText, Star, Zap, AlertCircle
+  Sparkles, ChevronRight, Clock, ArrowRight, Star, Zap, AlertCircle,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
-  formatDateShort, getDaysUntil, getStatusLabel, getStatusColor, getCategoryColor
+  formatDateShort, getDaysUntil, getStatusLabel, getStatusColor, getCategoryColor,
 } from '@/lib/utils';
 import { HeroIFizinha } from '@/components/sections/HeroIFizinha';
 import { ProjetosGrid } from '@/components/sections/ProjetosGrid';
+import { UltimasDosProjetos } from '@/components/sections/UltimasDosProjetos';
+import { PergunteIFizinha } from '@/components/sections/PergunteIFizinha';
+import { MascoteIFizinha } from '@/components/ifizinha/MascoteIFizinha';
 import { getDashboardStatsAction } from '@/actions/auth';
 import { getAllSiteConfigAction } from '@/actions/site-config';
+import { POST_BUSCA_WHERE } from '@/lib/busca';
 import { db } from '@/lib/prisma';
 
 export const dynamic = 'force-dynamic';
 
+/**
+ * Home do portal — visual do mockup do redesign
+ * (DOCUMENTACAO/REDESIGN_IFIZINHA.md): capa clara com a foto do campus e a
+ * IFizinha, atalhos com os ícones 3D, editais, projetos, agenda, notícias dos
+ * projetos e o bloco "Pergunte pra IFizinha".
+ *
+ * Regra das mascotes: as de meio corpo ficam ancoradas na borda + no fim da
+ * seção (`-mb-*` com `-mr-*`/`-ml-*`), para parecer que saem de dentro da faixa
+ * em vez de flutuarem soltas no meio do vazio. As que têm fundo sólido
+ * (#F7F7F7) só entram em seções com esse mesmo fundo — ver o campo `fundo` em
+ * MascoteIFizinha e a §4.2 de DOCUMENTACAO/REDESIGN_IFIZINHA.md.
+ */
 export default async function HomePage() {
-  // Buscar dados do banco (cache revalidate a cada 5 min)
-  const [stats, siteConfig, editaisDestaque, proximosEventos] = await Promise.all([
+  const [stats, siteConfig, editaisDestaque, proximosEventos, noticias] = await Promise.all([
     getDashboardStatsAction(),
     getAllSiteConfigAction(),
     db.edital.findMany({
@@ -31,19 +46,72 @@ export default async function HomePage() {
       take: 3,
     }),
     db.evento.findMany({
-      where: {
-        data: { gte: new Date() },
-      },
+      where: { data: { gte: new Date() } },
       orderBy: { data: 'asc' },
       take: 4,
     }),
+    // Mesma régua de visibilidade da busca global e da página do post.
+    db.post.findMany({
+      where: POST_BUSCA_WHERE,
+      orderBy: { createdAt: 'desc' },
+      take: 3,
+      select: {
+        id: true,
+        titulo: true,
+        slug: true,
+        resumo: true,
+        createdAt: true,
+        imagemUrl: true,
+        icone: true,
+        projeto: { select: { nome: true, slug: true } },
+      },
+    }),
   ]);
 
-  const statsConfig = [
-    { label: 'Editais Ativos', value: stats.editaisAtivos, icon: FileText, color: 'text-azul-eletrico', bg: 'bg-azul-eletrico/10' },
-    { label: 'Projetos em Execução', value: stats.projetos, icon: FolderOpen, color: 'text-roxo-luminoso', bg: 'bg-roxo-luminoso/10' },
-    { label: 'Usuários', value: stats.usuarios, icon: Users, color: 'text-rosa-vibrante', bg: 'bg-rosa-vibrante/10' },
-    { label: 'Eventos Próximos', value: stats.eventos, icon: Sparkles, color: 'text-ciano-claro', bg: 'bg-ciano-claro/10' },
+  // Atalhos de "O que você procura?": o número vem do banco, mas o responsável
+  // pode fixar um valor pelo painel (stat_editais/stat_projetos) — era o que os
+  // cards de estatística que existiam aqui usavam.
+  const atalhos = [
+    {
+      href: '/editais',
+      titulo: 'Editais e Bolsas',
+      descricao: 'Oportunidades para estudar, pesquisar e fazer mais no IF.',
+      icone: '/ifizinha/icone-editais.webp',
+      fundo: 'bg-azul-50',
+      cor: 'text-azul-eletrico',
+      contagem: siteConfig.stat_editais || String(stats.editaisAtivos),
+      rotulo: stats.editaisAtivos === 1 ? 'edital ativo' : 'editais ativos',
+    },
+    {
+      href: '/agenda',
+      titulo: 'Datas importantes',
+      descricao: 'Não perca prazos, eventos e momentos importantes.',
+      icone: '/ifizinha/icone-agenda.webp',
+      fundo: 'bg-rosa-50',
+      cor: 'text-rosa-vibrante',
+      contagem: String(stats.eventos),
+      rotulo: stats.eventos === 1 ? 'evento próximo' : 'eventos próximos',
+    },
+    {
+      href: '/projetos',
+      titulo: 'Projetos',
+      descricao: 'Conheça os projetos do campus e como participar.',
+      icone: '/ifizinha/icone-projetos.webp',
+      fundo: 'bg-ciano-50',
+      cor: 'text-ciano-claro',
+      contagem: siteConfig.stat_projetos || String(stats.projetos),
+      rotulo: 'projetos',
+    },
+    {
+      href: '/minha-area',
+      titulo: 'Minha área',
+      descricao: 'Favoritos, notificações, inscrições e seus dados.',
+      icone: '/ifizinha/icone-pessoas.webp',
+      fundo: 'bg-roxo-50',
+      cor: 'text-roxo-luminoso',
+      contagem: null,
+      rotulo: null,
+    },
   ];
 
   const tipoEventoConfig: Record<string, { label: string; color: string; icon: React.ReactNode }> = {
@@ -56,100 +124,151 @@ export default async function HomePage() {
     <div className="flex flex-col">
       <HeroIFizinha config={siteConfig} />
 
-      {/* === ESTATÍSTICAS === */}
-      <section className="py-12 bg-white">
-        <div className="container mx-auto px-4 max-w-7xl">
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 md:gap-6">
-            {statsConfig.map((stat) => (
-              <div
-                key={stat.label}
-                className="flex flex-col items-center text-center p-6 rounded-2xl border border-gray-100 hover:border-gray-200 hover:shadow-md transition-all group"
+      {/* === O QUE VOCÊ PROCURA? === */}
+      <section className="relative overflow-hidden bg-white py-16">
+        <div className="container relative mx-auto max-w-7xl px-4">
+          {/* Mascote apontando para os cards: fica ao lado do título e a grade
+              ganha recuo à esquerda para ela não cobrir o primeiro card. */}
+          <div className="pointer-events-none absolute left-0 top-8 hidden w-[200px] xl:block">
+            <div className="-ml-16">
+              <MascoteIFizinha nome="apontando" />
+            </div>
+          </div>
+
+          <div className="mb-10 xl:pl-[190px]">
+            <h2 className="text-3xl font-black text-gray-900 md:text-4xl">
+              O que você <span className="text-azul-eletrico">procura</span>?
+            </h2>
+            <p className="mt-1 text-gray-500">
+              Acesse rapidamente as principais áreas do Portal Conecta.
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 xl:grid-cols-4 xl:pl-[190px]">
+            {atalhos.map((atalho) => (
+              <Link
+                key={atalho.titulo}
+                href={atalho.href}
+                className={`group flex flex-col rounded-3xl border border-gray-100 ${atalho.fundo} p-6 transition-all duration-300 hover:-translate-y-1 hover:border-gray-200 hover:shadow-xl`}
               >
-                <div className={`w-12 h-12 ${stat.bg} rounded-xl flex items-center justify-center mb-3 group-hover:scale-110 transition-transform`}>
-                  <stat.icon className={`w-6 h-6 ${stat.color}`} />
+                <Image
+                  src={atalho.icone}
+                  alt=""
+                  width={192}
+                  height={192}
+                  unoptimized
+                  className="mb-4 h-14 w-14 drop-shadow-sm transition-transform duration-300 group-hover:scale-110"
+                />
+                <h3 className="mb-1.5 text-lg font-bold text-gray-900">{atalho.titulo}</h3>
+                <p className="mb-4 flex-1 text-sm leading-relaxed text-gray-600">{atalho.descricao}</p>
+
+                <div className="flex items-center justify-between">
+                  {atalho.contagem ? (
+                    <span className={`text-xs font-bold ${atalho.cor}`}>
+                      {atalho.contagem} {atalho.rotulo}
+                    </span>
+                  ) : (
+                    <span />
+                  )}
+                  <span
+                    className={`flex h-8 w-8 items-center justify-center rounded-full bg-white/80 ${atalho.cor} shadow-sm transition-transform duration-300 group-hover:translate-x-0.5`}
+                  >
+                    <ArrowRight className="h-4 w-4" />
+                  </span>
                 </div>
-                <p className={`text-3xl font-black ${stat.color} mb-1`}>{stat.value}</p>
-                <p className="text-sm text-gray-500 font-medium">{stat.label}</p>
-              </div>
+              </Link>
             ))}
           </div>
         </div>
       </section>
 
       {/* === EDITAIS EM DESTAQUE === */}
-      <section className="py-16 bg-gray-50">
-        <div className="container mx-auto px-4 max-w-7xl">
-          <div className="flex items-center justify-between mb-10">
+      <section className="relative overflow-hidden bg-[#F7F7F7] py-16">
+        <div className="container relative mx-auto max-w-7xl px-4">
+          {/* Mascote saindo da borda direita. O fundo aqui é #F7F7F7 de
+              propósito: é exatamente o fundo do arquivo dela (JPEG), então não
+              aparece retângulo nenhum em volta. */}
+          <div className="pointer-events-none absolute bottom-0 right-0 hidden w-[230px] xl:block">
+            <div className="-mr-8 -mb-8">
+              <MascoteIFizinha nome="projetos" />
+            </div>
+          </div>
+
+          <div className="mb-10 flex items-end justify-between gap-6 xl:pr-[200px]">
             <div>
-              <div className="flex items-center gap-2 mb-2">
-                <div className="w-1 h-6 bg-hero-gradient rounded-full" />
-                <p className="text-sm font-semibold text-azul-eletrico uppercase tracking-wider">Oportunidades</p>
+              <div className="mb-2 flex items-center gap-2">
+                <div className="h-6 w-1 rounded-full bg-hero-gradient" />
+                <p className="text-sm font-semibold uppercase tracking-wider text-azul-eletrico">
+                  Oportunidades
+                </p>
               </div>
-              <h2 className="text-3xl font-black text-gray-900">Editais em Destaque</h2>
-              <p className="text-gray-500 mt-1">Traduzidos pela IFizinha — linguagem simples, informação completa</p>
+              <h2 className="text-3xl font-black text-gray-900 md:text-4xl">
+                Traduzindo o <span className="text-roxo-luminoso">burocratês</span>
+              </h2>
+              <p className="mt-1 text-gray-500">
+                Editais em destaque, explicados de um jeito simples pela IFizinha
+              </p>
             </div>
             <Link
               href="/editais"
-              className="hidden md:flex items-center gap-1.5 text-azul-eletrico font-semibold hover:gap-3 transition-all text-sm"
+              className="hidden items-center gap-1.5 text-sm font-semibold text-azul-eletrico transition-all hover:gap-3 md:flex"
             >
-              Ver todos
+              Ver todos os editais
               <ArrowRight className="w-4 h-4" />
             </Link>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
             {editaisDestaque.map((edital) => {
               const daysLeft = edital.dataEncerramento ? getDaysUntil(edital.dataEncerramento) : null;
               const isUrgent = daysLeft !== null && daysLeft <= 7 && daysLeft > 0;
 
               return (
-                <Link
-                  key={edital.id}
-                  href={`/editais/${edital.slug}`}
-                  className="group block"
-                >
-                  <div className={`bg-white rounded-2xl p-6 border transition-all duration-300 hover:-translate-y-1 hover:shadow-xl h-full flex flex-col ${
-                    isUrgent ? 'border-orange-200 ring-2 ring-orange-100' : 'border-gray-100 hover:border-azul-eletrico/30'
-                  }`}>
+                <Link key={edital.id} href={`/editais/${edital.slug}`} className="group block">
+                  <div
+                    className={`flex h-full flex-col rounded-2xl border bg-white p-6 transition-all duration-300 hover:-translate-y-1 hover:shadow-xl ${
+                      isUrgent ? 'border-orange-200 ring-2 ring-orange-100' : 'border-gray-100 hover:border-azul-eletrico/30'
+                    }`}
+                  >
                     {isUrgent && (
-                      <div className="flex items-center gap-1.5 text-orange-600 text-xs font-semibold mb-3 bg-orange-50 rounded-lg px-3 py-1.5 w-fit">
+                      <div className="mb-3 flex w-fit items-center gap-1.5 rounded-lg bg-orange-50 px-3 py-1.5 text-xs font-semibold text-orange-600">
                         <AlertCircle className="w-3.5 h-3.5" />
                         Encerra em {daysLeft} {daysLeft === 1 ? 'dia' : 'dias'}!
                       </div>
                     )}
 
-                    <div className="flex items-start justify-between gap-3 mb-4">
-                      <div className="flex gap-2 flex-wrap">
+                    <div className="mb-4 flex items-start justify-between gap-3">
+                      <div className="flex flex-wrap gap-2">
                         {edital.categoria && (
-                          <span className={`inline-flex px-2.5 py-1 rounded-full text-xs font-semibold ${getCategoryColor(edital.categoria)}`}>
+                          <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${getCategoryColor(edital.categoria)}`}>
                             {edital.categoria}
                           </span>
                         )}
-                        <span className={`inline-flex px-2.5 py-1 rounded-full text-xs font-semibold border ${getStatusColor(edital.status)}`}>
+                        <span className={`inline-flex rounded-full border px-2.5 py-1 text-xs font-semibold ${getStatusColor(edital.status)}`}>
                           {getStatusLabel(edital.status)}
                         </span>
                       </div>
-                      <div className="w-8 h-8 rounded-lg bg-azul-eletrico/10 flex items-center justify-center flex-shrink-0 group-hover:bg-azul-eletrico group-hover:text-white transition-colors">
+                      <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-azul-eletrico/10 transition-colors group-hover:bg-azul-eletrico">
                         <ChevronRight className="w-4 h-4 text-azul-eletrico group-hover:text-white" />
                       </div>
                     </div>
 
-                    <h3 className="font-bold text-gray-900 text-base leading-snug mb-3 group-hover:text-azul-eletrico transition-colors flex-1">
+                    <h3 className="mb-3 flex-1 text-base font-bold leading-snug text-gray-900 transition-colors group-hover:text-azul-eletrico">
                       {edital.titulo}
                     </h3>
 
-                    <p className="text-gray-500 text-sm leading-relaxed mb-4 line-clamp-2">
+                    <p className="mb-4 line-clamp-2 text-sm leading-relaxed text-gray-500">
                       {edital.resumoSimples || edital.resumo || 'Sem descrição disponível'}
                     </p>
 
                     {edital.dataEncerramento && (
-                      <div className="flex items-center gap-1.5 text-xs text-gray-400 mt-auto pt-3 border-t border-gray-50">
+                      <div className="mt-auto flex items-center gap-1.5 border-t border-gray-50 pt-3 text-xs text-gray-400">
                         <Clock className="w-3.5 h-3.5" />
                         Encerra: {formatDateShort(edital.dataEncerramento, { timeZone: 'UTC' })}
                       </div>
                     )}
 
-                    <div className="mt-3 flex items-center gap-1.5 text-xs text-azul-eletrico font-medium">
+                    <div className="mt-3 flex items-center gap-1.5 text-xs font-medium text-azul-eletrico">
                       <Sparkles className="w-3.5 h-3.5 text-dourado-ifizinha" />
                       Ver versão IFizinha
                     </div>
@@ -173,52 +292,69 @@ export default async function HomePage() {
       <ProjetosGrid />
 
       {/* === PRÓXIMOS EVENTOS === */}
-      <section className="py-16 bg-gray-50">
-        <div className="container mx-auto px-4 max-w-7xl">
-          <div className="flex items-center justify-between mb-10">
+      <section className="relative overflow-hidden bg-[#F7F7F7] py-16">
+        <div className="container relative mx-auto max-w-7xl px-4">
+          {/* Mascote apontando para o relógio — combina com prazos (mesmo fundo
+              #F7F7F7 do arquivo, então ela encaixa sem emenda) */}
+          <div className="pointer-events-none absolute bottom-0 right-0 hidden w-[220px] xl:block">
+            <div className="-mr-6 -mb-6">
+              <MascoteIFizinha nome="prazos" />
+            </div>
+          </div>
+
+          <div className="mb-10 flex items-end justify-between gap-6 xl:pr-[190px]">
             <div>
-              <div className="flex items-center gap-2 mb-2">
-                <div className="w-1 h-6 bg-hero-gradient rounded-full" />
-                <p className="text-sm font-semibold text-rosa-vibrante uppercase tracking-wider">Agenda</p>
+              <div className="mb-2 flex items-center gap-2">
+                <div className="h-6 w-1 rounded-full bg-hero-gradient" />
+                <p className="text-sm font-semibold uppercase tracking-wider text-rosa-vibrante">
+                  Agenda
+                </p>
               </div>
-              <h2 className="text-3xl font-black text-gray-900">Próximos Eventos & Prazos</h2>
-              <p className="text-gray-500 mt-1">Não perca nenhuma data importante</p>
+              <h2 className="text-3xl font-black text-gray-900 md:text-4xl">
+                Não deixa <span className="text-rosa-vibrante">passar</span>
+              </h2>
+              <p className="mt-1 text-gray-500">
+                Fique por dentro dos próximos eventos, prazos e atividades do campus
+              </p>
             </div>
             <Link
               href="/agenda"
-              className="hidden md:flex items-center gap-1.5 text-rosa-vibrante font-semibold hover:gap-3 transition-all text-sm"
+              className="hidden items-center gap-1.5 text-sm font-semibold text-rosa-vibrante transition-all hover:gap-3 md:flex"
             >
-              Agenda completa
+              Ver agenda completa
               <ArrowRight className="w-4 h-4" />
             </Link>
           </div>
 
-          <div className="space-y-3">
+          <div className="grid grid-cols-1 gap-3 lg:grid-cols-2 xl:pr-[210px]">
             {proximosEventos.map((evento) => {
-              const config = tipoEventoConfig[evento.tipo as string] ?? { label: evento.tipo, color: 'bg-gray-100 text-gray-700', icon: null };
+              const config = tipoEventoConfig[evento.tipo as string] ?? {
+                label: evento.tipo,
+                color: 'bg-gray-100 text-gray-700',
+                icon: null,
+              };
               const daysLeft = getDaysUntil(evento.data);
 
               return (
                 <div
                   key={evento.id}
-                  className="bg-white rounded-xl border border-gray-100 hover:border-gray-200 hover:shadow-sm transition-all p-4 flex items-center gap-4"
+                  className="flex items-center gap-4 rounded-xl border border-gray-100 bg-white p-4 transition-all hover:border-gray-200 hover:shadow-sm"
                 >
-                  {/* Date badge */}
-                  <div className="flex-shrink-0 w-14 h-14 bg-gray-50 rounded-xl flex flex-col items-center justify-center border border-gray-100">
-                    <p className="text-xl font-black text-gray-900 leading-none">
+                  <div className="flex h-14 w-14 flex-shrink-0 flex-col items-center justify-center rounded-xl border border-gray-100 bg-gray-50">
+                    <p className="text-xl font-black leading-none text-gray-900">
                       {evento.data.getDate().toString().padStart(2, '0')}
                     </p>
-                    <p className="text-xs text-gray-500 font-medium uppercase">
+                    <p className="text-xs font-medium uppercase text-gray-500">
                       {evento.data.toLocaleString('pt-BR', { month: 'short' })}
                     </p>
                   </div>
 
-                  <div className="flex-1 min-w-0">
-                    <h3 className="font-semibold text-gray-900 text-sm leading-snug truncate">
+                  <div className="min-w-0 flex-1">
+                    <h3 className="truncate text-sm font-semibold leading-snug text-gray-900">
                       {evento.titulo}
                     </h3>
-                    <div className="flex items-center gap-2 mt-1">
-                      <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${config.color}`}>
+                    <div className="mt-1 flex items-center gap-2">
+                      <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium ${config.color}`}>
                         {config.icon}
                         {config.label}
                       </span>
@@ -232,7 +368,7 @@ export default async function HomePage() {
 
                   {daysLeft <= 7 && daysLeft > 0 && (
                     <div className="flex-shrink-0">
-                      <div className="w-2 h-2 bg-red-500 rounded-full animate-pulse" />
+                      <div className="h-2 w-2 animate-pulse rounded-full bg-red-500" />
                     </div>
                   )}
                 </div>
@@ -251,45 +387,11 @@ export default async function HomePage() {
         </div>
       </section>
 
-      {/* === IFIZINHA CTA FINAL === */}
-      <section className="py-16 bg-white">
-        <div className="container mx-auto px-4 max-w-7xl">
-          <div className="bg-hero-gradient rounded-3xl p-8 md:p-12 text-center relative overflow-hidden">
-            <div className="absolute inset-0 opacity-10">
-              <div className="absolute top-0 right-0 w-64 h-64 bg-white rounded-full -translate-y-1/2 translate-x-1/2 blur-3xl" />
-              <div className="absolute bottom-0 left-0 w-64 h-64 bg-white rounded-full translate-y-1/2 -translate-x-1/2 blur-3xl" />
-            </div>
-            <div className="relative">
-              <div className="text-5xl mb-4">✨</div>
-              <h2 className="text-3xl md:text-4xl font-black text-white mb-4">
-                {siteConfig.ifizinha_titulo || 'Ainda com dúvidas sobre algum edital?'}
-              </h2>
-              <p className="text-white/85 text-lg max-w-xl mx-auto mb-8">
-                {siteConfig.ifizinha_descricao || 'Cada edital no Portal Conecta tem uma tradução especial minha — a versão IFizinha!\nLinguagem simples, estrutura clara, sem enrolação.'}
-              </p>
-              <div className="flex flex-col sm:flex-row gap-3 justify-center">
-                <Link
-                  href="/editais"
-                  className="inline-flex items-center justify-center gap-2 bg-white text-azul-eletrico font-bold px-8 py-4 rounded-xl hover:bg-white/90 transition-all shadow-lg text-base"
-                >
-                  <Sparkles className="w-5 h-5" />
-                  Ver Editais com a IFizinha
-                </Link>
-                <Link
-                  href="/projetos"
-                  className="inline-flex items-center justify-center gap-2 bg-white/15 backdrop-blur-sm text-white font-semibold px-8 py-4 rounded-xl hover:bg-white/25 transition-all border border-white/30 text-base"
-                >
-                  <FolderOpen className="w-5 h-5" />
-                  Conhecer os Projetos
-                </Link>
-              </div>
-              <p className="text-white/60 text-xs mt-6">
-                * Confira sempre o edital oficial — a versão IFizinha é um resumo para facilitar seu entendimento.
-              </p>
-            </div>
-          </div>
-        </div>
-      </section>
+      {/* === NOTÍCIAS DOS PROJETOS === */}
+      <UltimasDosProjetos posts={noticias} />
+
+      {/* === PERGUNTE PRA IFIZINHA === */}
+      <PergunteIFizinha config={siteConfig} />
     </div>
   );
 }

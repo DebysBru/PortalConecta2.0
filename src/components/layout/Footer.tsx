@@ -56,10 +56,14 @@ const CONTATOS: Contato[] = [
 export function Footer() {
   return (
     <footer className="relative overflow-hidden bg-azul-950 text-gray-300">
-      {/* Mascote decorativa (só em telas largas, fora do fluxo para não mexer
-          na grade). Fica acima da barra final para não cobrir o copyright. */}
-      <div className="pointer-events-none absolute bottom-24 right-0 hidden w-52 select-none xl:block" aria-hidden>
-        <MascoteIFizinha nome="apresentando" />
+      {/* Mascote decorativa (telas largas): ancorada no canto — o fundo da imagem
+          encosta no fim do rodapé, então ela parece "sair" de dentro dele, em vez
+          de flutuar solta no meio do espaço vazio. A barra final ganha respiro à
+          direita para o texto não passar por baixo dela. */}
+      <div className="pointer-events-none absolute bottom-0 right-0 hidden w-48 select-none xl:block 2xl:w-56" aria-hidden>
+        <div className="-mr-4">
+          <MascoteIFizinha nome="apresentando" />
+        </div>
       </div>
       {/* IFizinha CTA */}
       <div className="bg-hero-gradient py-12">
@@ -185,7 +189,7 @@ export function Footer() {
         </div>
 
         {/* Bottom */}
-        <div className="border-t border-gray-800 mt-10 pt-6 flex flex-col md:flex-row items-center justify-between gap-3 text-xs text-gray-500">
+        <div className="border-t border-white/10 mt-10 pt-6 flex flex-col md:flex-row items-center justify-between gap-3 text-xs text-gray-500 xl:pr-52">
           <p>
             © {new Date().getFullYear()} Portal Conecta IFPR Ivaiporã. Todos os direitos reservados.
           </p>
