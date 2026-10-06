@@ -168,16 +168,58 @@ Ferramentas: `next/image` (com `sizes` correto e `priority` **só** no hero),
 
 ## 5. Ordem de execução sugerida
 
-| Fase | Conteúdo | Depende de |
-|---|---|---|
-| **0** | Backup (feito) + converter/renomear os assets para `public/ifizinha/` + componente `<MascoteIFizinha>` (largura, `alt`, prioridade, esconder no mobile) | nada |
-| **1** | Header (logo real + CTA "Pergunte à IFizinha") e rodapé azul-marinho com a mascote | fase 0 |
-| **2** | Home: hero claro, 4 cards com ícones 3D, mascotes nas seções de editais/projetos/agenda, bloco "Pergunte pra IFizinha" | fases 0-1 |
-| **3** | Páginas internas (editais, projetos, agenda, login/cadastro) + 404 com a arte + avatar do botão do chat | fase 2 |
-| **4** | Metadados: OG image, ícones do PWA, revisão de contraste | fase 3 |
+| Fase | Conteúdo | Depende de | Situação |
+|---|---|---|---|
+| **0** | Backup + assets otimizados em `public/ifizinha/` + componente `<MascoteIFizinha>` | nada | ✅ **feito (06/10)** |
+| **1** | Header (logo real + botão "Pergunte à IFizinha") e rodapé azul-marinho com a mascote | fase 0 | ✅ **feito (06/10)** |
+| **2** | Home: hero claro, 4 cards com ícones 3D, mascotes nas seções de editais/projetos/agenda, bloco "Pergunte pra IFizinha" | fases 0-1 | pendente |
+| **3** | Páginas internas (editais, projetos, agenda, login/cadastro) + 404 com a arte + avatar do botão do chat | fase 2 | pendente |
+| **4** | Metadados: OG image, ícones do PWA, revisão de contraste | fase 3 | pendente (o `og-portal.jpg` já está gerado) |
 
-Sugestão de corte: **fases 0-2 já mudam a cara do portal** (é o que o mockup
-mostra). A fase 3 é onde mora o esforço maior, porque são muitas telas.
+### O que a Fase 0 e a Fase 1 entregaram
+
+**Fase 0 — assets** (`tools/otimizar-assets-ifizinha.py`, idempotente):
+
+- 22 arquivos originais (14,7 MB) → **25 arquivos em `public/ifizinha/` (1,9 MB no
+  total, e cada página carrega só o que usa)**. Ícone 3D: 837 KB → 8 KB.
+- `manifest.json` com dimensões e peso de cada arquivo gerado.
+- `MascoteIFizinha` (`src/components/ifizinha/MascoteIFizinha.tsx`) centraliza o
+  uso: nome do asset, `alt` (vazio = decorativa), `prioridade` (só o hero),
+  `somenteDesktop`, e marca em cada asset se o fundo é `transparente`,
+  `branco` ou `cinza` — a regra de encaixe da §4.2 vira dado, não folclore.
+- Decisão de servir **direto** (`unoptimized`): os arquivos já saem no tamanho
+  de exibição e o servidor não tem `sharp`, então o `/_next/image` cairia no
+  fallback do Next gastando CPU da VPS a cada requisição.
+
+**Fase 1 — header e rodapé:**
+
+- Header **sempre claro** (antes era transparente sobre o hero escuro) com o
+  logo oficial (`logo-completo.webp`), mantendo **todos** os links e estados:
+  navegação, "Ver Editais", notificações, Minha área, Meus Dados, painel do
+  Admin/Professor, Sair/Entrar e o menu mobile.
+- Botão **"Pergunte à IFizinha"**: no desktop (ícone a partir de `md`, com
+  rótulo a partir de `lg` para não apertar o header) e no menu mobile. Ele abre
+  o `ChatWidget` por evento (`src/lib/ifizinha-chat.ts`) — sem contexto novo no
+  layout, sem estado duplicado.
+- Rodapé azul-marinho (`azul-950`) com a mascote decorativa em `xl`, o logo
+  oficial numa placa clara (o nome do logo é azul-marinho e sumiria no fundo) e
+  **tudo que já existia preservado**: mapa, endereço, canais, navegação, barra
+  final — inclusive os testes de `tests/rodape-institucional.test.ts`.
+- Avatar do botão do chat agora é a cara da IFizinha (`avatar-chat.webp`).
+
+**Verificação da Fase 0/1:** 475 testes em 30 arquivos; `tsc --noEmit` limpo;
+`next build` ok; conferência com Chrome headless (CDP) em desktop (1440) e
+mobile (390): logo e mascote carregam (`naturalWidth` > 0), o clique no botão
+do header **abre o chat**, o menu mobile mostra os dois botões e **nenhum erro
+ou aviso no console**.
+
+### O que ficou de fora (de propósito)
+
+- O hero da home continua escuro: ele é o coração da Fase 2, e mexer nele agora
+  significaria refazer duas vezes.
+- O `logo-simbolo` (só o anel) não foi gerado: o anel e o "P" de "Portal" se
+  encostam no antialias, então o recorte automático sempre trazia um pedaço da
+  letra. Com o header claro, o lockup completo resolve.
 
 ---
 

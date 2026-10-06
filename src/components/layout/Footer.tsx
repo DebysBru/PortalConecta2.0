@@ -1,6 +1,8 @@
 import React from 'react';
 import Link from 'next/link';
+import Image from 'next/image';
 import { Sparkles, Heart, ExternalLink, Instagram, Mail, MapPin, type LucideIcon } from 'lucide-react';
+import { MascoteIFizinha } from '@/components/ifizinha/MascoteIFizinha';
 
 /**
  * Endereço oficial do Campus Ivaiporã — copiado do rodapé de
@@ -53,7 +55,12 @@ const CONTATOS: Contato[] = [
 
 export function Footer() {
   return (
-    <footer className="bg-gray-950 text-gray-300">
+    <footer className="relative overflow-hidden bg-azul-950 text-gray-300">
+      {/* Mascote decorativa (só em telas largas, fora do fluxo para não mexer
+          na grade). Fica acima da barra final para não cobrir o copyright. */}
+      <div className="pointer-events-none absolute bottom-24 right-0 hidden w-52 select-none xl:block" aria-hidden>
+        <MascoteIFizinha nome="apresentando" />
+      </div>
       {/* IFizinha CTA */}
       <div className="bg-hero-gradient py-12">
         <div className="container mx-auto px-4 max-w-7xl text-center">
@@ -83,14 +90,18 @@ export function Footer() {
         <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
           {/* Logo, descrição, endereço e mapa */}
           <div className="md:col-span-2">
-            <div className="flex items-center gap-3 mb-4">
-              <div className="w-10 h-10 rounded-xl bg-hero-gradient flex items-center justify-center">
-                <Sparkles className="w-5 h-5 text-white" />
-              </div>
-              <div>
-                <span className="font-bold text-white text-lg block leading-none">Portal Conecta</span>
-                <span className="text-azul-eletrico text-xs">IFPR Campus Ivaiporã</span>
-              </div>
+            {/* O lockup do logo tem o nome em azul-marinho, que desapareceria
+                sobre o rodapé azul — por isso ele vai numa placa clara (mesma
+                solução que o mockup resolve com uma versão branca da marca). */}
+            <div className="mb-5 inline-flex items-center rounded-2xl bg-white px-3.5 py-2.5 shadow-lg">
+              <Image
+                src="/ifizinha/logo-completo.webp"
+                alt="Portal Conecta — IFPR Campus Ivaiporã"
+                width={1400}
+                height={467}
+                unoptimized
+                className="h-10 w-auto"
+              />
             </div>
             <p className="text-gray-400 text-sm leading-relaxed mb-5 max-w-sm">
               Centralizando a comunicação institucional do IFPR Campus Ivaiporã.
