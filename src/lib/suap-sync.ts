@@ -124,6 +124,32 @@ export async function syncProjetos(options?: { dryRun?: boolean; forcar?: boolea
     return result;
   }
 
+  return aplicarProjetosDoSuap(projetosSuap, options);
+}
+
+/**
+ * Aplica no banco uma lista de projetos já obtida do SUAP.
+ *
+ * Separado de `syncProjetos` porque buscar e gravar são dois problemas
+ * diferentes: quando o WAF do SUAP passou a desafiar o IP do servidor (ver
+ * DOCUMENTACAO/SUAP_IMPORTACAO.md), a busca direta parou de funcionar, mas a
+ * gravação continua igual — e é por aqui que a importação de uma captura feita
+ * no navegador entra. O mapeamento de campos, a idempotência por `suapId` e a
+ * proteção contra sobrescrever edição manual ficam **num lugar só**.
+ */
+export async function aplicarProjetosDoSuap(
+  projetosSuap: SuapProjeto[],
+  options?: { dryRun?: boolean; forcar?: boolean; origem?: string },
+): Promise<SyncResult> {
+  const result: SyncResult = { total: projetosSuap.length, criados: 0, atualizados: 0, preservados: 0, erros: 0, detalhes: [] };
+
+  if (projetosSuap.length > 0) {
+    result.dadosBrutos = projetosSuap.slice(0, 3);
+    result.detalhes.push(
+      `✅ ${projetosSuap.length} projetos recebidos${options?.origem ? ` (${options.origem})` : ` do SUAP (campus ${process.env.SUAP_CAMPUS_SIGLA ?? 'IVAIPODG'})`}`,
+    );
+  }
+
   if (options?.dryRun) {
     result.detalhes.push('🔍 Simulação — nenhum dado foi gravado no portal');
     return result;

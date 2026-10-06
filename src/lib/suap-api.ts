@@ -409,9 +409,19 @@ export async function suapGetAll<T>(path: string, pageSize = 100): Promise<T[]> 
 
 // ─── Funções específicas ───────────────────────────────────────────────────────
 
-/** Normaliza sigla de campus para comparação — evita perder o filtro por caixa/espaços diferentes. */
-function normalizaSigla(s?: string | null): string {
-  return (s ?? '').trim().toUpperCase();
+/**
+ * Normaliza sigla de campus para comparação.
+ *
+ * Além de caixa e espaços, remove acentos: o SUAP devolve nomes como "Ivaiporã" e
+ * a configuração pode estar sem acento (ou o contrário), e uma diferença de
+ * acento não pode zerar o filtro de campus silenciosamente.
+ */
+export function normalizaSiglaSuap(s?: string | null): string {
+  return (s ?? '')
+    .trim()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toUpperCase();
 }
 
 /**
@@ -421,7 +431,7 @@ function normalizaSigla(s?: string | null): string {
  * `campus_sigla` no retorno.
  */
 export async function fetchProjetosFromSuap(): Promise<{ projetos: SuapProjeto[]; avisos: string[] }> {
-  const campusSigla = normalizaSigla(process.env.SUAP_CAMPUS_SIGLA ?? 'IVAIPODG');
+  const campusSigla = normalizaSiglaSuap(process.env.SUAP_CAMPUS_SIGLA ?? 'IVAIPODG');
   const avisos: string[] = [];
 
   console.log(`[SUAP] Buscando projetos de pesquisa e extensão para campus ${campusSigla}...`);
@@ -450,11 +460,11 @@ export async function fetchProjetosFromSuap(): Promise<{ projetos: SuapProjeto[]
 
   // Filtra por campus (comparação normalizada) e taga a fonte
   const dosCampusPesquisa = todosPesquisa
-    .filter((p) => normalizaSigla(p.campus_sigla) === campusSigla)
+    .filter((p) => normalizaSiglaSuap(p.campus_sigla) === campusSigla)
     .map((p) => ({ ...p, _fonte: 'pesquisa' as const }));
 
   const dosCampusExtensao = todosExtensao
-    .filter((p) => normalizaSigla(p.campus_sigla) === campusSigla)
+    .filter((p) => normalizaSiglaSuap(p.campus_sigla) === campusSigla)
     .map((p) => ({ ...p, _fonte: 'extensao' as const }));
 
   console.log(`[SUAP] ${campusSigla} → Pesquisa: ${dosCampusPesquisa.length} | Extensão: ${dosCampusExtensao.length}`);
@@ -467,7 +477,7 @@ export async function fetchProjetosFromSuap(): Promise<{ projetos: SuapProjeto[]
   const totalFiltrado = dosCampusPesquisa.length + dosCampusExtensao.length;
   if (totalBruto > 0 && totalFiltrado === 0) {
     const siglasEncontradas = Array.from(
-      new Set([...todosPesquisa, ...todosExtensao].map((p) => normalizaSigla(p.campus_sigla)).filter(Boolean))
+      new Set([...todosPesquisa, ...todosExtensao].map((p) => normalizaSiglaSuap(p.campus_sigla)).filter(Boolean))
     ).sort();
     avisos.push(
       `⚠️ Nenhum projeto encontrado para o campus "${campusSigla}" — o SUAP retornou ${totalBruto} projetos, mas de outros campi. ` +
