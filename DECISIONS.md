@@ -1269,6 +1269,66 @@ Duas correções para não repetir:
 
 ---
 
+## 28. Redesign visual com a IFizinha — fases 0 e 1
+
+**Pedido (06/10/2026):** reformular o visual aproveitando a mascote, com o mockup
+como referência, **salvando antes a versão de hoje**; começar pelas fases 0 e 1 e
+só seguir para a 2 se der tudo certo.
+
+**Backup (três camadas, antes de qualquer mudança):**
+
+| Camada | O que é |
+|---|---|
+| Git | commit `0125b6a` (126 arquivos que estavam pendentes) + tag `pre-redesign-2026-10-06` |
+| Arquivo | `C:\Users\Ronan\Documents\GitHub\portal-conecta-snapshot-2026-10-06.tgz` (384 arquivos, 839 KB) |
+| Produção | build `CaA2WYgwrI0QuGuwzy73p` no ar na VPS + `/var/www/portal-conecta-old` + tarballs em `/root` |
+
+**Fase 0 — assets.** 22 originais (14,7 MB) → **24 arquivos em `public/ifizinha/`
+(1,9 MB)**; ícone 3D de 837 KB → 8 KB, hero 173 KB. `tools/otimizar-assets-ifizinha.py`
+(Pillow) é idempotente e grava `manifest.json` com dimensões e peso.
+
+A descoberta que definiu o plano: os `.png` de origem **são** recortes com
+transparência (78% de alfa no logo) e os `.jpeg` têm fundo sólido (#F7F7F7,
+#FDFDFD, #FEFEFE ou cena). Isso virou o campo `fundo` do componente
+`MascoteIFizinha` — a regra de encaixe é dado, não folclore. Também decidimos
+**servir os arquivos direto** (`unoptimized`): o `sharp` não está instalado (nem
+local nem na VPS), então o `/_next/image` funciona, mas cai no fallback e gasta
+CPU da VPS a cada requisição.
+
+**Fase 1 — header e rodapé.** Header **sempre claro** com o logo oficial (o nome
+do logo é azul-marinho: sobre o hero escuro não leria — o mockup também tem
+header claro) e o botão **"Pergunte à IFizinha"**, que abre o `ChatWidget` por
+evento no `window` (`src/lib/ifizinha-chat.ts`) em vez de um contexto novo no
+layout. Rodapé em `azul-950` com a mascote decorativa em `xl` e o logo numa placa
+clara. **Nenhum link removido**: navegação, Ver Editais, notificações, Minha
+área, Meus Dados, painel do Admin/Professor, Sair/Entrar e menu mobile intactos;
+mapa, endereço e canais do rodapé intactos (os testes de
+`tests/rodape-institucional.test.ts` passaram sem alteração).
+
+**Descartado de propósito:** gerar um "só símbolo" do logo. O anel e o "P" de
+"Portal" se encostam no antialias — três tentativas (fração da largura, coluna
+totalmente vazia e componente conectada) sempre traziam um pedaço da letra, e não
+existe coluna transparente entre os dois blocos (medido: alfa ≥ 253 em toda a
+faixa x 880-996). Com o header claro, o lockup completo resolve e o arquivo não
+foi gerado.
+
+**Verificação:** 475 testes em 30 arquivos; `tsc --noEmit` limpo; `next build`
+ok; Chrome headless (CDP) em 1440 e 390 — logo e mascote carregam
+(`naturalWidth` > 0), o clique no botão do header **abre o chat**, o menu mobile
+mostra os dois botões e **não há erro nem aviso no console**.
+
+**Próximo:** fase 2 (home: hero claro, cards com os ícones 3D, mascotes nas
+seções e bloco "Pergunte pra IFizinha"). Plano e mapa de colocação em
+`DOCUMENTACAO/REDESIGN_IFIZINHA.md`.
+
+**Registrado em:** DECISIONS.md
+**Impacto:** `public/ifizinha/`, `tools/otimizar-assets-ifizinha.py`,
+`src/components/ifizinha/MascoteIFizinha.tsx`, `src/lib/ifizinha-chat.ts`,
+`src/components/layout/{Header,Footer}.tsx`,
+`src/components/chat/ChatWidget.tsx`, `DOCUMENTACAO/REDESIGN_IFIZINHA.md`
+
+---
+
 ## Resumo de impactos
 
 | Decisão | Impacto | Fase | Notas |
@@ -1297,6 +1357,7 @@ Duas correções para não repetir:
 | **Cadastro quebrava a página (Dec. 25)** | `/cadastro` redireciona em `useEffect` (era `router.replace` durante o render → React error #310 → tela branca ao criar conta); recarga automática quando um chunk do build anterior some; deploy passa a preservar `.next/static` e copiar `public/` | **no ar** (05/10, BUILD_ID `887zxvLK3wAiaOVHIqLIf`) | `public/` agora versionado; favicon e ícones do PWA voltaram a 200; runbook em `deploy/DEPLOY_BLUE_GREEN.md` |
 | **E-mail e CAPTCHA desligados por opção (Dec. 26)** | Sem `RESEND_API_KEY` o envio devolve `{ ok: false }` sem stack trace no journal (aviso no portal segue); sem Turnstile não há CAPTCHA no cadastro/inscrição | **no ar** (05/10, BUILD_ID `hq8XoWCjwi7QgyUDrTe_X`) | Decisão do responsável; ligar exige preencher as chaves **e** rebuildar (a site key é embutida no build) |
 | **Rodapé institucional + lição de deploy (Dec. 27)** | Endereço completo, mapa (embed sem chave, `loading="lazy"`) e contatos oficiais no rodapé; `@ifpr.ivaipora` (errado) → `@ifpr.campus.ivaipora`; script de troca passa a não assumir que `-old` existe | **no ar** (06/10, BUILD_ID `CaA2WYgwrI0QuGuwzy73p`) | `mv A B` com B existente move A para dentro de B — causou 20 s de queda; agora `/root/troca-portal.sh` na VPS e runbook corrigido |
+| **Redesign com a IFizinha, fases 0 e 1 (Dec. 28)** | Assets de 14,7 MB → 1,9 MB em `public/ifizinha/` (script com Pillow) + componente `MascoteIFizinha`; header claro com o logo oficial e botão "Pergunte à IFizinha"; rodapé azul com a mascote | **commitado, aguardando deploy** | Backup em 3 camadas (tag `pre-redesign-2026-10-06`); nenhum link removido; fase 2 = home |
 
 ---
 
