@@ -1,6 +1,55 @@
 import React from 'react';
 import Link from 'next/link';
-import { Sparkles, Heart, ExternalLink, Instagram, Mail, MapPin } from 'lucide-react';
+import { Sparkles, Heart, ExternalLink, Instagram, Mail, MapPin, type LucideIcon } from 'lucide-react';
+
+/**
+ * Endereço oficial do Campus Ivaiporã — copiado do rodapé de
+ * https://ifpr.edu.br/ivaipora/ (conferido em 05/10/2026). Mantenha igual ao do
+ * site oficial: é o que o aluno usa para chegar no campus (e para ônibus/apps).
+ */
+const ENDERECO_OFICIAL =
+  'Rua Max Arthur Greipel, 505 - Parque Industrial I, Ivaiporã - PR, 86873-400';
+
+const MAPA_QUERY = encodeURIComponent(ENDERECO_OFICIAL);
+// `output=embed` é a forma de embed do Google Maps que NÃO exige chave de API.
+// O iframe fica com loading="lazy": só carrega quando o rodapé chega na tela,
+// então as páginas públicas não pagam esse peso na primeira dobra.
+const MAPA_EMBED = `https://www.google.com/maps?q=${MAPA_QUERY}&z=16&hl=pt-BR&output=embed`;
+// Fallback (e link de "abrir no app"): funciona mesmo se o iframe for bloqueado
+// por bloqueador de anúncio/rede.
+const MAPA_LINK = `https://www.google.com/maps/search/?api=1&query=${MAPA_QUERY}`;
+
+type Contato = {
+  href: string;
+  rotulo: string;
+  /** Texto curto ao lado do rótulo (ex.: marcar que aquele @ é da IFizinha). */
+  sufixo?: string;
+  icone: LucideIcon;
+};
+
+const CONTATOS: Contato[] = [
+  {
+    href: 'https://ifpr.edu.br/ivaipora/',
+    rotulo: 'Site oficial do IFPR',
+    icone: ExternalLink,
+  },
+  {
+    href: 'mailto:comunicacao.ivaipora@ifpr.edu.br',
+    rotulo: 'comunicacao.ivaipora@ifpr.edu.br',
+    icone: Mail,
+  },
+  {
+    href: 'https://www.instagram.com/ifpr.campus.ivaipora/',
+    rotulo: '@ifpr.campus.ivaipora',
+    icone: Instagram,
+  },
+  {
+    href: 'https://www.instagram.com/ifizinha.ifpr/',
+    rotulo: '@ifizinha.ifpr',
+    sufixo: 'IFizinha',
+    icone: Instagram,
+  },
+];
 
 export function Footer() {
   return (
@@ -32,7 +81,7 @@ export function Footer() {
       {/* Main Footer */}
       <div className="container mx-auto px-4 max-w-7xl py-12">
         <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
-          {/* Logo & Description */}
+          {/* Logo, descrição, endereço e mapa */}
           <div className="md:col-span-2">
             <div className="flex items-center gap-3 mb-4">
               <div className="w-10 h-10 rounded-xl bg-hero-gradient flex items-center justify-center">
@@ -43,14 +92,38 @@ export function Footer() {
                 <span className="text-azul-eletrico text-xs">IFPR Campus Ivaiporã</span>
               </div>
             </div>
-            <p className="text-gray-400 text-sm leading-relaxed mb-4 max-w-sm">
+            <p className="text-gray-400 text-sm leading-relaxed mb-5 max-w-sm">
               Centralizando a comunicação institucional do IFPR Campus Ivaiporã.
               Editais, projetos e agenda em um só lugar, traduzidos pela IFizinha.
             </p>
-            <div className="flex items-center gap-3 text-sm text-gray-400">
-              <MapPin className="w-4 h-4 text-azul-eletrico flex-shrink-0" />
-              <span>Ivaiporã – PR | Campus IFPR</span>
+
+            <address className="not-italic flex items-start gap-3 text-sm text-gray-400 leading-relaxed max-w-sm">
+              <MapPin className="w-4 h-4 text-azul-eletrico flex-shrink-0 mt-0.5" />
+              <span>
+                Rua Max Arthur Greipel, nº 505 — Parque Industrial I — Porfírio Basso
+                <br />
+                Caixa Postal 138 · Ivaiporã/PR · CEP 86.873-400
+              </span>
+            </address>
+
+            <div className="mt-5 w-full max-w-md rounded-2xl overflow-hidden border border-gray-800 shadow-lg bg-gray-900">
+              <iframe
+                title="Mapa — IFPR Campus Ivaiporã (Rua Max Arthur Greipel, 505)"
+                src={MAPA_EMBED}
+                loading="lazy"
+                referrerPolicy="no-referrer-when-downgrade"
+                className="block w-full h-52 border-0"
+              />
             </div>
+            <a
+              href={MAPA_LINK}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1.5 text-xs text-azul-eletrico hover:text-white transition-colors mt-2"
+            >
+              <ExternalLink className="w-3.5 h-3.5" />
+              Ver no Google Maps / abrir no app
+            </a>
           </div>
 
           {/* Links */}
@@ -79,37 +152,23 @@ export function Footer() {
           <div>
             <h3 className="text-white font-semibold mb-4">Contato</h3>
             <ul className="space-y-2 text-sm">
-              <li>
-                <a
-                  href="https://ifpr.edu.br/ivaipora"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="flex items-center gap-2 text-gray-400 hover:text-white transition-colors"
-                >
-                  <ExternalLink className="w-4 h-4" />
-                  Site Oficial IFPR
-                </a>
-              </li>
-              <li>
-                <a
-                  href="mailto:ivaipora@ifpr.edu.br"
-                  className="flex items-center gap-2 text-gray-400 hover:text-white transition-colors"
-                >
-                  <Mail className="w-4 h-4" />
-                  ivaipora@ifpr.edu.br
-                </a>
-              </li>
-              <li>
-                <a
-                  href="https://instagram.com/ifpr.ivaipora"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="flex items-center gap-2 text-gray-400 hover:text-white transition-colors"
-                >
-                  <Instagram className="w-4 h-4" />
-                  @ifpr.ivaipora
-                </a>
-              </li>
+              {CONTATOS.map(({ href, rotulo, sufixo, icone: Icone }) => (
+                <li key={href}>
+                  <a
+                    href={href}
+                    {...(href.startsWith('mailto:')
+                      ? {}
+                      : { target: '_blank', rel: 'noopener noreferrer' })}
+                    className="flex items-start gap-2 text-gray-400 hover:text-white transition-colors break-all"
+                  >
+                    <Icone className="w-4 h-4 flex-shrink-0 mt-0.5" />
+                    <span>
+                      {rotulo}
+                      {sufixo ? <span className="text-gray-500 text-xs"> ({sufixo})</span> : null}
+                    </span>
+                  </a>
+                </li>
+              ))}
             </ul>
           </div>
         </div>
