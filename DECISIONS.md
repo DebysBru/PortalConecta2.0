@@ -1407,6 +1407,50 @@ agenda que aparecem no mockup.
 
 ---
 
+## 30. Redesign fase 3 — páginas internas e 404
+
+**Continuação dos §§28-29.** Até aqui só a home, o header e o rodapé falavam a
+linguagem nova: as páginas internas ainda abriam com a **faixa escura em
+gradiente** (`bg-hero-gradient` com texto branco), que era a cara da versão antiga.
+
+**Componente novo: `src/components/layout/PageHero.tsx`.** Concentra o cabeçalho
+das páginas internas — trilha, etiqueta com a barrinha colorida, título, descrição,
+ícone num quadrado colorido e um slot (`children`) para chips/dicas. O `pt-28`
+embutido resolve o Header `fixed`, que antes cada página repetia na mão (e era um
+lugar fácil de esquecer).
+
+| Página | O que mudou |
+|---|---|
+| `/editais` | cabeçalho claro; a "Dica da IFizinha" virou cartão claro (era vidro branco sobre o gradiente) |
+| `/editais/[slug]` | título, resumo, badges de categoria/situação, prazo e visualizações em versão clara, com a trilha incluindo o título do edital |
+| `/projetos` | chips de estatística (em execução, inscrições abertas, total) claros |
+| `/agenda` | legenda dos tipos e "Exportar .ics" em versão clara |
+| `/busca` | cabeçalho claro com o formulário |
+| `/inscricao/[slug]` e `/meus-dados` | mesmo tratamento (eram as duas últimas com faixa escura fora do login) |
+| `/cadastro`, `/esqueci-senha`, `/admin/login`, `/professor/login` | quadro escuro de tela cheia + cartão de vidro → fundo `gray-50`, cartão branco com borda, logo oficial no lugar do emoji ✨, `.label-field`/`.input-field`, mensagens de erro/sucesso nas variantes claras e submit em gradiente. `pt-24` só onde existe Header (o `/admin/login` não tem) |
+| 404 (`not-found.tsx`) | usa a arte `/ifizinha/arte-404.webp` (a IFizinha com a lupa e o "404 Página não encontrada!" já desenhado). O `<h1>` fica em `sr-only`: o texto está na imagem, mas precisa existir para leitor de tela e buscador |
+
+**Decisões:** as telas de autenticação ficaram claras para não sobrar nenhum
+resquício da linguagem antiga; os únicos usos de `bg-hero-gradient` que restam são
+os botões primários e a barrinha das etiquetas (intencional — é a cor de destaque
+do portal). O trabalho das telas de autenticação foi delegado a um subagente e
+**auditado no diff**: só classes, o `<Image>` do logo e comentários — nenhuma
+alteração de validação, action, hook, Turnstile ou nome de campo.
+
+**Deploy:** fase 3 no ar em `e_jnDaWmVJDRmAMLIdwRk` (o mesmo build levou as
+páginas internas e as telas de autenticação), ~1 s fora do ar, 0 respostas 5xx.
+
+**Verificação:** 475 testes em 30 arquivos, `tsc --noEmit` limpo, as 6 páginas +
+404 + as 4 telas de autenticação conferidas no navegador, e em produção: todas as
+rotas 200, rota inexistente 404 com a arte, e **zero** faixa escura de tela cheia
+nas páginas internas.
+
+**Pendente:** fase 4 já foi feita (§29); o que sobra do redesign é o que o usuário
+quiser ajustar de conteúdo (textos, ordem das seções) e os chips de filtro da
+agenda que aparecem no mockup.
+
+---
+
 ## Resumo de impactos
 
 | Decisão | Impacto | Fase | Notas |
@@ -1436,7 +1480,8 @@ agenda que aparecem no mockup.
 | **E-mail e CAPTCHA desligados por opção (Dec. 26)** | Sem `RESEND_API_KEY` o envio devolve `{ ok: false }` sem stack trace no journal (aviso no portal segue); sem Turnstile não há CAPTCHA no cadastro/inscrição | **no ar** (05/10, BUILD_ID `hq8XoWCjwi7QgyUDrTe_X`) | Decisão do responsável; ligar exige preencher as chaves **e** rebuildar (a site key é embutida no build) |
 | **Rodapé institucional + lição de deploy (Dec. 27)** | Endereço completo, mapa (embed sem chave, `loading="lazy"`) e contatos oficiais no rodapé; `@ifpr.ivaipora` (errado) → `@ifpr.campus.ivaipora`; script de troca passa a não assumir que `-old` existe | **no ar** (06/10, BUILD_ID `CaA2WYgwrI0QuGuwzy73p`) | `mv A B` com B existente move A para dentro de B — causou 20 s de queda; agora `/root/troca-portal.sh` na VPS e runbook corrigido |
 | **Redesign com a IFizinha, fases 0 e 1 (Dec. 28)** | Assets de 14,7 MB → 1,9 MB em `public/ifizinha/` (script com Pillow) + componente `MascoteIFizinha`; header claro com o logo oficial e botão "Pergunte à IFizinha"; rodapé azul com a mascote | **no ar** (06/10, BUILD_ID `BQJ44sJ7trRYlP8SEagLg`) | Backup em 3 camadas (tag `pre-redesign-2026-10-06`); nenhum link removido; fase 2 = home |
-| **Redesign — fases 2 e 4: home e metadados (Dec. 29)** | Home com capa clara, 4 atalhos com ícones 3D, seções do mockup, **notícias dos projetos** (posts públicos) e chat embutido; ícones do PWA na marca nova, OG image no compartilhamento, robots/sitemap e ajustes de contraste (WCAG AA) | **no ar** (06/10, BUILD_ID `J6xWG1OV6O3LqbeoY1dmD`) | Mascotes ancoradas nas bordas; `.bg-hero-gradient` deixou de usar o atalho `background` (resetava `background-clip`); produção ainda sem post publicado → seção de notícias no estado vazio; **fase 3 pendente** |
+| **Redesign — fases 2 e 4: home e metadados (Dec. 29)** | Home com capa clara, 4 atalhos com ícones 3D, seções do mockup, **notícias dos projetos** (posts públicos) e chat embutido; ícones do PWA na marca nova, OG image no compartilhamento, robots/sitemap e ajustes de contraste (WCAG AA) | **no ar** (06/10, BUILD_ID `J6xWG1OV6O3LqbeoY1dmD`) | Mascotes ancoradas nas bordas; `.bg-hero-gradient` deixou de usar o atalho `background` (resetava `background-clip`); produção ainda sem post publicado → seção de notícias no estado vazio; **fase 3 pendente** |
+| **Redesign — fase 3: páginas internas e 404 (Dec. 30)** | Cabeçalho claro reutilizável (`PageHero`) em editais, edital, projetos, agenda, busca, inscrição e meus-dados; telas de autenticação no tema claro; 404 com a arte da IFizinha | **no ar** (06/10, BUILD_ID `e_jnDaWmVJDRmAMLIdwRk`) | `pt-28` embutido resolve o Header fixo; nenhuma lógica tocada nas telas de auth (auditado no diff); restam só os ajustes de conteúdo e os chips de filtro da agenda |
 
 ---
 
