@@ -39,6 +39,11 @@ async function validarAlvo(
     return Boolean(p);
   }
 
+  if (entidade === 'evento') {
+    const ev = await prisma.evento.findUnique({ where: { id: entidadeId }, select: { id: true } });
+    return Boolean(ev);
+  }
+
   const e = await prisma.edital.findFirst({
     where: { id: entidadeId, deleted_at: null },
     select: { id: true },
@@ -151,8 +156,9 @@ export async function listarMeusFavoritos(idToken: string): Promise<FavoritoItem
 
   const projetoIds = favoritos.filter((f) => f.entidade === 'projeto').map((f) => f.entidade_id);
   const editalIds = favoritos.filter((f) => f.entidade === 'edital').map((f) => f.entidade_id);
+  const eventoIds = favoritos.filter((f) => f.entidade === 'evento').map((f) => f.entidade_id);
 
-  const [projetos, editais] = await Promise.all([
+  const [projetos, editais, eventos] = await Promise.all([
     projetoIds.length
       ? prisma.projeto.findMany({
           where: { id: { in: projetoIds } },
@@ -171,13 +177,37 @@ export async function listarMeusFavoritos(idToken: string): Promise<FavoritoItem
           },
         })
       : Promise.resolve([]),
+    eventoIds.length
+      ? prisma.evento.findMany({
+          where: { id: { in: eventoIds } },
+          select: { id: true, titulo: true, data: true, categoria: true, dataFim: true },
+        })
+      : Promise.resolve([]),
   ]);
 
   const projetosPorId = new Map(projetos.map((p) => [p.id, p]));
   const editaisPorId = new Map(editais.map((e) => [e.id, e]));
+  const eventosPorId = new Map(eventos.map((e) => [e.id, e]));
 
   return favoritos.flatMap<FavoritoItem>((favorito) => {
     const criadoEm = favorito.created_at.toISOString();
+
+    if (favorito.entidade === 'evento') {
+      const ev = eventosPorId.get(favorito.entidade_id);
+      if (!ev) return [];
+      const dia = ev.data.toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' });
+      return [{
+        chave: `evento:${ev.id}`,
+        entidade: 'evento' as const,
+        entidadeId: ev.id,
+        titulo: ev.titulo,
+        subtitulo: ev.categoria ? `${dia} · ${ev.categoria}` : dia,
+        href: '/agenda',
+        cor: null,
+        disponivel: true,
+        criadoEm,
+      }];
+    }
 
     if (favorito.entidade === 'projeto') {
       const p = projetosPorId.get(favorito.entidade_id);

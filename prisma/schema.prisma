@@ -81,6 +81,7 @@ model User {
   alertasInteresse    AlertaInteresse[]
   favoritos           Favorito[]
   notificacoes        Notificacao[]
+  agendaPreferencia   AgendaPreferencia?
   editalResumoVersoes EditalResumoVersao[]
 }
 
@@ -331,6 +332,39 @@ model Evento {
   authorId   String
   author     User       @relation(fields: [authorId], references: [id])
   createdAt  DateTime   @default(now())
+
+  // ── Calendário acadêmico importado ─────────────────────────────────────────
+  // Campos que vêm da planilha oficial do campus (ver tools/gerar-calendario-2026.py
+  // e src/lib/agenda-import.ts). São opcionais: eventos criados à mão no painel
+  // não precisam deles.
+  categoria            String?
+  subcategoria         String?
+  publicoAlvo          String? // "Alunos", "Professores / servidores", "Comunidade acadêmica"...
+  nivel                String? // "Geral / Campus", "Graduação", "Cursos Técnicos Integrados"...
+  natureza             String? // "Informativo", "Prazo", ...
+  interessaAlunos      Boolean?
+  interessaProfessores Boolean?
+  // Chave de idempotência da importação ("cal2026-003"): reimportar o mesmo
+  // arquivo atualiza em vez de duplicar. Nulo nos eventos criados à mão.
+  origemRef   String?  @unique
+  importLote  String? // identificação do lote ("calendario-ifpr-ivaipora-2026.csv")
+  importadoEm DateTime?
+
+  @@index([data])
+  @@index([categoria])
+}
+
+// Preferência de acompanhamento da agenda por estudante.
+//
+// `seguirTudo = true` significa "acompanho o calendário inteiro" — inclusive os
+// eventos importados depois. O acompanhamento de eventos específicos usa a tabela
+// `Favorito` com `entidade = 'evento'` (a lista de ids seguidos), para não criar
+// um segundo mecanismo de "salvar item".
+model AgendaPreferencia {
+  user_id      String   @id
+  user         User     @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  seguirTudo   Boolean  @default(false)
+  atualizadoEm DateTime @updatedAt
 }
 
 enum TipoEvento {

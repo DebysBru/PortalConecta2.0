@@ -1,7 +1,8 @@
 'use client';
 
 import React, { useEffect, useState, useTransition } from 'react';
-import { Plus, Pencil, Trash2, X, Calendar, AlertCircle } from 'lucide-react';
+import Link from 'next/link';
+import { Plus, Pencil, Trash2, X, Calendar, AlertCircle, Upload } from 'lucide-react';
 import { listEventos, createEvento, updateEvento, deleteEvento, type EventoFormData } from '@/actions/admin';
 import { useAuth } from '@/contexts/AuthContext';
 import { getStatusLabel, formatDateShort } from '@/lib/utils';
@@ -91,9 +92,17 @@ export default function AdminAgendaPage() {
           <h1 className="text-2xl font-black text-gray-900">Agenda</h1>
           <p className="text-gray-500 text-sm">{eventos.length} evento(s) cadastrado(s)</p>
         </div>
-        <button onClick={openNew} className="flex items-center gap-2 bg-rosa-vibrante text-white font-semibold px-4 py-2.5 rounded-xl hover:bg-rosa-vibrante/90 transition-all text-sm shadow-sm">
-          <Plus className="w-4 h-4" /> Novo Evento
-        </button>
+        <div className="flex flex-wrap items-center gap-2">
+          <Link
+            href="/admin/agenda/importar"
+            className="flex items-center gap-2 rounded-xl border border-gray-200 px-4 py-2.5 text-sm font-semibold text-gray-700 transition-all hover:border-gray-300 hover:bg-gray-50"
+          >
+            <Upload className="w-4 h-4" /> Importar calendário
+          </Link>
+          <button onClick={openNew} className="flex items-center gap-2 bg-rosa-vibrante text-white font-semibold px-4 py-2.5 rounded-xl hover:bg-rosa-vibrante/90 transition-all text-sm shadow-sm">
+            <Plus className="w-4 h-4" /> Novo Evento
+          </button>
+        </div>
       </div>
 
       <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden">

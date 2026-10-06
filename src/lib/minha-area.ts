@@ -11,7 +11,10 @@ import { formatarDataBrasil } from '@/lib/datas';
 
 // ─── Favoritos ────────────────────────────────────────────────────────────────
 
-export const ENTIDADES_FAVORITAVEIS = ['projeto', 'edital'] as const;
+// 'evento' entra aqui porque a Agenda permite "acompanhar" um evento (o sino do
+// card) e isso é guardado como favorito — assim o estudante vê o que acompanha
+// também na aba Favoritos da área dele, sem um segundo mecanismo de salvar item.
+export const ENTIDADES_FAVORITAVEIS = ['projeto', 'edital', 'evento'] as const;
 export type EntidadeFavoritavel = (typeof ENTIDADES_FAVORITAVEIS)[number];
 
 /** Valida a entidade vinda do cliente — nunca confie no que chega. */
@@ -30,12 +33,15 @@ export function chaveFavorito(entidade: string, entidadeId: string): string {
 
 /** Para onde o favorito leva. */
 export function hrefFavorito(entidade: EntidadeFavoritavel, slug: string): string {
-  return entidade === 'projeto' ? `/projetos/${slug}` : `/editais/${slug}`;
+  if (entidade === 'projeto') return `/projetos/${slug}`;
+  if (entidade === 'evento') return '/agenda';
+  return `/editais/${slug}`;
 }
 
 export const ROTULO_ENTIDADE: Record<EntidadeFavoritavel, string> = {
   projeto: 'Projeto',
   edital: 'Edital',
+  evento: 'Evento da agenda',
 };
 
 // ─── Alertas de interesse ─────────────────────────────────────────────────────

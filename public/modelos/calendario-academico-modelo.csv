@@ -1,0 +1,6 @@
+﻿ref;tipo;titulo;descricao;data;dataFim;categoria;subcategoria;publico;nivel;natureza;interessaAlunos;interessaProfessores;local
+cal2026-001;FERIADO;CONFRATERNIZAÇÃO UNIVERSAL - FERIADO NACIONAL;;01/01/2026;;Feriado / recesso / férias;Feriado;Alunos e professores;Geral / Campus;Informativo;Sim;Sim;
+cal2026-002;RECESSO;RECESSO ACADÊMICO E ADMINISTRATIVO;;02/01/2026;;Feriado / recesso / férias;Recesso;Alunos e professores;Geral / Campus;Informativo;Sim;Sim;
+cal2026-003;RECESSO;PERÍODO DESTINADO A FÉRIAS ESCOLARES E DOCENTES;;05/01/2026;30/01/2026;Feriado / recesso / férias;Férias escolares/docentes;Alunos e professores;Geral / Campus;Informativo;Sim;Sim;
+exemplo-1;PRAZO_EDITAL;Encerramento das inscrições do Edital 01/2026;Último dia para enviar a documentação pelo portal.;30/10/2026;;Prazo / edital / burocracia;Edital / processo seletivo;Alunos;Geral / Campus;Prazo;Sim;Não;Portal Conecta
+exemplo-2;EVENTO_CAMPUS;Semana da Ciência e Tecnologia;;10/11/2026;13/11/2026;Evento específico de curso;Evento acadêmico / científico / cultural;Comunidade acadêmica;Geral / Campus;Informativo;Sim;Sim;Campus Ivaiporã

@@ -1451,6 +1451,75 @@ agenda que aparecem no mockup.
 
 ---
 
+## 31. Calendário acadêmico importável + acompanhamento na Agenda
+
+**Pedido:** a partir das planilhas do Calendário Acadêmico 2026 (e do arquivo já
+classificado), criar um modelo CSV/JSON para inserir os dados na Agenda, com botão
+de importar; os filtros precisavam **funcionar** (eram botões sem ação) e o aluno
+precisa poder acompanhar o calendário inteiro ou escolher eventos (individualmente
+ou todos de um filtro).
+
+**Modelo do arquivo** (`tools/gerar-calendario-2026.py` → `public/modelos/`):
+
+| Arquivo | Conteúdo |
+|---|---|
+| `calendario-academico-modelo.csv` / `.json` | modelo com cabeçalho + 2 exemplos |
+| `calendario-ifpr-ivaipora-2026.csv` / `.json` | **110 linhas** geradas da aba "Agenda filtrável" da planilha REGERADA |
+
+O gerador agrupa os 239 registros dia-evento em **110 eventos**: dias consecutivos
+do mesmo evento viram um evento com `data`+`dataFim`; datas soltas do mesmo evento
+(ex.: "1, 15 e 30") viram um evento por data, com sufixo na `ref`.
+
+**Schema** (`prisma/schema.prisma`, aplicado com `prisma db push` — o projeto não
+usa migrations):
+
+- `Evento` ganhou `categoria`, `subcategoria`, `publicoAlvo`, `nivel`, `natureza`,
+  `interessaAlunos`, `interessaProfessores`, `origemRef` (**único**),
+  `importLote`, `importadoEm` + índices em `data` e `categoria`;
+- modelo novo `AgendaPreferencia` (`seguirTudo`) para "acompanho o calendário
+  inteiro" — que assim vale também para o que for importado depois;
+- eventos individuais acompanhados usam a tabela **`Favorito`** já existente, com
+  `entidade = 'evento'` (por isso `ENTIDADES_FAVORITAVEIS` ganhou o terceiro
+  valor). Não existe um segundo mecanismo de "salvar item", e o que o aluno
+  acompanha aparece também em Minha área → Favoritos.
+
+**Importação:** `src/lib/agenda-import.ts` (parser CSV/JSON: separador `;`/`,`/TAB
+detectado, cabeçalhos em português com ou sem acento, `DD/MM/AAAA` ou ISO, serial
+do Excel, `Sim/Não`, dedução do `tipo` pela categoria) + `src/actions/agenda-import.ts`
+(prévia e confirmação) + tela `/admin/agenda/importar` com prévia, contagens por
+categoria/mês, erros por linha e download dos modelos. **Idempotente por `ref`**:
+reimportar atualiza em vez de duplicar (testado: 2ª execução = 0 criados, 110
+atualizados). Também há um caminho de operação em
+`prisma/importar-calendario.ts` (CLI, mesmo parser).
+
+**Agenda pública:** os filtros passaram a funcionar de verdade
+(`src/components/agenda/AgendaExplorer.tsx`, client component): busca por texto,
+tipo, categoria, público, "interessa a alunos/professores", período (próximos 60
+dias / este mês / este ano / tudo) e "só o que eu acompanho". Acompanhar tem três
+caminhos: sino do card, "acompanhar os N deste filtro" (em massa) e "acompanhar o
+calendário inteiro". O export `.ics` respeita os filtros da tela
+(`?tipo=&categoria=&publico=&interesse=&periodo=`) e, com `seguindo=1`, sai só com
+a seleção do estudante logado.
+
+**Decisões que valem registro:**
+
+- datas importadas são gravadas **ao meio-dia de Brasília** (15:00 UTC): o portal
+  roda com `TZ=America/Sao_Paulo` e uma data em UTC meia-noite apareceria como o
+  dia anterior na agenda (`data.getDate()`), e ainda escorregaria de dia no .ics;
+- a importação nunca apaga eventos: reimportar só cria/atualiza (não há
+  "sincronizar apagando o que saiu da planilha");
+- `31/02/2026` era aceito antes de um teste pegar o problema — o `Date` do JS
+  "rola" datas impossíveis para o mês seguinte, então agora conferimos dia e mês
+  depois de montar a data.
+
+**Verificação:** 504 testes em 31 arquivos (29 novos em `tests/agenda-import.test.ts`,
+incluindo o arquivo real do campus importando sem nenhum erro); `tsc --noEmit`
+limpo; filtros exercitados no navegador (contadores mudando a cada clique, sem erro
+de console); `.ics` conferido com e sem filtro (118 eventos no total, 13 feriados,
+22 no mês, 85 interessando alunos).
+
+---
+
 ## Resumo de impactos
 
 | Decisão | Impacto | Fase | Notas |
@@ -1480,8 +1549,9 @@ agenda que aparecem no mockup.
 | **E-mail e CAPTCHA desligados por opção (Dec. 26)** | Sem `RESEND_API_KEY` o envio devolve `{ ok: false }` sem stack trace no journal (aviso no portal segue); sem Turnstile não há CAPTCHA no cadastro/inscrição | **no ar** (05/10, BUILD_ID `hq8XoWCjwi7QgyUDrTe_X`) | Decisão do responsável; ligar exige preencher as chaves **e** rebuildar (a site key é embutida no build) |
 | **Rodapé institucional + lição de deploy (Dec. 27)** | Endereço completo, mapa (embed sem chave, `loading="lazy"`) e contatos oficiais no rodapé; `@ifpr.ivaipora` (errado) → `@ifpr.campus.ivaipora`; script de troca passa a não assumir que `-old` existe | **no ar** (06/10, BUILD_ID `CaA2WYgwrI0QuGuwzy73p`) | `mv A B` com B existente move A para dentro de B — causou 20 s de queda; agora `/root/troca-portal.sh` na VPS e runbook corrigido |
 | **Redesign com a IFizinha, fases 0 e 1 (Dec. 28)** | Assets de 14,7 MB → 1,9 MB em `public/ifizinha/` (script com Pillow) + componente `MascoteIFizinha`; header claro com o logo oficial e botão "Pergunte à IFizinha"; rodapé azul com a mascote | **no ar** (06/10, BUILD_ID `BQJ44sJ7trRYlP8SEagLg`) | Backup em 3 camadas (tag `pre-redesign-2026-10-06`); nenhum link removido; fase 2 = home |
-| **Redesign — fases 2 e 4: home e metadados (Dec. 29)** | Home com capa clara, 4 atalhos com ícones 3D, seções do mockup, **notícias dos projetos** (posts públicos) e chat embutido; ícones do PWA na marca nova, OG image no compartilhamento, robots/sitemap e ajustes de contraste (WCAG AA) | **no ar** (06/10, BUILD_ID `J6xWG1OV6O3LqbeoY1dmD`) | Mascotes ancoradas nas bordas; `.bg-hero-gradient` deixou de usar o atalho `background` (resetava `background-clip`); produção ainda sem post publicado → seção de notícias no estado vazio; **fase 3 pendente** |
-| **Redesign — fase 3: páginas internas e 404 (Dec. 30)** | Cabeçalho claro reutilizável (`PageHero`) em editais, edital, projetos, agenda, busca, inscrição e meus-dados; telas de autenticação no tema claro; 404 com a arte da IFizinha | **no ar** (06/10, BUILD_ID `e_jnDaWmVJDRmAMLIdwRk`) | `pt-28` embutido resolve o Header fixo; nenhuma lógica tocada nas telas de auth (auditado no diff); restam só os ajustes de conteúdo e os chips de filtro da agenda |
+| **Redesign — fases 2 e 4: home e metadados (Dec. 29)** | Home com capa clara, 4 atalhos com ícones 3D, seções do mockup, **notícias dos projetos** (posts públicos) e chat embutido; ícones do PWA na marca nova, OG image no compartilhamento, robots/sitemap e ajustes de contraste (WCAG AA) | **no ar** (06/10, BUILD_ID `J6xWG1OV6O3LqbeoY1dmD`) | Mascotes ancoradas nas bordas; `.bg-hero-gradient` deixou de usar o atalho `background` (resetava `background-clip`); produção ainda sem post publicado → seção de notícias no estado vazio; **fase 3 pendente** |
+| **Redesign — fase 3: páginas internas e 404 (Dec. 30)** | Cabeçalho claro reutilizável (`PageHero`) em editais, edital, projetos, agenda, busca, inscrição e meus-dados; telas de autenticação no tema claro; 404 com a arte da IFizinha | **no ar** (06/10, BUILD_ID `e_jnDaWmVJDRmAMLIdwRk`) | `pt-28` embutido resolve o Header fixo; nenhuma lógica tocada nas telas de auth (auditado no diff); restam só os ajustes de conteúdo e os chips de filtro da agenda |
+| **Calendário acadêmico importável + acompanhamento (Dec. 31)** | Modelo CSV/JSON (110 eventos do Calendário 2026), importação idempotente por `ref` no painel, filtros da agenda funcionando de verdade e aluno podendo acompanhar evento/filtro/calendário inteiro | **no ar** (06/10) | `prisma db push` (o projeto não usa migrations); datas ao meio-dia de Brasília; acompanhamento reaproveita a tabela `Favorito` |
 
 ---
 
