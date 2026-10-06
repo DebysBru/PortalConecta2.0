@@ -1210,6 +1210,65 @@ passando. Suíte local: **470 testes** em 29 arquivos, `tsc --noEmit` limpo.
 
 ---
 
+## 27. Rodapé com endereço, mapa e contatos oficiais (e uma lição de deploy)
+
+**Pedido (06/10/2026):** acrescentar ao rodapé o endereço do IFPR (com mapa, se
+possível), o site oficial, o e-mail da comunicação e os Instagram do campus e
+da IFizinha.
+
+**Dado errado que estava no ar:** o rodapé trazia `@ifpr.ivaipora` — que **não
+é** o perfil oficial. O oficial é `@ifpr.campus.ivaipora`, confirmado no rodapé
+de https://ifpr.edu.br/ivaipora/ (mesma página que confirma o endereço completo,
+que aqui aparecia reduzido a "Ivaiporã – PR | Campus IFPR").
+
+**O que entrou** (`src/components/layout/Footer.tsx`):
+
+| Item | Como |
+|---|---|
+| Endereço | Rua Max Arthur Greipel, nº 505 — Parque Industrial I — Porfírio Basso · Caixa Postal 138 · Ivaiporã/PR · CEP 86.873-400 |
+| Mapa | `<iframe>` do Google Maps com `output=embed` (**sem chave de API**) e `loading="lazy"` — o rodapé é abaixo da dobra, então o iframe só carrega quando o usuário chega nele (as páginas públicas não pagam o peso do Google na primeira dobra). O link "Ver no Google Maps / abrir no app" cobre bloqueador de anúncio/rede. |
+| Contatos | site oficial, `comunicacao.ivaipora@ifpr.edu.br`, `@ifpr.campus.ivaipora` e `@ifizinha.ifpr` (marcado como IFizinha) |
+
+**Verificação:** screenshot real do rodapé (Chrome headless via CDP) — o embed
+resolveu no pino "IFPR – Câmpus Ivaiporã"; 5 testes novos em
+`tests/rodape-institucional.test.ts` (endereço, site, e-mail, os dois Instagram,
+**ausência** do handle antigo, embed do mapa e `loading="lazy"`); suíte com
+**475 testes** em 30 arquivos; `tsc --noEmit` limpo; deploy blue-green
+(BUILD_ID `CaA2WYgwrI0QuGuwzy73p`) verificado em produção com o conteúdo do
+rodapé presente no HTML e todas as páginas 200.
+
+**Lição de deploy (custou 20 s de portal fora do ar):** o script de troca usado
+nas duas primeiras vezes terminava com
+
+```bash
+systemctl stop portal-conecta
+mv /var/www/portal-conecta      /var/www/portal-conecta-old   # ← assumia que -old NÃO existia
+mv /var/www/portal-conecta-novo /var/www/portal-conecta
+systemctl start portal-conecta
+```
+
+Só que as pastas `-old` tinham sido apagadas na limpeza de 05/10. Com `set -e` o
+`mv` falhou, o script abortou **depois** do `stop` e o serviço ficou parado até o
+conserto: `08:47:57 → 08:48:17` (20 s). Ninguém pegou — **0 respostas 5xx** no
+nginx na janela (a manhã tinha ~6 requisições por 10 min).
+
+Duas correções para não repetir:
+
+1. `mv A B` com B existente move A **para dentro** de B (não sobrescreve) — pior
+   que falhar. O passo 5 do runbook agora testa `[ -e ...-old ]` e guarda o
+   antigo com carimbo de data;
+2. nada de script solto em `/tmp`: a VPS passou a ter `/root/troca-portal.sh`
+   (testado, com essa guarda, checagem de `BUILD_ID` e `curl` no fim). O passo 4
+   do runbook também foi corrigido: a origem dos chunks a preservar é o build
+   **que está no ar** (`/var/www/portal-conecta`), não o `-old`.
+
+**Registrado em:** DECISIONS.md
+**Impacto:** `src/components/layout/Footer.tsx`,
+`tests/rodape-institucional.test.ts`, `deploy/DEPLOY_BLUE_GREEN.md`,
+`/root/troca-portal.sh` (VPS)
+
+---
+
 ## Resumo de impactos
 
 | Decisão | Impacto | Fase | Notas |
@@ -1237,6 +1296,7 @@ passando. Suíte local: **470 testes** em 29 arquivos, `tsc --noEmit` limpo.
 | **Datas no fuso do Brasil (Dec. 24)** | `src/lib/datas.ts`: data "só dia" gravada ao meio-dia UTC, prazo inclusivo até o fim do dia, formatação e serviço em `America/Sao_Paulo` | **no ar** | `prisma/datas-fuso-setup.sql` (idempotente; 0 linhas afetadas em produção) |
 | **Cadastro quebrava a página (Dec. 25)** | `/cadastro` redireciona em `useEffect` (era `router.replace` durante o render → React error #310 → tela branca ao criar conta); recarga automática quando um chunk do build anterior some; deploy passa a preservar `.next/static` e copiar `public/` | **no ar** (05/10, BUILD_ID `887zxvLK3wAiaOVHIqLIf`) | `public/` agora versionado; favicon e ícones do PWA voltaram a 200; runbook em `deploy/DEPLOY_BLUE_GREEN.md` |
 | **E-mail e CAPTCHA desligados por opção (Dec. 26)** | Sem `RESEND_API_KEY` o envio devolve `{ ok: false }` sem stack trace no journal (aviso no portal segue); sem Turnstile não há CAPTCHA no cadastro/inscrição | **no ar** (05/10, BUILD_ID `hq8XoWCjwi7QgyUDrTe_X`) | Decisão do responsável; ligar exige preencher as chaves **e** rebuildar (a site key é embutida no build) |
+| **Rodapé institucional + lição de deploy (Dec. 27)** | Endereço completo, mapa (embed sem chave, `loading="lazy"`) e contatos oficiais no rodapé; `@ifpr.ivaipora` (errado) → `@ifpr.campus.ivaipora`; script de troca passa a não assumir que `-old` existe | **no ar** (06/10, BUILD_ID `CaA2WYgwrI0QuGuwzy73p`) | `mv A B` com B existente move A para dentro de B — causou 20 s de queda; agora `/root/troca-portal.sh` na VPS e runbook corrigido |
 
 ---
 

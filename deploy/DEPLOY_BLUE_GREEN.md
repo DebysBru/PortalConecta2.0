@@ -57,24 +57,25 @@ cp -a /var/www/portal-conecta /var/www/portal-conecta-novo
 # rodar os SQL de prisma/*-setup.sql que mudaram neste deploy, um a um
 ```
 
-## 4. ⚠️ Preservar os chunks do build anterior (o passo que faltava)
+## 4. ⚠️ Preservar os chunks do build que está no ar (o passo que faltava)
 
 ```bash
 # .next/static é imutável e tem hash no nome do arquivo: juntar o antigo com o
 # novo nunca sobrescreve nada (mesmo nome = mesmo conteúdo). Sem isso, quem
 # está com o portal aberto durante a troca passa a pedir arquivos que não
 # existem mais → ChunkLoadError → tela de "Application error".
-mkdir -p /var/www/portal-conecta-novo/.next/static
-cp -rn /var/www/portal-conecta-old/.next/static/. /var/www/portal-conecta-novo/.next/static/
+#
+# A origem é o build QUE ESTÁ NO AR (/var/www/portal-conecta), não o -old: é o
+# bundle dele que os navegadores ainda têm em cache.
+cp -rn /var/www/portal-conecta/.next/static/. /var/www/portal-conecta-novo/.next/static/
 ```
 
-Faça isso **antes** do `npm run build` no diretório novo (o build não apaga o
-que não gerou) e repita depois do build, porque o Next limpa `.next` no começo
-da build. O jeito mais seguro é copiar depois do build:
+Isso precisa ser **depois** do `npm run build` no diretório novo — o Next limpa
+`.next` no começo da build, então copiar antes não adianta:
 
 ```bash
 cd /var/www/portal-conecta-novo && npm run build
-cp -rn /var/www/portal-conecta-old/.next/static/. /var/www/portal-conecta-novo/.next/static/
+cp -rn /var/www/portal-conecta/.next/static/. /var/www/portal-conecta-novo/.next/static/
 ```
 
 Alternativa: servir `/_next/static/` pelo nginx com `try_files` caindo também
@@ -86,12 +87,29 @@ na pasta do build antigo. A cópia é mais simples e não mexe no vhost.
 
 ## 5. Troca (≈6 s fora do ar)
 
+Rode o script testado na VPS (`/root/troca-portal.sh`) ou faça na mão com o
+mesmo cuidado:
+
 ```bash
 systemctl stop portal-conecta
+
+# ⚠️ `mv A B` com B JÁ EXISTENTE move A PARA DENTRO de B (não sobrescreve).
+# Se o -old foi apagado na limpeza (ou é de outra rodada), o `mv` seguinte falha
+# — e com `set -e` o script morre DEPOIS do stop, deixando o site fora do ar.
+# Foi exatamente o que aconteceu em 06/10/2026 (20 s de queda, sem 5xx no nginx).
+if [ -e /var/www/portal-conecta-old ]; then
+  mv /var/www/portal-conecta-old "/var/www/portal-conecta-old-$(date +%Y%m%d-%H%M)"
+fi
+
 mv /var/www/portal-conecta /var/www/portal-conecta-old
 mv /var/www/portal-conecta-novo /var/www/portal-conecta
 systemctl start portal-conecta
 ```
+
+O `/root/troca-portal.sh` faz exatamente isso: confere o `BUILD_ID` do build
+novo, mescla os chunks do build atual no novo, guarda o `-old` existente com
+carimbo de data em vez de falhar, troca as pastas e sobe o serviço — terminando
+com `systemctl is-active` e um `curl` em `/` e `/cadastro`.
 
 ## 6. nginx
 
