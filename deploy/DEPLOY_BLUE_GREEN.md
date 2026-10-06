@@ -115,7 +115,9 @@ journalctl -u portal-conecta -n 50 --no-pager | grep -i error
   conferir que não há `ChunkLoadError` nem "Application error";
 - upload de imagem pelo painel → servido pelo nginx → `/api/files/peso`.
 
-## Rollback (≈20 s)
+## Rollback
+
+### Rápido (≈20 s) — enquanto `portal-conecta-old` existir
 
 ```bash
 systemctl stop portal-conecta
@@ -123,6 +125,43 @@ mv /var/www/portal-conecta /var/www/portal-conecta-novo
 mv /var/www/portal-conecta-old /var/www/portal-conecta
 systemctl start portal-conecta
 ```
+
+Esse caminho de 20 s só existe porque o passo 5 **guarda o build anterior em
+`portal-conecta-old`**. Se você apagar essa pasta na limpeza, o rollback rápido
+deixa de existir.
+
+### Por tarball (≈1-2 min) — quando não há `-old`
+
+Os backups de `/root/portal-conecta-codigo-<data>.tgz` guardam a árvore inteira
+(código **e** `.next`), então restaurar não exige `npm run build`. Em 05/10/2026
+deixamos um script pronto na VPS:
+
+```bash
+bash /root/rollback-portal.sh                    # backup de 19:47 (build 887zxvLK3wAiaOVHIqLIf)
+bash /root/rollback-portal.sh /root/portal-conecta-codigo-2026-10-05-1910.tgz
+```
+
+Ele para o serviço, move a árvore atual para `/var/www/portal-conecta-atual-<data>`
+(em vez de apagar), extrai o tarball, reajusta o dono e sobe de novo.
+
+> Antes de confiar num tarball, confira qual build ele devolve:
+> `tar xzOf <tarball> portal-conecta/.next/BUILD_ID`
+
+## Limpeza dos builds antigos
+
+`portal-conecta-old` e `portal-conecta-old-anterior` acumulam ~1,3 G aparentes
+cada (boa parte em `node_modules` por hard link, então o disco liberado é bem
+menor). Ao limpar:
+
+1. **nunca** inclua `/var/www/portal-conecta` (o build no ar) na lista;
+2. confirme antes que o tarball de backup devolve o `BUILD_ID` que você está
+   apagando (`tar xzOf ... portal-conecta/.next/BUILD_ID`);
+3. `gzip -t` nos tarballs que pretende manter como rollback;
+4. `rm -rf --one-file-system <pasta>` e, depois, conferir `systemctl is-active`
+   e um `curl` em `/` e `/cadastro`.
+
+Feito em 05/10/2026: as duas pastas antigas foram removidas e o rollback passou
+a ser o `rollback-portal.sh` (backup de 19:47 = build `887zxvLK3wAiaOVHIqLIf`).
 
 ## Por que a tela ficava branca (reprodução rápida)
 
