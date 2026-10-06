@@ -1169,6 +1169,47 @@ como reproduzido em `React error #310`.
 
 ---
 
+## 26. E-mail e CAPTCHA desligados por opção (e o 2º deploy da noite)
+
+**Pedido:** "por enquanto não pretendo usar o CAPTCHA nem o RESEND."
+
+**Decisão:** manter os dois desligados — o código já degrada sozinho, como as
+outras integrações opcionais (`GEMINI_API_KEY`, por exemplo):
+
+| Integração | Sem a chave | O que continua funcionando |
+|---|---|---|
+| Cloudflare Turnstile (`NEXT_PUBLIC_TURNSTILE_SITE_KEY` / `TURNSTILE_SECRET_KEY`) | o widget não renderiza e `verificarTurnstile` devolve `true` (não bloqueia ninguém) | cadastro e inscrição normais — sem proteção contra bot, por escolha |
+| Resend (`RESEND_API_KEY`) | nenhum e-mail sai | **o aviso dentro do portal continua** (sino / "Minha área", `lib/notificacoes.ts` é outro caminho); inscrição e mudança de status não dependem do e-mail — o envio é disparado sem bloquear a resposta |
+
+**Correção de ruído:** sem a chave, o envio devolvia `{ ok: false }` mas
+**logava stack trace** (`Erro ao enviar e-mail de atualização`) a cada
+inscrição/mudança de status — 3 linhas numa noite de teste, ruído capaz de
+esconder um erro de verdade no journal. Agora `resendConfigurado()` (mesmo
+padrão de `turnstileConfigurado()`) faz as quatro funções de envio retornarem
+cedo, **sem log**, com o mesmo contrato de sempre (`{ ok: false, error }`,
+nunca lança).
+
+**2º deploy da noite (19:51 CDT):** mesmo procedimento do §25 —
+`deploy/DEPLOY_BLUE_GREEN.md` (backup, árvore paralela com `node_modules` por
+hard link, `npm run build` como `portal`, merge dos chunks do build anterior —
+agora 108 arquivos js cobrindo três gerações — e troca `stop`→`mv`→`start`).
+BUILD_ID `hq8XoWCjwi7QgyUDrTe_X`; anterior em `/var/www/portal-conecta-old`.
+
+**Verificação:** páginas e assets 200 (`/`, `/cadastro`, `/editais`,
+`/meus-dados`, `/admin/login`, favicon, ícones, manifest); journal sem erros;
+`src/lib/email.ts` em produção com md5 idêntico ao local; e, para não confiar só
+em teste local, os **7 testes rodaram na própria árvore de produção**
+(`runuser -u portal -- npx vitest run tests/email-sem-resend.test.ts`) — 7
+passando. Suíte local: **470 testes** em 29 arquivos, `tsc --noEmit` limpo.
+
+**Commit:** `f0ba046` (correções do cadastro + recuperação de build + e-mail +
+`public/` versionado + runbook + §25) e o commit seguinte com este §26.
+
+**Registrado em:** DECISIONS.md
+**Impacto:** `src/lib/email.ts`, `tests/email-sem-resend.test.ts`
+
+---
+
 ## Resumo de impactos
 
 | Decisão | Impacto | Fase | Notas |
@@ -1194,7 +1235,8 @@ como reproduzido em `React error #310`.
 | **Limites de entrada + posse da sessão no painel (Dec. 22)** | Catálogo único de limites (`src/lib/validacao.ts`); painel passa a exigir cookie de sessão verificado (fecha bypass por e-mail do cliente) | pré-lançamento | Sem migração; painel admin ainda sem os limites de texto |
 | **Deploy em produção 05/10 (Dec. 23)** | Blue-green na VPS: build em diretório paralelo, troca de pastas em ~6 s, rollback em 20 s | **no ar** | Estado anterior em `/var/www/portal-conecta-old`; ver Dec. 23 |
 | **Datas no fuso do Brasil (Dec. 24)** | `src/lib/datas.ts`: data "só dia" gravada ao meio-dia UTC, prazo inclusivo até o fim do dia, formatação e serviço em `America/Sao_Paulo` | **no ar** | `prisma/datas-fuso-setup.sql` (idempotente; 0 linhas afetadas em produção) |
-| **Cadastro quebrava a página (Dec. 25)** | `/cadastro` redireciona em `useEffect` (era `router.replace` durante o render → React error #310 → tela branca ao criar conta); recarga automática quando um chunk do build anterior some; deploy passa a preservar `.next/static` e copiar `public/` | **corrigido no código, falta subir** | `public/` não versionado → favicon e ícones do PWA em 404 em produção; runbook em `deploy/DEPLOY_BLUE_GREEN.md` |
+| **Cadastro quebrava a página (Dec. 25)** | `/cadastro` redireciona em `useEffect` (era `router.replace` durante o render → React error #310 → tela branca ao criar conta); recarga automática quando um chunk do build anterior some; deploy passa a preservar `.next/static` e copiar `public/` | **no ar** (05/10, BUILD_ID `887zxvLK3wAiaOVHIqLIf`) | `public/` agora versionado; favicon e ícones do PWA voltaram a 200; runbook em `deploy/DEPLOY_BLUE_GREEN.md` |
+| **E-mail e CAPTCHA desligados por opção (Dec. 26)** | Sem `RESEND_API_KEY` o envio devolve `{ ok: false }` sem stack trace no journal (aviso no portal segue); sem Turnstile não há CAPTCHA no cadastro/inscrição | **no ar** (05/10, BUILD_ID `hq8XoWCjwi7QgyUDrTe_X`) | Decisão do responsável; ligar exige preencher as chaves **e** rebuildar (a site key é embutida no build) |
 
 ---
 
