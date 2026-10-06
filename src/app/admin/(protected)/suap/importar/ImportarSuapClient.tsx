@@ -10,6 +10,7 @@ import {
   previsualizarImportacaoSuap, confirmarImportacaoSuap, type PreviaImportacaoSuap,
 } from '@/actions/suap-import';
 import type { SyncResult } from '@/lib/suap-sync';
+import { LIMITE_CAPTURA_BYTES } from '@/lib/suap-import';
 import { useAuth } from '@/contexts/AuthContext';
 import { useMensagemErro } from '@/lib/use-mensagem-erro';
 
@@ -38,6 +39,22 @@ export function ImportarSuapClient({ codigoCaptura, siglaCampus }: { codigoCaptu
   const isMaster = userRole === 'ADMIN' || isMasterAdmin;
 
   const jaColei = useMemo(() => conteudo.trim().length > 0, [conteudo]);
+  const tamanhoBytes = useMemo(() => (conteudo ? new Blob([conteudo]).size : 0), [conteudo]);
+  const tamanhoMB = tamanhoBytes / 1024 / 1024;
+  const grandeDemais = tamanhoBytes > LIMITE_CAPTURA_BYTES;
+
+  /** Mensagem amigável para o que pode dar errado na chamada da action. */
+  const mensagemDeFalha = (erro: unknown) => {
+    const texto = erro instanceof Error ? erro.message : String(erro);
+    if (/Body exceeded|413|body size limit/i.test(texto)) {
+      return (
+        `A captura é grande demais para o envio (${tamanhoMB.toFixed(1)} MB). ` +
+        `O limite é ${LIMITE_CAPTURA_BYTES / 1024 / 1024} MB. Rode o script de captura de novo — ele já traz só o campus — ` +
+        'ou divida o JSON em partes (extensão e pesquisa separadas, por exemplo).'
+      );
+    }
+    return texto || 'Não conseguimos falar com o servidor agora. Tente novamente em alguns instantes.';
+  };
 
   if (!isMaster) {
     return (
@@ -52,20 +69,54 @@ export function ImportarSuapClient({ codigoCaptura, siglaCampus }: { codigoCaptu
     setError('');
     setPrevia(null);
     setResultado(null);
+
+    const bytes = new Blob([texto]).size;
+    if (bytes === 0) {
+      setError('O conteúdo está vazio. Confira o arquivo.');
+      return;
+    }
+    if (bytes > LIMITE_CAPTURA_BYTES) {
+      // Barra aqui para não gastar a viagem: uma captura grande demais faria o
+      // Next recusar o corpo da requisição com 413 e a tela mostraria um erro
+      // genérico (aconteceu em 06/10/2026, digest 1301235869).
+      setError(
+        `Esta captura tem ${(bytes / 1024 / 1024).toFixed(1)} MB e o limite é ` +
+        `${LIMITE_CAPTURA_BYTES / 1024 / 1024} MB. Rode o script de captura de novo (ele já filtra o campus ` +
+        `${siglaCampus}) — o arquivo fica bem menor — ou divida o JSON em partes.`,
+      );
+      return;
+    }
+
     startTransition(async () => {
-      const resposta = await previsualizarImportacaoSuap(texto);
-      if (resposta.ok) {
-        setPrevia(resposta);
-        setNomeArquivo(arquivo);
-      } else {
-        setError(resposta.error);
+      try {
+        const resposta = await previsualizarImportacaoSuap(texto);
+        if (resposta.ok) {
+          setPrevia(resposta);
+          setNomeArquivo(arquivo);
+        } else {
+          setError(resposta.error);
+        }
+      } catch (erro) {
+        setError(mensagemDeFalha(erro));
       }
     });
   };
 
   const lerArquivo = async (arquivo: File) => {
     setLendo(true);
+    setError('');
     try {
+      // Confere o tamanho antes de ler: um arquivo gigante nem chega a ser
+      // enviado (o Next recusaria o corpo com 413 e a tela mostraria erro
+      // genérico — ver next.config.js).
+      if (arquivo.size > LIMITE_CAPTURA_BYTES) {
+        setError(
+          `“${arquivo.name}” tem ${(arquivo.size / 1024 / 1024).toFixed(1)} MB e o limite é ` +
+          `${LIMITE_CAPTURA_BYTES / 1024 / 1024} MB. Rode o script de captura de novo (ele já filtra o campus ` +
+          `${siglaCampus}) ou divida o JSON em partes.`,
+        );
+        return;
+      }
       const texto = await arquivo.text();
       setConteudo(texto);
       analisar(texto, arquivo.name);
@@ -89,12 +140,16 @@ export function ImportarSuapClient({ codigoCaptura, siglaCampus }: { codigoCaptu
   const confirmar = () => {
     setError('');
     startTransition(async () => {
-      const resposta = await confirmarImportacaoSuap(conteudo, { forcar });
-      if (resposta.ok) {
-        setResultado(resposta);
-        setPrevia(null);
-      } else {
-        setError(resposta.error);
+      try {
+        const resposta = await confirmarImportacaoSuap(conteudo, { forcar });
+        if (resposta.ok) {
+          setResultado(resposta);
+          setPrevia(null);
+        } else {
+          setError(resposta.error);
+        }
+      } catch (erro) {
+        setError(mensagemDeFalha(erro));
       }
     });
   };
@@ -221,6 +276,19 @@ export function ImportarSuapClient({ codigoCaptura, siglaCampus }: { codigoCaptu
           rows={6}
           className="input-field font-mono text-xs"
         />
+
+        <div className="mt-2 flex flex-wrap items-center gap-3 text-xs text-gray-500">
+          {jaColei && (
+            <span className={grandeDemais ? 'font-semibold text-red-600' : ''}>
+              {tamanhoBytes < 102400
+                ? `${Math.max(1, Math.round(tamanhoBytes / 1024))} KB carregado`
+                : `${tamanhoMB.toFixed(1)} MB carregado`}
+              {grandeDemais
+                ? ` — acima do limite de ${LIMITE_CAPTURA_BYTES / 1024 / 1024} MB`
+                : ` (limite: ${LIMITE_CAPTURA_BYTES / 1024 / 1024} MB)`}
+            </span>
+          )}
+        </div>
 
         <div className="mt-3 flex flex-wrap items-center gap-2">
           <button

@@ -2,6 +2,17 @@
 const nextConfig = {
   experimental: {
     serverComponentsExternalPackages: ['pdf-parse'],
+    // A importação do SUAP manda a captura inteira como argumento de Server
+    // Action, e o padrão do Next é **1 MB** — uma captura sem filtro de campus
+    // passa disso com folga. Sem isto o usuário recebia um 500 com digest em vez
+    // de uma explicação (foi o caso do digest 1301235869, em 06/10/2026).
+    //
+    // Escala dos limites: nginx do portal aceita 25 MB, o Next passa a aceitar
+    // 16 MB e a nossa própria checagem barra em 12 MB
+    // (LIMITE_CAPTURA_BYTES, em src/lib/suap-import.ts). O limite do framework
+    // fica ACIMA do nosso de propósito: assim quem responde com mensagem clara é
+    // o nosso código, e não um erro de infraestrutura.
+    serverActions: { bodySizeLimit: '16mb' },
   },
   images: {
     remotePatterns: [

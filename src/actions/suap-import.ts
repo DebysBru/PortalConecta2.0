@@ -4,7 +4,7 @@ import { prisma } from '@/lib/prisma';
 import { getVerifiedServerSession } from '@/lib/session';
 import { isAdministradorGeral } from '@/lib/permissions';
 import { MENSAGENS } from '@/lib/mensagens';
-import { analisarCapturaSuap, type ResultadoCaptura } from '@/lib/suap-import';
+import { analisarCapturaSuap, tamanhoEmBytes, LIMITE_CAPTURA_BYTES, type ResultadoCaptura } from '@/lib/suap-import';
 import { normalizaSiglaSuap } from '@/lib/suap-api';
 import { aplicarProjetosDoSuap, type SyncResult } from '@/lib/suap-sync';
 
@@ -49,8 +49,15 @@ export async function previsualizarImportacaoSuap(conteudo: string): Promise<Pre
   if (!conteudo?.trim()) {
     return { ok: false, error: 'Cole o conteúdo da captura (ou envie o arquivo .json) antes de continuar.' };
   }
-  if (conteudo.length > 8_000_000) {
-    return { ok: false, error: 'Arquivo muito grande (limite de 8 MB). Divida a captura por ano ou por fonte.' };
+  const bytes = tamanhoEmBytes(conteudo);
+  if (bytes > LIMITE_CAPTURA_BYTES) {
+    return {
+      ok: false,
+      error:
+        `A captura tem ${(bytes / 1024 / 1024).toFixed(1)} MB e o limite é ` +
+        `${LIMITE_CAPTURA_BYTES / 1024 / 1024} MB. Rode o script de captura de novo — ele já traz só o campus ` +
+        `e o arquivo fica pequeno — ou divida o JSON em partes.`,
+    };
   }
 
   const analise = analisarCapturaSuap(conteudo, process.env.SUAP_CAMPUS_SIGLA ?? 'IVAIPODG');
@@ -72,6 +79,18 @@ export async function confirmarImportacaoSuap(
 ): Promise<({ ok: true } & SyncResult) | Falha> {
   const auth = await exigirAdminGeral();
   if (!auth.ok) return auth;
+
+  if (!conteudo?.trim()) {
+    return { ok: false, error: 'Nada para importar — a captura está vazia.' };
+  }
+  if (tamanhoEmBytes(conteudo) > LIMITE_CAPTURA_BYTES) {
+    return {
+      ok: false,
+      error:
+        `A captura passou do limite de ${LIMITE_CAPTURA_BYTES / 1024 / 1024} MB. ` +
+        'Rode o script de captura novamente (ele já filtra o campus) ou divida o arquivo.',
+    };
+  }
 
   const sigla = process.env.SUAP_CAMPUS_SIGLA ?? 'IVAIPODG';
   const analise = analisarCapturaSuap(conteudo, sigla);
