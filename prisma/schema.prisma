@@ -95,6 +95,14 @@ model Edital {
   id                    String               @id @default(cuid())
   suapId                Int?                 @unique // ID do edital no SUAP
   suapSyncedAt          DateTime? // Última sincronização com SUAP
+  // URL do documento de origem quando o edital vem de importação (hoje: site do
+  // IFPR — ver src/lib/editais-ifpr.ts). É a chave de idempotência: reimportar
+  // atualiza em vez de duplicar, do mesmo jeito que `suapId` faz no sync do SUAP.
+  origemRef             String?              @unique
+  // Área temática de origem (BOLSAS, FIC, ASSISTENCIA_ESTUDANTIL, SERVIDORES...).
+  // Existe porque o enum `categoria` do portal é mais estreito do que a
+  // classificação do site do IFPR, e o filtro da listagem precisa da área real.
+  areaEdital            String?
   titulo                String
   slug                  String               @unique
   numero                String? // Ex: "01/2025"

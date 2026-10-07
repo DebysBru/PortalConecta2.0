@@ -16,6 +16,7 @@
     "db:calendario": "ts-node --compiler-options '{\"module\":\"CommonJS\"}' prisma/importar-calendario.ts",
     "db:suap": "ts-node --project tsconfig.scripts.json -r tsconfig-paths/register prisma/importar-projetos-suap.ts",
     "editais:ifpr": "ts-node --project tsconfig.scripts.json -r tsconfig-paths/register prisma/extrair-editais-ifpr.ts",
+    "editais:portal": "ts-node --project tsconfig.scripts.json -r tsconfig-paths/register prisma/importar-editais-ifpr.ts",
     "db:studio": "prisma studio"
   },
   "dependencies": {

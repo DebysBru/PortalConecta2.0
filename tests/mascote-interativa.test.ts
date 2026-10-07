@@ -1,4 +1,4 @@
-﻿import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import React from 'react';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -170,7 +170,9 @@ describe('mascote nos estados vazios', () => {
   const VAZIOS = [
     { onde: 'agenda (filtro sem resultado)', arquivo: 'src/components/agenda/AgendaExplorer.tsx' },
     { onde: 'projetos (filtro sem resultado)', arquivo: 'src/app/projetos/ProjetosExplorer.tsx' },
-    { onde: 'editais (nenhum publicado)', arquivo: 'src/app/editais/page.tsx' },
+    // O estado vazio dos editais passou a viver no explorador (a listagem ganhou
+    // filtros no cliente), não mais na página.
+    { onde: 'editais (nenhum publicado)', arquivo: 'src/components/editais/EditaisExplorer.tsx' },
     { onde: 'busca (nenhum resultado)', arquivo: 'src/app/busca/page.tsx' },
   ];
 
