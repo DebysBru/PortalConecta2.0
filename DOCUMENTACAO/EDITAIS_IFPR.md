@@ -71,7 +71,59 @@ TECNICO, POS_GRADUACAO, CELIF, PESQUISA, EXTENSAO, INSTITUCIONAL, OUTRO) e
 | Por tipo | EDITAL 763 · RESULTADO 737 · RETIFICACAO 74 · PRORROGACAO 11 |
 | Por área | SERVIDORES 1093 · INSTITUCIONAL 205 · OUTRO 94 · ASSISTENCIA_ESTUDANTIL 64 · BOLSAS 49 · FIC 45 · ENSINO_SUPERIOR 29 · EXTENSAO 5 · CELIF 1 |
 
-## 5. Limites conhecidos (o que a extração não dá)
+## 5. Como importar para o portal
+
+```bash
+npm run editais:portal -- editais-ivaipora.json                # grava
+npm run editais:portal -- editais-ivaipora.json --seco         # mostra o que faria
+npm run editais:portal -- editais-ivaipora.json --ano-desde=2025 --areas=BOLSAS,FIC
+npm run editais:portal -- editais-ivaipora.json --incluir-servidores --destaque
+```
+
+Padrões: ano ≥ 2024, tipos EDITAL/RESULTADO/RETIFICACAO/PRORROGACAO, **sem** a área
+SERVIDORES (PSS gera centenas de documentos por certame) e sem a área OUTRO.
+
+**Idempotência**: a chave é `Edital.origemRef` (a URL do documento). Reimportar
+atualiza os mesmos registros em vez de duplicar — verificado: 1ª execução criou 119,
+a 2ª atualizou 119 e criou 0.
+
+### O que fica gravado em cada edital
+
+| Campo | De onde vem |
+|---|---|
+| `titulo` | título do documento (com contexto quando o rótulo do site é genérico) |
+| `numero` / `ano` | extraídos do título e do caminho da página |
+| `categoria` | área do site → enum do portal (RESULTADO → RESULTADOS, assistência → AUXILIOS, FIC/ensino → ENSINO…) |
+| `areaEdital` | a área **real** do site (coluna nova: o enum `categoria` é mais estreito) |
+| `setorResponsavel` / `publicoAlvo` | derivados da área (COPEX, SEPAE, SEGEPE, CELIF, Direção de Ensino…) |
+| `resumo` | resumo técnico, com a página de origem (rastreabilidade) |
+| `resumoSimples` | **resumo da IFizinha** (ver abaixo) |
+| `linkOficial` / `arquivoPdfUrl` | o link para o documento original no site do IFPR |
+| `fonteOficial` | "Site do IFPR – Campus Ivaiporã" |
+| `origemRef` | URL do documento (chave de idempotência) |
+| `source` / `review_status` | `IMPORT` / `PUBLICADO` |
+
+### A regra de honestidade do resumo da IFizinha
+
+O site do IFPR **não publica datas, valores nem requisitos** — isso está dentro do
+PDF. O resumo, então, fala só do que a extração sabe (tipo, área, ano) e manda abrir
+o documento oficial; `traducaoIFizinha.beneficios` fica **vazio de propósito** e o
+campo de prazo diz explicitamente que as datas estão no arquivo. É a mesma regra do
+prompt de extração por IA que já existia no portal ("nunca invente dados"), e os
+testes travam isso (nada de "R$", data ou carga horária inventados).
+
+Por consequência: **o status é uma estimativa pelo ano** (ano corrente → ABERTO,
+anterior → ENCERRADO, resultado → RESULTADO_PUBLICADO). Sem as datas oficiais não há
+como afirmar que um edital está aberto — a tela avisa isso e o resumo também.
+
+## 6. Filtros da listagem
+
+`/editais` passou a usar `src/components/editais/EditaisExplorer.tsx`, com filtro de
+**busca** (título/resumo/ano, sem acento, todas as palavras), **categoria**,
+**área**, **ano**, **situação** e ordenação — mais contadores, botão de limpar e
+estado vazio com a IFizinha. A filtragem é função pura testada (`filtrarEditais`).
+
+## 7. Limites conhecidos (o que a extração não dá)
 
 - **Datas de inscrição não existem no HTML** — elas estão dentro do PDF. Um edital
   importado para o portal entra com título, link, categoria/área e ano, mas sem
