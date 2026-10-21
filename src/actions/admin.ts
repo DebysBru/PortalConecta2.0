@@ -3,6 +3,8 @@
 import { prisma } from '@/lib/prisma';
 import { slugify, translatePrismaError } from '@/lib/utils';
 import { cache } from '@/lib/cache';
+import { getPublicMetrics } from '@/lib/metrics';
+import { dispararAlertasDeEdital } from '@/lib/alertas';
 import { derivarEventosEdital, derivarEventosProjeto } from '@/lib/evento-helpers';
 import { LIMPEZA_TABLES } from '@/lib/limpeza-tables';
 import { sincronizarProjetoSintetico, removerProjetoSintetico } from '@/lib/projeto-sintetico';
@@ -70,13 +72,16 @@ export async function ensureUser(email: string, name?: string): Promise<{ id: st
 // ── Dashboard stats ───────────────────────────────────────────────────────────
 
 export async function getDashboardStats() {
-  const [editaisAtivos, projetos, usuarios, eventos] = await Promise.all([
-    prisma.edital.count({ where: { status: { in: ['ABERTO', 'EM_ANALISE'] } } }),
-    prisma.projeto.count({ where: { status: 'EM_EXECUCAO' } }),
-    prisma.user.count(),
-    prisma.evento.count({ where: { data: { gte: new Date() } } }),
-  ]);
-  return { editaisAtivos, projetos, usuarios, eventos };
+  // Fonte única (SPEC §5.1, ROADMAP 1.17): antes esta função contava editais sem
+  // filtrar review_status/deleted_at e só projetos EM_EXECUCAO, enquanto a home
+  // contava diferente — os dois números divergiam.
+  const metrics = await getPublicMetrics();
+  return {
+    editaisAtivos: metrics.editaisAtivos,
+    projetos: metrics.projetos,
+    usuarios: metrics.usuarios,
+    eventos: metrics.eventos,
+  };
 }
 
 // ── Editais ───────────────────────────────────────────────────────────────────
@@ -208,6 +213,13 @@ export async function toggleEditalPublicacao(id: string, callerEmail: string): P
     const review_status = edital.review_status === 'PUBLICADO' ? 'RASCUNHO' : 'PUBLICADO';
     await prisma.edital.update({ where: { id }, data: { review_status } });
     cache.invalidate('chat:');
+
+    // ROADMAP 6.4: ao PUBLICAR, avisa quem assinou alerta de interesse para a
+    // categoria. Fire-and-forget: uma falha de aviso não pode desfazer a
+    // publicação (o disparo é idempotente por link + usuário).
+    if (review_status === 'PUBLICADO') {
+      dispararAlertasDeEdital(id).catch(console.error);
+    }
 
     return { ok: true, data: { review_status } };
   } catch (e) {

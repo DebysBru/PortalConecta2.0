@@ -2,8 +2,9 @@ import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { cache } from '@/lib/cache';
 import { generateEmbedding } from '@/lib/embeddings';
-import { searchSimilarChunks } from '@/lib/supabase-vector';
+import { searchSimilarChunks } from '@/lib/busca-vetorial';
 import { createLogger } from '@/lib/logger';
+import { DEEPSEEK_MODEL } from '@/lib/llm';
 
 const log = createLogger('api-chat');
 
@@ -425,7 +426,7 @@ ${contexto}`;
       'Authorization': `Bearer ${apiKey}`,
     },
     body: JSON.stringify({
-      model: 'deepseek-chat',
+      model: DEEPSEEK_MODEL,
       messages,
       temperature: 0.7,
       max_tokens: 1500,

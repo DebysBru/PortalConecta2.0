@@ -7,6 +7,8 @@ import {
 } from 'lucide-react';
 import { formatDate, getDaysUntil, getStatusLabel, getStatusColor, getCategoryColor } from '@/lib/utils';
 import { prisma } from '@/lib/prisma';
+import { BotaoFavorito } from '@/components/ui/BotaoFavorito';
+import { buscarEditalPublicoPorSlug, buscarResumoEditalPublico } from '@/lib/editais-publicos';
 import type { Metadata } from 'next';
 
 export const dynamic = 'force-dynamic';
@@ -27,6 +29,7 @@ interface TraducaoIFizinhaRaw {
   mensagemIfizinha?: string;
   oquee?: string;
   quempode?: string;
+  beneficios?: string;
   comoinscrever?: string;
   prazo?: string;
   observacoes?: string;
@@ -35,6 +38,7 @@ interface TraducaoIFizinhaRaw {
 interface TraducaoIFizinha {
   oQueE: string;
   quemPode: string;
+  beneficios: string;
   comoParticipar: string;
   quando: string;
   documentos: string[];
@@ -46,6 +50,11 @@ function normalizarTraducao(raw: unknown): TraducaoIFizinha {
   return {
     oQueE: t.oQueE || t.oquee || '',
     quemPode: t.quemPode || t.quempode || '',
+    // "Benefícios" era o único campo do formulário (admin e agora professor)
+    // que não tinha nenhum lugar onde aparecer — o texto era gravado e nunca
+    // exibido. A coluna de topo `Edital.beneficios` (usada pelo sync do SUAP)
+    // serve de fallback para os editais que não têm tradução preenchida.
+    beneficios: t.beneficios || '',
     comoParticipar: t.comoParticipar || t.comoinscrever || '',
     quando: t.quando || t.prazo || '',
     documentos: Array.isArray(t.documentos)
@@ -58,10 +67,8 @@ function normalizarTraducao(raw: unknown): TraducaoIFizinha {
 }
 
 export async function generateMetadata({ params }: { params: { slug: string } }): Promise<Metadata> {
-  const edital = await prisma.edital.findUnique({
-    where: { slug: params.slug },
-    select: { titulo: true, resumoSimples: true, resumo: true },
-  });
+  // Respeita a visibilidade pública: rascunho não vaza nem no metadata.
+  const edital = await buscarResumoEditalPublico(params.slug);
   if (!edital) return { title: 'Edital não encontrado' };
   return {
     title: edital.titulo,
@@ -70,9 +77,9 @@ export async function generateMetadata({ params }: { params: { slug: string } })
 }
 
 export default async function EditalDetalhePage({ params }: { params: { slug: string } }) {
-  const edital = await prisma.edital.findUnique({
-    where: { slug: params.slug },
-    select: {
+  // Só edital PUBLICADO e não deletado chega ao público (ver
+  // src/lib/editais-publicos.ts — antes daqui um rascunho era acessível pela URL).
+  const edital = await buscarEditalPublicoPorSlug(params.slug, {
       id: true,
       titulo: true,
       slug: true,
@@ -98,12 +105,15 @@ export default async function EditalDetalhePage({ params }: { params: { slug: st
       publicoAlvo: true,
       localInscricao: true,
       linkInscricao: true,
-    },
-  });
+    });
 
   if (!edital) notFound();
 
   const traducao = normalizarTraducao(edital.traducaoIFizinha);
+  // Fallback: editais vindos do sync do SUAP gravam os benefícios na coluna de
+  // topo `beneficios` (não dentro da tradução). Sem isto, esses editais não
+  // mostrariam benefício nenhum.
+  const beneficios = traducao.beneficios || edital.beneficios || '';
   const daysLeft = edital.dataEncerramento ? getDaysUntil(edital.dataEncerramento) : null;
   const isUrgent = daysLeft !== null && daysLeft <= 7 && daysLeft > 0;
   const isExpired = daysLeft !== null && daysLeft <= 0;
@@ -191,6 +201,13 @@ export default async function EditalDetalhePage({ params }: { params: { slug: st
               <div className="mb-5">
                 <h3 className="font-semibold text-gray-800 text-sm mb-1">Quem pode participar?</h3>
                 <p className="text-gray-600 text-sm leading-relaxed">{traducao.quemPode}</p>
+              </div>
+            )}
+
+            {beneficios && (
+              <div className="mb-5">
+                <h3 className="font-semibold text-gray-800 text-sm mb-1">Benefícios</h3>
+                <p className="text-gray-600 text-sm leading-relaxed">{beneficios}</p>
               </div>
             )}
 
@@ -309,6 +326,7 @@ export default async function EditalDetalhePage({ params }: { params: { slug: st
               Link Oficial
             </a>
           )}
+          <BotaoFavorito entidade="edital" entidadeId={edital.id} />
           <Link
             href="/editais"
             className="inline-flex items-center gap-2 border border-gray-200 text-gray-700 font-semibold px-6 py-3 rounded-xl hover:bg-gray-50 transition-all"
