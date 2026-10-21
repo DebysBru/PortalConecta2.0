@@ -40,7 +40,7 @@ jobs:
     outputs:
       configurado: ${{ steps.segredos.outputs.configurado }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
 
@@ -121,7 +121,7 @@ jobs:
       PORTA: ${{ secrets.VPS_PORT || '22' }}
       NOVO: /var/www/portal-conecta-novo
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Preparar chave SSH
         env:
@@ -197,7 +197,7 @@ jobs:
 
       - name: Guardar o log do deploy
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: deploy-vps-${{ github.run_id }}
           path: deploy-vps.log
