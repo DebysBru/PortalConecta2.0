@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useCallback, useTransition } from 'react';
+import Link from 'next/link';
 import {
   RefreshCw, CheckCircle2, AlertCircle, AlertTriangle, Clock, FolderOpen,
   FileText, Zap, Database, Settings, ExternalLink, ChevronDown,
@@ -12,6 +13,7 @@ import {
   getSuapStatusAction,
 } from '@/actions/suap';
 import { useAuth } from '@/contexts/AuthContext';
+import { mensagemAmigavel, MENSAGENS } from '@/lib/mensagens';
 
 // ─── Tipos ─────────────────────────────────────────────────────────────────────
 
@@ -183,10 +185,16 @@ export default function SuapSyncPage() {
         setTokenInput('');
         await fetchStatus();
       } else {
-        setTokenMessage({ type: 'error', text: result.error || 'Erro ao salvar token' });
+        setTokenMessage({
+          type: 'error',
+          text: mensagemAmigavel(result.error, MENSAGENS.suapErroSalvarToken),
+        });
       }
-    } catch {
-      setTokenMessage({ type: 'error', text: 'Erro ao salvar token' });
+    } catch (e) {
+      setTokenMessage({
+        type: 'error',
+        text: mensagemAmigavel(e, MENSAGENS.suapErroSalvarToken),
+      });
     } finally {
       setSavingToken(false);
     }
@@ -244,7 +252,7 @@ export default function SuapSyncPage() {
                 {suap?.baseUrl ?? 'https://suap.ifpr.edu.br'} · Campus: {suap?.campus ?? 'Ivaiporã'}
               </p>
               {suap?.conexao?.message && !suap.conexao.ok && (
-                <p className="text-xs text-red-600 mt-1 font-mono line-clamp-3">{suap.conexao.message}</p>
+                <p className="text-xs text-red-600 mt-1 line-clamp-3">{suap.conexao.message}</p>
               )}
             </div>
           </div>
@@ -283,14 +291,36 @@ export default function SuapSyncPage() {
             Autenticação SUAP
           </p>
 
+          {/* Correção de 06/10/2026: o texto antigo dizia para colar um token de
+              24h e prometia que a sincronização passaria a funcionar. Não passa:
+              o SUAP está atrás de um AWS WAF que desafia o IP do servidor com
+              CAPTCHA (405 + "Human Verification", header x-amzn-waf-action),
+              antes de a API ver a requisição. Token nenhum contorna isso. */}
           <p className="text-sm text-blue-800 mb-4">
-            O SUAP bloqueia login via API de IPs externos. Você precisa obter um <strong>token pessoal</strong> válido por 24h.
+            O SUAP está atrás de um <strong>WAF com CAPTCHA</strong> que desafia o IP deste
+            servidor — a resposta é <code className="rounded bg-white/70 px-1">405</code> com a página
+            &quot;Human Verification&quot;, <strong>antes</strong> de a API avaliar qualquer token. Por
+            isso colar um token não resolve. Use a <strong>captura pelo navegador</strong>, que
+            funciona hoje:
+          </p>
+
+          <Link
+            href="/admin/suap/importar"
+            className="mb-4 inline-flex items-center gap-2 rounded-xl bg-hero-gradient px-5 py-2.5 text-sm font-semibold text-white transition-all hover:opacity-95"
+          >
+            Importar projetos pela captura do navegador
+          </Link>
+
+          <p className="mb-4 text-xs text-blue-800">
+            A alternativa definitiva é pedir à TI do IFPR para liberar o IP deste servidor no WAF
+            (detalhes em DOCUMENTACAO/SUAP_IMPORTACAO.md). Enquanto isso, o campo abaixo continua
+            valendo para quando a liberação acontecer.
           </p>
 
           {/* Campo para colar o token */}
           <div className="bg-white rounded-xl p-4 mb-4 border border-blue-200">
             <label className="block text-sm font-semibold text-gray-700 mb-2">
-              1. Cole seu token aqui:
+              1. Cole seu token aqui (só funciona com o IP liberado no WAF):
             </label>
             <div className="flex gap-2">
               <input
@@ -481,8 +511,8 @@ export default function SuapSyncPage() {
           </div>
 
           {lastResult.result.error && (
-            <p className="text-red-700 text-sm mb-3 font-mono bg-red-50 rounded-lg p-3">
-              {lastResult.result.error}
+            <p className="text-red-700 text-sm mb-3 bg-red-50 rounded-lg p-3">
+              {mensagemAmigavel(lastResult.result.error, 'Não conseguimos concluir a sincronização. Tente novamente em alguns minutos.')}
             </p>
           )}
 

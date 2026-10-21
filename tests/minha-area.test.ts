@@ -80,7 +80,13 @@ describe('alertas — validação do que vem do cliente', () => {
     const resultado = validarAlerta({ canal: 'telegram', categorias: ['BOLSAS'] });
 
     expect(resultado.ok).toBe(false);
-    if (!resultado.ok) expect(resultado.error).toContain('Canal inválido');
+    // A mensagem precisa orientar o usuário, não expor o slug interno do canal
+    // ("portal"/"email") nem um erro seco de validação.
+    if (!resultado.ok) {
+      expect(resultado.error).toMatch(/escolha/i);
+      expect(resultado.error).toContain('avisos no portal');
+      expect(resultado.error).toContain('e-mail');
+    }
   });
 
   it('aceita alerta válido preservando canal e categorias normalizadas', () => {

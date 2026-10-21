@@ -4,6 +4,7 @@
  */
 import { NextRequest, NextResponse } from 'next/server';
 import { syncEditais } from '@/lib/suap-sync';
+import { MENSAGENS } from '@/lib/mensagens';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -21,7 +22,7 @@ function isAuthorized(req: NextRequest): boolean {
 
 export async function POST(req: NextRequest) {
   if (!isAuthorized(req)) {
-    return NextResponse.json({ error: 'Não autorizado' }, { status: 401 });
+    return NextResponse.json({ error: MENSAGENS.semPermissao }, { status: 401 });
   }
 
   let dryRun = false;
@@ -46,8 +47,11 @@ export async function POST(req: NextRequest) {
       ...result,
     });
   } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
-    return NextResponse.json({ ok: false, error: message }, { status: 500 });
+    console.error('Falha na sincronização de editais do SUAP:', err);
+    return NextResponse.json(
+      { ok: false, error: 'Não conseguimos concluir a sincronização de editais. Confira a conexão com o SUAP e tente novamente.' },
+      { status: 500 }
+    );
   }
 }
 

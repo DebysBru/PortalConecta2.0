@@ -1,0 +1,16 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "module": "CommonJS",
+    "moduleResolution": "node",
+    "jsx": "react-jsx",
+    "incremental": false,
+    "noEmit": false,
+    // `baseUrl` é exigido pelo tsconfig-paths em tempo de execução (o Next 14
+    // dispensa, mas o resolvedor dos scripts não) — é ele que faz `@/lib/...`
+    // funcionar no `npm run db:suap`.
+    "baseUrl": "."
+  },
+  "include": ["prisma/**/*.ts", "src/**/*.ts", "src/**/*.tsx"],
+  "exclude": ["node_modules", ".next", "deploy"]
+}

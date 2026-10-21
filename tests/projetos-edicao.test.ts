@@ -4,6 +4,7 @@ import {
   camposBloqueadosParaEdicao,
   filtrarEdicaoProjeto,
   descreverCamposIgnorados,
+  deveRegenerarSlugDoProjeto,
   CAMPOS_CONTROLADOS_PELO_SUAP,
   CAMPOS_LIVRES_DO_PROFESSOR,
 } from '@/lib/projetos-edicao';
@@ -121,5 +122,29 @@ describe('descreverCamposIgnorados', () => {
 
   it('degrada para o próprio nome do campo quando desconhecido', () => {
     expect(descreverCamposIgnorados(['campoNovo'])).toBe('campoNovo');
+  });
+});
+
+describe('deveRegenerarSlugDoProjeto (URL pública do projeto)', () => {
+  /**
+   * O slug é a URL que o professor compartilha com os estudantes e a que o botão
+   * "Ver no portal" abre. Ele só pode mudar quando o NOME do projeto muda: um
+   * salvamento de rotina (cor, descrição, formulário) reescrevia o endereço e
+   * deixava links divulgados apontando para lugar nenhum.
+   */
+  it('NÃO regenera quando o nome não mudou', () => {
+    expect(deveRegenerarSlugDoProjeto('Robótica e Automação', 'Robótica e Automação')).toBe(false);
+  });
+
+  it('ignora diferença de espaços nas pontas (o input manda com espaços)', () => {
+    expect(deveRegenerarSlugDoProjeto('Horta Escolar', '  Horta Escolar ')).toBe(false);
+  });
+
+  it('regenera quando o nome muda de verdade', () => {
+    expect(deveRegenerarSlugDoProjeto('Horta Escolar', 'Horta Comunitária')).toBe(true);
+  });
+
+  it('regenera quando só a caixa/espaçamento interno muda', () => {
+    expect(deveRegenerarSlugDoProjeto('horta escolar', 'Horta  Escolar')).toBe(true);
   });
 });

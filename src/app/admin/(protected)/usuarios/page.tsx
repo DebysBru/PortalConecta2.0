@@ -7,6 +7,8 @@ import { useAuth } from '@/contexts/AuthContext';
 import { UserRole } from '@prisma/client';
 import { formatDateShort } from '@/lib/utils';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
+import { useMensagemErro } from '@/lib/use-mensagem-erro';
+import { useToast } from '@/components/ui/toast';
 
 type User = Awaited<ReturnType<typeof listUsuarios>>[number];
 type Projeto = Awaited<ReturnType<typeof listProjetos>>[number];
@@ -25,12 +27,13 @@ const ROLE_COLORS: Record<UserRole, string> = {
 
 export default function AdminUsuariosPage() {
   const { user: currentUser, isMasterAdmin } = useAuth();
+  const { toast } = useToast();
   const [users, setUsers] = useState<User[]>([]);
   const [projetos, setProjetos] = useState<Projeto[]>([]);
   const [inviteEmail, setInviteEmail] = useState('');
   const [inviteRole, setInviteRole] = useState<UserRole>('PROFESSOR');
   const [inviteProjetoId, setInviteProjetoId] = useState('');
-  const [error, setError] = useState('');
+  const [error, setError] = useMensagemErro();
   const [isPending, startTransition] = useTransition();
   const [deleteUserId, setDeleteUserId] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
@@ -55,7 +58,7 @@ export default function AdminUsuariosPage() {
 
   const handleRoleChange = (userId: string, role: UserRole) => {
     if (role === 'PROFESSOR') {
-      alert('Para atribuir "Professor", por favor utilize o formulário de convite acima para selecionar o projeto.');
+      toast('Para dar o nível de professor, use o formulário de convite acima e escolha o projeto do professor.', 'info');
       return;
     }
     if (!currentUser?.email) return;
@@ -84,7 +87,7 @@ export default function AdminUsuariosPage() {
   const handleInvite = (e: React.FormEvent) => {
     e.preventDefault(); setError('');
     if (inviteRole === 'PROFESSOR' && !inviteProjetoId) {
-      setError('Selecione um projeto para o professor.');
+      setError('Escolha o projeto ao qual este professor ficará vinculado.');
       return;
     }
     if (!currentUser?.email) return;

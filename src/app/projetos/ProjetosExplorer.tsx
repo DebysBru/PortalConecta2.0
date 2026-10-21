@@ -4,10 +4,11 @@ import React, { useEffect, useRef, useState, useTransition } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import {
-  Search, Filter, Users, ArrowRight, Sparkles, FolderOpen,
+  Search, Filter, Users, ArrowRight, Sparkles,
   ChevronLeft, ChevronRight, X, Loader2,
 } from 'lucide-react';
 import { getStatusLabel } from '@/lib/utils';
+import { MascoteInterativa } from '@/components/ifizinha/MascoteInterativa';
 import {
   buildProjetosHref,
   paginasVisiveis,
@@ -147,7 +148,7 @@ export function ProjetosExplorer({
           <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
             {destaques.map((projeto) => (
               <Link key={projeto.id} href={`/projetos/${projeto.slug}`} className="group block">
-                <div className="bg-white rounded-2xl border border-gray-100 hover:border-gray-200 hover:shadow-xl transition-all duration-300 hover:-translate-y-1 overflow-hidden h-full flex flex-col">
+                <div className="bg-white rounded-2xl border border-gray-100 shadow-[0_1px_2px_rgba(15,23,42,0.04)] hover:border-gray-200 hover:shadow-card-hover transition-all duration-300 hover:-translate-y-1 overflow-hidden h-full flex flex-col">
                   <div className="h-24 relative flex items-end p-4" style={{ background: `linear-gradient(135deg, ${projeto.corPrimaria} 0%, ${projeto.corPrimaria}cc 100%)` }}>
                     <div className="w-14 h-14 bg-white/20 rounded-2xl flex items-center justify-center text-white font-black text-2xl border border-white/30">
                       {projeto.nome.charAt(0)}
@@ -205,8 +206,10 @@ export function ProjetosExplorer({
         </div>
 
         {projetos.length === 0 ? (
-          <div className="text-center py-16 text-gray-500 bg-white rounded-2xl border border-gray-100">
-            <FolderOpen className="w-10 h-10 mx-auto mb-3 opacity-40" />
+          <div className="text-center py-14 text-gray-500 bg-white rounded-2xl border border-gray-100">
+            <div className="mx-auto mb-3 w-[130px]">
+              <MascoteInterativa nome="chat" />
+            </div>
             <p className="font-medium">Nenhum projeto encontrado com esses filtros</p>
             <button onClick={limparFiltros} className="mt-3 text-sm text-azul-eletrico hover:underline">
               Limpar filtros
@@ -216,7 +219,7 @@ export function ProjetosExplorer({
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
             {projetos.map((projeto) => (
               <Link key={projeto.id} href={`/projetos/${projeto.slug}`} className="group block">
-                <div className="bg-white rounded-2xl border border-gray-100 hover:border-gray-200 hover:shadow-md transition-all duration-200 hover:-translate-y-0.5 overflow-hidden">
+                <div className="bg-white rounded-2xl border border-gray-100 shadow-[0_1px_2px_rgba(15,23,42,0.04)] hover:border-gray-200 hover:shadow-card-brand transition-all duration-200 hover:-translate-y-0.5 overflow-hidden">
                   <div className="h-2 w-full" style={{ backgroundColor: projeto.corPrimaria }} />
                   <div className="p-4">
                     <div className="flex items-start gap-3 mb-3">

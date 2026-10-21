@@ -15,6 +15,7 @@ import {
 import { getStatusLabel, getStatusColor, getCategoryColor, formatDateShort } from '@/lib/utils';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { useToast } from '@/components/ui/toast';
+import { useMensagemErro } from '@/lib/use-mensagem-erro';
 
 /** Editais com o projeto incluído (ver `include` em `listMeusEditais`). */
 type Edital = {
@@ -68,7 +69,7 @@ export default function ProfessorEditaisPage() {
   const [editing, setEditing] = useState<Edital | null>(null);
   const [form, setForm] = useState<EditalFormData>(emptyForm());
   const [activeTab, setActiveTab] = useState<'info' | 'ifizinha'>('info');
-  const [error, setError] = useState('');
+  const [error, setError] = useMensagemErro();
   const [isPending, startTransition] = useTransition();
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
@@ -139,7 +140,7 @@ export default function ProfessorEditaisPage() {
         setPanelOpen(false);
         await carregar();
       } else {
-        setError(result.error);
+        setError(result.error, 'Não conseguimos salvar o edital. Confira os campos e tente novamente.');
       }
     });
   };
@@ -156,7 +157,9 @@ export default function ProfessorEditaisPage() {
 
     const LIMITE_PDF = 10 * 1024 * 1024;
     if (file.size > LIMITE_PDF) {
-      setError(`O PDF tem ${(file.size / 1024 / 1024).toFixed(1)} MB e excede o limite de 10 MB.`);
+      setError(
+        `O PDF tem ${(file.size / 1024 / 1024).toFixed(1)} MB e o limite é 10 MB. Reduza o arquivo ou divida o documento e tente novamente.`
+      );
       return;
     }
 
@@ -174,14 +177,14 @@ export default function ProfessorEditaisPage() {
       const json = await res.json();
 
       if (!res.ok || !json.ok) {
-        setError(json.error || 'Não foi possível enviar o PDF.');
+        setError(json.error, 'Não conseguimos enviar o PDF do edital. Tente novamente.');
         return;
       }
 
       setForm((f) => ({ ...f, pdfPath: json.data.path, arquivoPdfUrl: json.data.url }));
       toast('PDF anexado ao edital', 'success');
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Falha de rede ao enviar o PDF.');
+      setError(e, 'Não conseguimos enviar o PDF. Confira sua conexão e tente novamente.');
     } finally {
       setUploading(false);
       if (pdfInputRef.current) pdfInputRef.current.value = '';
@@ -200,7 +203,7 @@ export default function ProfessorEditaisPage() {
         );
         await carregar();
       } else {
-        setError(result.error);
+        setError(result.error, 'Não conseguimos mudar a publicação do edital. Tente novamente.');
       }
     });
   };
@@ -213,7 +216,7 @@ export default function ProfessorEditaisPage() {
       toast('Edital excluído', 'success');
       await carregar();
     } else {
-      setError(result.error);
+      setError(result.error, 'Não conseguimos excluir o edital. Tente novamente.');
     }
     setDeleting(false);
     setDeleteId(null);

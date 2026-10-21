@@ -9,6 +9,7 @@ import { prisma } from '@/lib/prisma';
 import { generateBatchEmbeddings, validateEmbedding } from '@/lib/embeddings';
 import { saveChunksWithEmbeddings } from '@/lib/busca-vetorial';
 import { createLogger } from '@/lib/logger';
+import { mensagemAmigavel } from '@/lib/mensagens';
 
 const log = createLogger('indexador');
 
@@ -70,8 +71,11 @@ export async function indexarDocumentoKb(documentoId: string): Promise<void> {
     await prisma.job.update({ where: { id: job.id }, data: { status: 'ok' } });
     log.info('Indexação concluída', { documentoId, jobId: job.id, totalChunks: doc.chunks.length });
   } catch (e) {
-    const msg = e instanceof Error ? e.message : String(e);
-    log.error('Indexação falhou', { documentoId, jobId: job.id, erro: msg });
+    const tecnico = e instanceof Error ? e.message : String(e);
+    log.error('Indexação falhou', { documentoId, jobId: job.id, erro: tecnico });
+    // O que é gravado no banco aparece no painel de administração — por isso
+    // guarda a versão amigável, não a mensagem crua do erro.
+    const msg = mensagemAmigavel(e, 'Não conseguimos preparar este documento para a busca. Tente enviar o arquivo novamente.');
     await prisma.job.update({
       where: { id: job.id },
       data: { status: 'erro', erro: msg, tentativas: { increment: 1 } },

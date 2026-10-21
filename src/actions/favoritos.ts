@@ -39,6 +39,11 @@ async function validarAlvo(
     return Boolean(p);
   }
 
+  if (entidade === 'evento') {
+    const ev = await prisma.evento.findUnique({ where: { id: entidadeId }, select: { id: true } });
+    return Boolean(ev);
+  }
+
   const e = await prisma.edital.findFirst({
     where: { id: entidadeId, deleted_at: null },
     select: { id: true },
@@ -56,8 +61,12 @@ export async function alternarFavorito(
   if (!sessao.ok) return sessao;
 
   const entidade = normalizarEntidade(entidadeRaw);
-  if (!entidade) return { ok: false, error: 'Tipo de item inválido' };
-  if (!entidadeId?.trim()) return { ok: false, error: 'Item inválido' };
+  if (!entidade) {
+    return { ok: false, error: 'Não conseguimos identificar o tipo deste item para salvar nos favoritos. Recarregue a página e tente novamente.' };
+  }
+  if (!entidadeId?.trim()) {
+    return { ok: false, error: 'Não conseguimos identificar este item para salvar nos favoritos. Recarregue a página e tente novamente.' };
+  }
 
   try {
     const existente = await prisma.favorito.findUnique({
@@ -86,7 +95,7 @@ export async function alternarFavorito(
     // Só favorita o que existe de fato — senão a lista do estudante acumula
     // ids órfãos que nunca resolvem para nada.
     if (!(await validarAlvo(entidade, entidadeId))) {
-      return { ok: false, error: 'Item não encontrado' };
+      return { ok: false, error: 'Não encontramos este item — ele pode ter sido removido do portal. Atualize a página para ver a lista mais recente.' };
     }
 
     await prisma.favorito.create({
@@ -95,7 +104,7 @@ export async function alternarFavorito(
 
     return { ok: true, favoritado: true };
   } catch {
-    return { ok: false, error: 'Não foi possível atualizar o favorito' };
+    return { ok: false, error: 'Não conseguimos atualizar seus favoritos agora. Tente novamente em alguns instantes.' };
   }
 }
 
@@ -108,7 +117,9 @@ export async function removerFavorito(
   if (!sessao.ok) return sessao;
 
   const entidade = normalizarEntidade(entidadeRaw);
-  if (!entidade) return { ok: false, error: 'Tipo de item inválido' };
+  if (!entidade) {
+    return { ok: false, error: 'Não conseguimos identificar este item para remover dos favoritos. Recarregue a página e tente novamente.' };
+  }
 
   try {
     await prisma.favorito.deleteMany({
@@ -116,7 +127,7 @@ export async function removerFavorito(
     });
     return { ok: true };
   } catch {
-    return { ok: false, error: 'Não foi possível remover o favorito' };
+    return { ok: false, error: 'Não conseguimos remover este item dos favoritos agora. Tente novamente.' };
   }
 }
 
@@ -145,8 +156,9 @@ export async function listarMeusFavoritos(idToken: string): Promise<FavoritoItem
 
   const projetoIds = favoritos.filter((f) => f.entidade === 'projeto').map((f) => f.entidade_id);
   const editalIds = favoritos.filter((f) => f.entidade === 'edital').map((f) => f.entidade_id);
+  const eventoIds = favoritos.filter((f) => f.entidade === 'evento').map((f) => f.entidade_id);
 
-  const [projetos, editais] = await Promise.all([
+  const [projetos, editais, eventos] = await Promise.all([
     projetoIds.length
       ? prisma.projeto.findMany({
           where: { id: { in: projetoIds } },
@@ -165,13 +177,37 @@ export async function listarMeusFavoritos(idToken: string): Promise<FavoritoItem
           },
         })
       : Promise.resolve([]),
+    eventoIds.length
+      ? prisma.evento.findMany({
+          where: { id: { in: eventoIds } },
+          select: { id: true, titulo: true, data: true, categoria: true, dataFim: true },
+        })
+      : Promise.resolve([]),
   ]);
 
   const projetosPorId = new Map(projetos.map((p) => [p.id, p]));
   const editaisPorId = new Map(editais.map((e) => [e.id, e]));
+  const eventosPorId = new Map(eventos.map((e) => [e.id, e]));
 
   return favoritos.flatMap<FavoritoItem>((favorito) => {
     const criadoEm = favorito.created_at.toISOString();
+
+    if (favorito.entidade === 'evento') {
+      const ev = eventosPorId.get(favorito.entidade_id);
+      if (!ev) return [];
+      const dia = ev.data.toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' });
+      return [{
+        chave: `evento:${ev.id}`,
+        entidade: 'evento' as const,
+        entidadeId: ev.id,
+        titulo: ev.titulo,
+        subtitulo: ev.categoria ? `${dia} · ${ev.categoria}` : dia,
+        href: '/agenda',
+        cor: null,
+        disponivel: true,
+        criadoEm,
+      }];
+    }
 
     if (favorito.entidade === 'projeto') {
       const p = projetosPorId.get(favorito.entidade_id);

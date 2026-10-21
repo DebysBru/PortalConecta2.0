@@ -8,12 +8,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAdminAuth } from '@/lib/firebase-admin';
 import { SESSION_COOKIE_NAME, SESSION_MAX_AGE_MS } from '@/lib/session';
+import { MENSAGENS } from '@/lib/mensagens';
 
 export async function POST(req: NextRequest) {
   try {
     const { idToken } = await req.json() as { idToken?: string };
     if (!idToken) {
-      return NextResponse.json({ error: 'Token ausente.' }, { status: 400 });
+      return NextResponse.json({ error: MENSAGENS.naoAutenticado }, { status: 400 });
     }
 
     // Confirma que o token é válido antes de emitir o cookie de sessão.
@@ -34,7 +35,7 @@ export async function POST(req: NextRequest) {
     return response;
   } catch (err) {
     console.warn('[api/auth/session] Falha ao criar cookie de sessão:', err instanceof Error ? err.message : err);
-    return NextResponse.json({ error: 'Não foi possível criar a sessão.' }, { status: 401 });
+    return NextResponse.json({ error: MENSAGENS.sessaoInvalida }, { status: 401 });
   }
 }
 

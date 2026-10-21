@@ -11,6 +11,7 @@
 import { prisma } from '@/lib/prisma';
 import { cache } from '@/lib/cache';
 import { sincronizarProjetoSintetico } from '@/lib/projeto-sintetico';
+import { mensagemAmigavel } from '@/lib/mensagens';
 import {
   decidirAtualizacaoSync,
   foiEditadoAposSync,
@@ -110,15 +111,47 @@ export async function syncProjetos(options?: { dryRun?: boolean; forcar?: boolea
     result.detalhes.push(`✅ ${projetosSuap.length} projetos encontrados no SUAP (campus ${process.env.SUAP_CAMPUS_SIGLA ?? 'IVAIPODG'})`);
     result.detalhes.push(...avisos);
   } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
+    // Log técnico completo no servidor. No relatório, mantém o motivo quando
+    // ele é legível (quem usa este painel é a equipe técnica e precisa saber o
+    // que falhou), mas nunca deixa passar termo técnico cru.
+    console.error('[SUAP] Falha ao buscar projetos:', err);
+    const motivo = mensagemAmigavel(err, '').replace(/[.\s]+$/, '');
     result.erros++;
-    result.detalhes.push(`❌ Erro ao buscar projetos: ${msg}`);
+    result.detalhes.push(
+      `❌ Não conseguimos buscar os projetos no SUAP${motivo ? `: ${motivo}` : ''}. Confira a conexão e tente sincronizar novamente.`
+    );
     await logSync('projetos', 'error', result);
     return result;
   }
 
+  return aplicarProjetosDoSuap(projetosSuap, options);
+}
+
+/**
+ * Aplica no banco uma lista de projetos já obtida do SUAP.
+ *
+ * Separado de `syncProjetos` porque buscar e gravar são dois problemas
+ * diferentes: quando o WAF do SUAP passou a desafiar o IP do servidor (ver
+ * DOCUMENTACAO/SUAP_IMPORTACAO.md), a busca direta parou de funcionar, mas a
+ * gravação continua igual — e é por aqui que a importação de uma captura feita
+ * no navegador entra. O mapeamento de campos, a idempotência por `suapId` e a
+ * proteção contra sobrescrever edição manual ficam **num lugar só**.
+ */
+export async function aplicarProjetosDoSuap(
+  projetosSuap: SuapProjeto[],
+  options?: { dryRun?: boolean; forcar?: boolean; origem?: string },
+): Promise<SyncResult> {
+  const result: SyncResult = { total: projetosSuap.length, criados: 0, atualizados: 0, preservados: 0, erros: 0, detalhes: [] };
+
+  if (projetosSuap.length > 0) {
+    result.dadosBrutos = projetosSuap.slice(0, 3);
+    result.detalhes.push(
+      `✅ ${projetosSuap.length} projetos recebidos${options?.origem ? ` (${options.origem})` : ` do SUAP (campus ${process.env.SUAP_CAMPUS_SIGLA ?? 'IVAIPODG'})`}`,
+    );
+  }
+
   if (options?.dryRun) {
-    result.detalhes.push('🔍 Modo dry-run — nenhum dado foi salvo');
+    result.detalhes.push('🔍 Simulação — nenhum dado foi gravado no portal');
     return result;
   }
 
@@ -184,7 +217,7 @@ export async function syncProjetos(options?: { dryRun?: boolean; forcar?: boolea
         // decisão silenciosamente.
         await prisma.projeto.update({ where: { suapId: suapIdLocal }, data });
         result.atualizados++;
-        result.detalhes.push(`🔄 Atualizado: "${nome}" (SUAP ID: ${sp.id})`);
+        result.detalhes.push(`🔄 Atualizado no portal: "${nome}" (projeto nº ${sp.id} no SUAP)`);
         await sincronizarProjetoSintetico(existente.id).catch(console.error);
       } else {
         // Projeto novo vindo do SUAP: publica direto — não existe hoje um
@@ -193,13 +226,13 @@ export async function syncProjetos(options?: { dryRun?: boolean; forcar?: boolea
         // projeto nunca aparecer em lugar nenhum do site.
         const criado = await prisma.projeto.create({ data: { ...data, review_status: 'PUBLICADO' } });
         result.criados++;
-        result.detalhes.push(`➕ Criado: "${nome}" (SUAP ID: ${sp.id})`);
+        result.detalhes.push(`➕ Criado no portal: "${nome}" (projeto nº ${sp.id} no SUAP)`);
         await sincronizarProjetoSintetico(criado.id).catch(console.error);
       }
     } catch (err) {
+      console.error('[SUAP] Falha ao gravar projeto', sp.id, err);
       result.erros++;
-      const msg = err instanceof Error ? err.message : String(err);
-      result.detalhes.push(`❌ Erro em projeto SUAP #${sp.id}: ${msg}`);
+      result.detalhes.push(`❌ Não conseguimos gravar o projeto nº ${sp.id} no portal. Os demais continuam sendo sincronizados.`);
     }
   }
 
@@ -224,7 +257,7 @@ export async function syncEditais(options?: { dryRun?: boolean; forcar?: boolean
       atualizados: 0,
       preservados: 0,
       erros: 1,
-      detalhes: ['❌ Nenhum usuário admin encontrado. Execute o seed primeiro.'],
+      detalhes: ['❌ Nenhum administrador cadastrado no portal. Peça para a equipe técnica criar a conta de administrador antes de sincronizar.'],
     };
   }
 
@@ -233,20 +266,30 @@ export async function syncEditais(options?: { dryRun?: boolean; forcar?: boolean
   let editaisSuap: SuapEdital[] = [];
 
   try {
-    editaisSuap = await fetchEditaisFromSuap();
+    const { editais: encontrados, avisos } = await fetchEditaisFromSuap();
+    editaisSuap = encontrados;
     result.total = editaisSuap.length;
     result.dadosBrutos = editaisSuap.slice(0, 3);
-    result.detalhes.push(`✅ ${editaisSuap.length} editais encontrados no SUAP`);
+    // Os avisos dizem a verdade quando o SUAP simplesmente não tem API de
+    // editais — antes o painel mostrava "✅ 0 editais encontrados", como se a
+    // consulta tivesse funcionado.
+    result.detalhes.push(...avisos);
+    if (editaisSuap.length > 0) {
+      result.detalhes.push(`✅ ${editaisSuap.length} editais encontrados no SUAP`);
+    }
   } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
+    console.error('[SUAP] Falha ao buscar editais:', err);
+    const motivo = mensagemAmigavel(err, '').replace(/[.\s]+$/, '');
     result.erros++;
-    result.detalhes.push(`❌ Erro ao buscar editais: ${msg}`);
+    result.detalhes.push(
+      `❌ Não conseguimos buscar os editais no SUAP${motivo ? `: ${motivo}` : ''}. Confira a conexão e tente sincronizar novamente.`
+    );
     await logSync('editais', 'error', result);
     return result;
   }
 
   if (options?.dryRun) {
-    result.detalhes.push('🔍 Modo dry-run — nenhum dado foi salvo');
+    result.detalhes.push('🔍 Simulação — nenhum dado foi gravado no portal');
     return result;
   }
 
@@ -340,16 +383,16 @@ export async function syncEditais(options?: { dryRun?: boolean; forcar?: boolean
         // já feita por um admin (mesmo raciocínio de syncProjetos).
         await prisma.edital.update({ where: { suapId: se.id }, data });
         result.atualizados++;
-        result.detalhes.push(`🔄 Atualizado: "${titulo}" (SUAP ID: ${se.id})`);
+        result.detalhes.push(`🔄 Atualizado no portal: "${titulo}" (edital nº ${se.id} no SUAP)`);
       } else {
         await prisma.edital.create({ data: { ...data, review_status: 'PUBLICADO' } });
         result.criados++;
-        result.detalhes.push(`➕ Criado: "${titulo}" (SUAP ID: ${se.id})`);
+        result.detalhes.push(`➕ Criado no portal: "${titulo}" (edital nº ${se.id} no SUAP)`);
       }
     } catch (err) {
+      console.error('[SUAP] Falha ao gravar edital', se.id, err);
       result.erros++;
-      const msg = err instanceof Error ? err.message : String(err);
-      result.detalhes.push(`❌ Erro em edital SUAP #${se.id}: ${msg}`);
+      result.detalhes.push(`❌ Não conseguimos gravar o edital nº ${se.id} no portal. Os demais continuam sendo sincronizados.`);
     }
   }
 

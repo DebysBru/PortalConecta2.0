@@ -13,7 +13,10 @@ import {
   GraficoBarras, GraficoBarrasHorizontais, GraficoRosca, PainelInscricoesProjeto,
 } from '@/components/charts';
 import { formatDateShort, getStatusLabel } from '@/lib/utils';
+import { rotuloRespostaAluno } from '@/lib/inscricao-aluno';
 import { Prisma } from '@prisma/client';
+import { useToast } from '@/components/ui/toast';
+import { mensagemAmigavel } from '@/lib/mensagens';
 
 type Projeto = Awaited<ReturnType<typeof listMyProjetos>>[number];
 type Inscricao = Prisma.InscricaoGetPayload<{}>;
@@ -33,6 +36,7 @@ const STATUS_COLORS: Record<string, string> = {
 
 export default function ProfessorRelatorioPage() {
   const { user } = useAuth();
+  const { toast } = useToast();
   const [projetos, setProjetos] = useState<Projeto[]>([]);
   const [selectedProjeto, setSelectedProjeto] = useState<string>('');
   const [inscricoes, setInscricoes] = useState<Inscricao[]>([]);
@@ -61,10 +65,10 @@ export default function ProfessorRelatorioPage() {
           setSeriesError(null);
         } else {
           setSeries(null);
-          setSeriesError(result.error);
+          setSeriesError(mensagemAmigavel(result.error, 'Não conseguimos carregar os gráficos dos seus projetos agora.'));
         }
       })
-      .catch(() => setSeriesError('Não foi possível carregar os gráficos dos seus projetos.'))
+      .catch(() => setSeriesError('Não conseguimos carregar os gráficos dos seus projetos agora. Recarregue a página para tentar de novo.'))
       .finally(() => setLoadingSeries(false));
   }, [user, projetoDoEscopo]);
 
@@ -95,7 +99,7 @@ export default function ProfessorRelatorioPage() {
     if (!selectedProjeto || !user?.email) return;
     const projeto = projetos.find((p) => p.id === selectedProjeto);
     const result = await exportInscricoesCSV(selectedProjeto, user.email);
-    if (!result.ok) { alert(result.error); return; }
+    if (!result.ok) { toast(result.error, 'error'); return; }
     const blob = new Blob([result.csv], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -316,6 +320,10 @@ export default function ProfessorRelatorioPage() {
                 { label: 'Matrícula', value: selectedInscricao.matricula },
                 { label: 'Idade', value: selectedInscricao.idade?.toString() },
                 { label: 'Tipo interesse', value: selectedInscricao.tipo_interesse },
+                // O que o ALUNO respondeu (aceite/recusa de convocação) — fica
+                // separado do status, que é a decisão da coordenação.
+                { label: 'Resposta do aluno', value: rotuloRespostaAluno(selectedInscricao.resposta_aluno) },
+                { label: 'Desistiu em', value: selectedInscricao.desistiu_em ? formatDateShort(selectedInscricao.desistiu_em) : null },
                 { label: 'Disponibilidade', value: selectedInscricao.disponibilidade },
                 { label: 'Experiência', value: selectedInscricao.experiencia_previa },
                 { label: 'Justificativa', value: selectedInscricao.justificativa },
@@ -389,7 +397,7 @@ export default function ProfessorRelatorioPage() {
           </div>
         ) : seriesError || !series ? (
           <div className="bg-white rounded-2xl border border-gray-100 p-8 text-center text-sm text-gray-500">
-            {seriesError ?? 'Não foi possível carregar os gráficos dos seus projetos.'}
+            {seriesError ?? 'Não conseguimos carregar os gráficos dos seus projetos agora. Recarregue a página para tentar de novo.'}
           </div>
         ) : (
           <div className="grid gap-4 lg:grid-cols-2">

@@ -54,6 +54,26 @@ export interface SuapEdital {
 
 // ─── Cache de tokens JWT ──────────────────────────────────────────────────────
 
+/**
+ * Erro com o status HTTP que o SUAP devolveu (quando houve um).
+ *
+ * Existe para quem chama poder reagir ao MOTIVO sem comparar texto de mensagem:
+ * "401 → token expirado", "403/405 → requisição recusada (bloqueio por IP)" e
+ * "404 → endereço não existe" levam a ações diferentes na tela de admin, e ler
+ * isso de dentro de uma string (`msg.includes('HTTP 401')`) quebra na primeira
+ * vez que a mensagem mudar de redação — foi o que aconteceu ao escrever os
+ * testes desta correção.
+ */
+export class SuapHttpError extends Error {
+  readonly status?: number;
+
+  constructor(message: string, status?: number) {
+    super(message);
+    this.name = 'SuapHttpError';
+    this.status = status;
+  }
+}
+
 // O SUAP bloqueia User-Agents que não são de browser — usamos um realista
 const BROWSER_UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36';
 
@@ -131,6 +151,56 @@ async function getClientCredentialsToken(): Promise<string | null> {
 }
 
 /**
+ * Resposta de `POST /api/token/pair` — já lida UMA única vez.
+ *
+ * O BUG QUE ISTO CORRIGE (reproduzido contra o SUAP real): a versão anterior
+ * fazia `await res.text()` para poder logar/diagnosticar e, no caminho de
+ * SUCESSO, chamava `res.json()` no MESMO corpo — que já tinha sido consumido.
+ * Toda tentativa de login por usuário/senha terminava em
+ * "Body is unusable: Body has already been read", ou seja: **o login automático
+ * nunca funcionou**. O portal só conseguia autenticar com o token colado na tela
+ * de sincronização, que expira em 24h — daí a impressão de que "mesmo com o
+ * token não funciona" e a necessidade de colar um token novo todo dia.
+ */
+type RespostaTokenPair =
+  | { ok: true; access: string; refresh: string | null }
+  | { ok: false; status: number; detalhe: string };
+
+async function pedirTokenPair(corpo: Record<string, string>): Promise<RespostaTokenPair> {
+  const res = await fetchComTimeout(`${SUAP_BASE}/api/token/pair`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'User-Agent': BROWSER_UA,
+    },
+    body: JSON.stringify(corpo),
+    cache: 'no-store',
+  });
+
+  // UMA leitura do corpo, reaproveitada tanto para o erro quanto para o sucesso.
+  const texto = await res.text();
+
+  if (!res.ok) {
+    let detalhe = texto;
+    try {
+      const json = JSON.parse(texto) as Record<string, unknown>;
+      detalhe = String(json.detail ?? json.message ?? json.error ?? texto);
+    } catch { /* mantém o texto cru */ }
+    return { ok: false, status: res.status, detalhe };
+  }
+
+  try {
+    const data = JSON.parse(texto) as { access?: string; refresh?: string };
+    if (!data.access) {
+      return { ok: false, status: res.status, detalhe: 'a resposta não trouxe o campo "access"' };
+    }
+    return { ok: true, access: data.access, refresh: data.refresh ?? null };
+  } catch {
+    return { ok: false, status: res.status, detalhe: 'a resposta não era JSON válido' };
+  }
+}
+
+/**
  * Obtém token via username/password (força login fresco, sem cache)
  */
 async function getSuapTokenFresh(): Promise<string> {
@@ -145,54 +215,30 @@ async function getSuapTokenFresh(): Promise<string> {
 
   console.log(`[SUAP] Tentando login com username: ${username}`);
 
-  // Tentar com campo "username"
-  let res = await fetchComTimeout(`${SUAP_BASE}/api/token/pair`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'User-Agent': BROWSER_UA,
-    },
-    body: JSON.stringify({ username, password }),
-    cache: 'no-store',
-  });
+  let resposta = await pedirTokenPair({ username, password });
+  console.log(`[SUAP] Tentativa 1 (username) - Status: ${resposta.ok ? 200 : resposta.status}`);
 
-  let bodyText = await res.text();
-  console.log(`[SUAP] Tentativa 1 (username) - Status: ${res.status}`);
-
-  // Se 401, tentar com campo "login"
-  if (!res.ok && res.status === 401) {
-    console.log(`[SUAP] Tentando com campo "login"...`);
-    res = await fetchComTimeout(`${SUAP_BASE}/api/token/pair`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'User-Agent': BROWSER_UA,
-      },
-      body: JSON.stringify({ login: username, password }),
-      cache: 'no-store',
-    });
-    bodyText = await res.text();
-    console.log(`[SUAP] Tentativa 2 (login) - Status: ${res.status}`);
+  // A API do SUAP aceita o campo "username" (confirmado em 2026-10); o nome
+  // "login" continua como segunda tentativa para não perder o comportamento
+  // anterior caso alguma instalação do SUAP responda diferente.
+  if (!resposta.ok && resposta.status === 401) {
+    console.log('[SUAP] Tentando com campo "login"...');
+    resposta = await pedirTokenPair({ login: username, password });
+    console.log(`[SUAP] Tentativa 2 (login) - Status: ${resposta.ok ? 200 : resposta.status}`);
   }
 
-  if (!res.ok) {
-    let detail = bodyText;
-    try {
-      const json = JSON.parse(bodyText) as Record<string, unknown>;
-      detail = String(json.detail ?? json.message ?? json.error ?? bodyText);
-    } catch { /* mantém texto */ }
-
-    throw new Error(
-      `SUAP: credenciais inválidas (${res.status}). ` +
+  if (!resposta.ok) {
+    throw new SuapHttpError(
+      `SUAP: credenciais inválidas (${resposta.status}). ` +
       `Username: "${username}". ` +
-      `Detalhe: ${detail}\n` +
-      `Solução: Acesse a página de sincronização SUAP e cole um token válido.`
+      `Detalhe: ${resposta.detalhe}\n` +
+      `Solução: Acesse a página de sincronização SUAP e cole um token válido.`,
+      resposta.status
     );
   }
 
-  const data = await res.json() as { access: string; refresh: string };
   console.log('[SUAP] Login automático bem-sucedido!');
-  return data.access;
+  return resposta.access;
 }
 
 /**
@@ -271,11 +317,16 @@ export async function suapGet<T>(path: string): Promise<T> {
   }
 
   const erros: string[] = [];
+  // Último status HTTP visto (resposta recusada OU falha ao obter token) — é o
+  // que permite ao chamador dizer o MOTIVO em vez de "não conectou".
+  let ultimoStatus: number | undefined;
+
   for (const provider of TOKEN_PROVIDERS) {
     let token: string | null;
     try {
       token = await provider.getToken();
     } catch (err) {
+      if (err instanceof SuapHttpError && err.status) ultimoStatus = err.status;
       erros.push(`${provider.name}: ${err instanceof Error ? err.message : String(err)}`);
       continue;
     }
@@ -292,13 +343,19 @@ export async function suapGet<T>(path: string): Promise<T> {
       return res.json() as T;
     }
 
+    ultimoStatus = res.status;
     if (provider.name === 'oauth2-client-credentials' && res.status === 401) {
       _clientCredentialsCache = null; // token pode ter sido revogado antes de expirar
     }
-    erros.push(`${provider.name}: HTTP ${res.status}`);
+    // 401 é o sintoma mais comum aqui (token colado que expirou) — deixar isso
+    // explícito evita a leitura de que "nenhum método funcionou" sem motivo.
+    erros.push(`${provider.name}: HTTP ${res.status}${res.status === 401 ? ' (token expirado ou inválido)' : ''}`);
   }
 
-  throw new Error(`SUAP: nenhum método de autenticação funcionou para ${url}. ${erros.join(' | ') || 'nenhum método configurado'}`);
+  throw new SuapHttpError(
+    `SUAP: nenhum método de autenticação funcionou para ${url}. ${erros.join(' | ') || 'nenhum método configurado'}`,
+    ultimoStatus
+  );
 }
 
 /** Quantas páginas buscar ao mesmo tempo — SUAP não costuma lidar bem com rajadas grandes. */
@@ -352,9 +409,19 @@ export async function suapGetAll<T>(path: string, pageSize = 100): Promise<T[]> 
 
 // ─── Funções específicas ───────────────────────────────────────────────────────
 
-/** Normaliza sigla de campus para comparação — evita perder o filtro por caixa/espaços diferentes. */
-function normalizaSigla(s?: string | null): string {
-  return (s ?? '').trim().toUpperCase();
+/**
+ * Normaliza sigla de campus para comparação.
+ *
+ * Além de caixa e espaços, remove acentos: o SUAP devolve nomes como "Ivaiporã" e
+ * a configuração pode estar sem acento (ou o contrário), e uma diferença de
+ * acento não pode zerar o filtro de campus silenciosamente.
+ */
+export function normalizaSiglaSuap(s?: string | null): string {
+  return (s ?? '')
+    .trim()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toUpperCase();
 }
 
 /**
@@ -364,7 +431,7 @@ function normalizaSigla(s?: string | null): string {
  * `campus_sigla` no retorno.
  */
 export async function fetchProjetosFromSuap(): Promise<{ projetos: SuapProjeto[]; avisos: string[] }> {
-  const campusSigla = normalizaSigla(process.env.SUAP_CAMPUS_SIGLA ?? 'IVAIPODG');
+  const campusSigla = normalizaSiglaSuap(process.env.SUAP_CAMPUS_SIGLA ?? 'IVAIPODG');
   const avisos: string[] = [];
 
   console.log(`[SUAP] Buscando projetos de pesquisa e extensão para campus ${campusSigla}...`);
@@ -382,22 +449,22 @@ export async function fetchProjetosFromSuap(): Promise<{ projetos: SuapProjeto[]
 
   if (pesquisa.status === 'rejected') {
     console.warn('[SUAP] Pesquisa falhou:', pesquisa.reason);
-    avisos.push(`⚠️ Falha ao buscar projetos de pesquisa: ${pesquisa.reason instanceof Error ? pesquisa.reason.message : String(pesquisa.reason)}`);
+    avisos.push(`⚠️ Não conseguimos buscar os projetos de pesquisa no SUAP desta vez. Tente sincronizar novamente em alguns minutos.`);
   }
   if (extensao.status === 'rejected') {
     console.warn('[SUAP] Extensão falhou:', extensao.reason);
-    avisos.push(`⚠️ Falha ao buscar projetos de extensão: ${extensao.reason instanceof Error ? extensao.reason.message : String(extensao.reason)}`);
+    avisos.push(`⚠️ Não conseguimos buscar os projetos de extensão no SUAP desta vez. Tente sincronizar novamente em alguns minutos.`);
   }
 
   console.log(`[SUAP] Pesquisa: ${todosPesquisa.length} total | Extensão: ${todosExtensao.length} total`);
 
   // Filtra por campus (comparação normalizada) e taga a fonte
   const dosCampusPesquisa = todosPesquisa
-    .filter((p) => normalizaSigla(p.campus_sigla) === campusSigla)
+    .filter((p) => normalizaSiglaSuap(p.campus_sigla) === campusSigla)
     .map((p) => ({ ...p, _fonte: 'pesquisa' as const }));
 
   const dosCampusExtensao = todosExtensao
-    .filter((p) => normalizaSigla(p.campus_sigla) === campusSigla)
+    .filter((p) => normalizaSiglaSuap(p.campus_sigla) === campusSigla)
     .map((p) => ({ ...p, _fonte: 'extensao' as const }));
 
   console.log(`[SUAP] ${campusSigla} → Pesquisa: ${dosCampusPesquisa.length} | Extensão: ${dosCampusExtensao.length}`);
@@ -410,37 +477,71 @@ export async function fetchProjetosFromSuap(): Promise<{ projetos: SuapProjeto[]
   const totalFiltrado = dosCampusPesquisa.length + dosCampusExtensao.length;
   if (totalBruto > 0 && totalFiltrado === 0) {
     const siglasEncontradas = Array.from(
-      new Set([...todosPesquisa, ...todosExtensao].map((p) => normalizaSigla(p.campus_sigla)).filter(Boolean))
+      new Set([...todosPesquisa, ...todosExtensao].map((p) => normalizaSiglaSuap(p.campus_sigla)).filter(Boolean))
     ).sort();
     avisos.push(
-      `⚠️ Nenhum projeto encontrado para campus "${campusSigla}" (${totalBruto} projetos no total, de outros campi). ` +
-      `Siglas encontradas na API: ${siglasEncontradas.join(', ') || '(nenhuma)'}. ` +
-      `Se a sigla certa for diferente, ajuste SUAP_CAMPUS_SIGLA.`
+      `⚠️ Nenhum projeto encontrado para o campus "${campusSigla}" — o SUAP retornou ${totalBruto} projetos, mas de outros campi. ` +
+      `Siglas de campus encontradas: ${siglasEncontradas.join(', ') || '(nenhuma)'}. ` +
+      `Se a sigla do campus estiver diferente da esperada, avise a equipe técnica do portal para ajustar a configuração.`
     );
   }
 
   return { projetos: [...dosCampusPesquisa, ...dosCampusExtensao], avisos };
 }
 
-/** Lista editais — tenta vários endpoints pois a doc não lista explicitamente */
-export async function fetchEditaisFromSuap(): Promise<SuapEdital[]> {
+/**
+ * Lista editais — tentativa em vários endpoints.
+ *
+ * ⚠️ FATO VERIFICADO (2026-10-05) contra o OpenAPI do próprio SUAP
+ * (`https://suap.ifpr.edu.br/api/openapi.json`, 93 endpoints): **não existe
+ * nenhum endpoint de edital**. Os três caminhos abaixo respondem 404 e os únicos
+ * endpoints institucionais de projeto são `/api/pesquisa/projetos/` e
+ * `/api/extensao/projetos/` — exatamente os que `fetchProjetosFromSuap` já usa.
+ *
+ * Antes, esse 404 era engolido em silêncio e o sync reportava
+ * "✅ 0 editais encontrados no SUAP", como se a consulta tivesse funcionado e
+ * simplesmente não houvesse editais. Agora a função devolve também os avisos,
+ * para o painel dizer a verdade: a sincronização de editais pelo SUAP não tem
+ * de onde puxar dado — editais entram pelo portal/professor.
+ *
+ * Os caminhos continuam sendo tentados porque, se o SUAP voltar a expor algo, o
+ * sync passa a funcionar sem precisar de mudança de código.
+ */
+export async function fetchEditaisFromSuap(): Promise<{ editais: SuapEdital[]; avisos: string[] }> {
   const endpoints = [
     `/api/pesquisa/editais/?page_size=100`,
     `/api/extensao/editais/?page_size=100`,
     `/api/v2/pesquisa/editais/?page_size=100`,
   ];
 
+  const erros: string[] = [];
+  const statusVistos: Array<number | undefined> = [];
+
   for (const endpoint of endpoints) {
     try {
       const editais = await suapGetAll<SuapEdital>(endpoint);
       console.log(`[SUAP] editais via ${endpoint}: ${editais.length}`);
-      return editais;
-    } catch {
-      continue;
+      return { editais, avisos: [] };
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      statusVistos.push(err instanceof SuapHttpError ? err.status : undefined);
+      erros.push(msg);
+      console.warn(`[SUAP] editais: ${endpoint} falhou — ${msg.slice(0, 160)}`);
     }
   }
 
-  return []; // Editais são opcionais — não quebra o sync se não encontrar
+  const soNaoExiste = statusVistos.length > 0 && statusVistos.every((s) => s === 404);
+  console.warn('[SUAP] nenhum endpoint de editais respondeu:', erros.join(' | ').slice(0, 400));
+
+  return {
+    editais: [],
+    avisos: [
+      soNaoExiste
+        ? 'ℹ️ O SUAP não expõe uma API de editais (os endereços que o portal conhece respondem 404). ' +
+          'A sincronização de editais pelo SUAP fica sem efeito — publique os editais pelo próprio portal.'
+        : '⚠️ Não conseguimos consultar os editais no SUAP desta vez. Se a sincronização de projetos também falhar, verifique a conexão com o SUAP.',
+    ],
+  };
 }
 
 /** Descobre endpoints disponíveis */
@@ -462,18 +563,57 @@ export async function testSuapConnection(): Promise<{ ok: boolean; message: stri
     const campus = res.results?.[0]?.campus_nome ?? '';
     return {
       ok: true,
-      message: `Conectado! ${total} projeto(s) encontrado(s)${campus ? ` — ex: ${campus}` : ''}.`,
+      // Contagem sem "(s)": a barra de neutralidade quebra a leitura em voz alta.
+      message: `Conectado! ${total === 1 ? '1 projeto encontrado' : `${total} projetos encontrados`}${campus ? ` — por exemplo, ${campus}` : ''}.`,
     };
   } catch (err) {
     const msg = err instanceof Error ? err.message : 'Erro desconhecido';
-    // Melhorar mensagem para 403/401
-    if (msg.includes('403') || msg.includes('bloqueado')) {
+    const status = err instanceof SuapHttpError ? err.status : undefined;
+    // Log técnico completo fica no servidor; o que a tela de admin mostra é
+    // sempre uma orientação acionável, sem URL de endpoint nem nome de
+    // variável de ambiente.
+    console.error('[SUAP] Falha no teste de conexão:', msg);
+
+    // Motivos DIFERENTES pedem ações diferentes — antes tudo caía no mesmo
+    // genérico ("confira as credenciais"), inclusive um bloqueio de rede.
+    //
+    // 401: o SUAP respondeu e recusou a credencial (token expirado/inválido) e o
+    // login automático por usuário/senha também não passou.
+    if (status === 401) {
       return {
         ok: false,
-        message: 'IP bloqueado pelo SUAP. Use um token manual: acesse suap.ifpr.edu.br/api/docs/ → Authorize → POST /api/token/pair → copie "access" → cole no .env como SUAP_API_TOKEN',
+        message:
+          'O SUAP recusou a autenticação: o token cadastrado expirou (ele vale 24 horas) e o login automático não funcionou. ' +
+          'Gere um token novo em suap.ifpr.edu.br/api/docs/ e cadastre na página de Sincronização SUAP deste portal.',
       };
     }
-    return { ok: false, message: msg };
+
+    // 403/405: a requisição nem chegou a ser tratada como consulta — sintoma
+    // clássico de bloqueio do acesso por API a partir deste servidor/IP. Um GET
+    // válido nesse mesmo endereço responde 200 (verificado contra o SUAP), então
+    // 405 aqui NÃO é "endpoint errado": é recusa.
+    if (status === 403 || status === 405 || msg.includes('bloqueado')) {
+      return {
+        ok: false,
+        message:
+          'O SUAP recusou a conexão deste servidor (o acesso por API pode estar bloqueado para este IP). ' +
+          'Cadastre um token de acesso na página de Sincronização SUAP; se o erro continuar, avise a equipe técnica do portal.',
+      };
+    }
+
+    if (status === 404) {
+      return {
+        ok: false,
+        message:
+          'O SUAP respondeu que este endereço de consulta não existe — a API deles pode ter mudado. Avise a equipe técnica do portal.',
+      };
+    }
+
+    return {
+      ok: false,
+      message:
+        'Não conseguimos conectar ao SUAP. Confira se as credenciais de acesso estão corretas e se o SUAP está no ar, depois tente novamente.',
+    };
   }
 }
 

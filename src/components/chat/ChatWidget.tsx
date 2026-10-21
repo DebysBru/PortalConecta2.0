@@ -1,8 +1,10 @@
 'use client';
 
 import React, { useState, useRef, useEffect } from 'react';
+import Image from 'next/image';
 import { MessageCircle, X, Send, Sparkles, Loader2 } from 'lucide-react';
 import Markdown from 'react-markdown';
+import { EVENTO_ABRIR_CHAT } from '@/lib/ifizinha-chat';
 
 type Message = {
   role: 'user' | 'assistant';
@@ -29,6 +31,14 @@ export function ChatWidget() {
     scrollToBottom();
   }, [messages]);
 
+  // Permite abrir o chat de fora do widget (botão "Pergunte à IFizinha" no
+  // header) sem transformar isto num contexto global — ver lib/ifizinha-chat.
+  useEffect(() => {
+    const abrir = () => setIsOpen(true);
+    window.addEventListener(EVENTO_ABRIR_CHAT, abrir);
+    return () => window.removeEventListener(EVENTO_ABRIR_CHAT, abrir);
+  }, []);
+
   const handleSend = async () => {
     if (!input.trim() || isLoading) return;
 
@@ -54,13 +64,21 @@ export function ChatWidget() {
       } else {
         setMessages((prev) => [
           ...prev,
-          { role: 'assistant', content: 'Desculpe, tive um problema para processar sua mensagem. Tente novamente.' },
+          {
+            role: 'assistant',
+            content:
+              'Não consegui responder agora. Tente reformular a pergunta ou envie novamente em alguns instantes.',
+          },
         ]);
       }
     } catch {
       setMessages((prev) => [
         ...prev,
-        { role: 'assistant', content: 'Erro de conexão. Verifique sua internet e tente novamente.' },
+        {
+          role: 'assistant',
+          content:
+            'Parece que sua conexão caiu no meio do caminho. Confira a internet e me pergunte de novo.',
+        },
       ]);
     } finally {
       setIsLoading(false);
@@ -90,8 +108,18 @@ export function ChatWidget() {
           <X className="w-6 h-6 text-white" />
         ) : (
           <div className="relative">
-            <Sparkles className="w-6 h-6 text-white" />
-            <div className="absolute -top-1 -right-1 w-3 h-3 bg-green-400 rounded-full animate-pulse" />
+            {/* Avatar da IFizinha no lugar do ícone genérico. O arquivo já vem
+                quadrado e otimizado (160x160) — ver public/ifizinha. */}
+            <Image
+              src="/ifizinha/avatar-chat.webp"
+              alt=""
+              width={160}
+              height={160}
+              unoptimized
+              aria-hidden
+              className="w-14 h-14 rounded-full object-cover"
+            />
+            <div className="absolute -top-0.5 -right-0.5 w-3.5 h-3.5 bg-green-400 border-2 border-white rounded-full animate-pulse" />
           </div>
         )}
       </button>

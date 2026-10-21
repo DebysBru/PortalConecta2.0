@@ -57,10 +57,9 @@ export function getEmbeddingProviderStatus(): {
     semantico: temChave,
     aviso: temChave
       ? null
-      : 'GEMINI_API_KEY não configurada: os embeddings estão sendo gerados por hash ' +
-        'determinístico (fallback). A busca vetorial NÃO tem semântica real — ' +
-        'perguntas com sinônimos/paráfrase não encontram os documentos certos. ' +
-        'Configure GEMINI_API_KEY (tier gratuito do Google AI Studio) e reindexe.',
+      : 'A busca inteligente está funcionando em modo simplificado, porque a chave do serviço de IA não foi configurada neste ambiente. ' +
+        'Nesse modo, a busca não entende sinônimos nem paráfrases — perguntas escritas com outras palavras podem não encontrar o documento certo. ' +
+        'Peça para a equipe técnica ativar o serviço e reindexar os documentos.',
   };
 }
 

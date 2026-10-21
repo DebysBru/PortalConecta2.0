@@ -1,3 +1,6 @@
+
+import { PageHero } from '@/components/layout/PageHero';
+import { MascoteInterativa } from '@/components/ifizinha/MascoteInterativa';
 import React from 'react';
 import Link from 'next/link';
 import {
@@ -177,33 +180,23 @@ export default async function BuscaPage({
 
   return (
     <div className="min-h-screen">
-      {/* Hero + formulário */}
-      <div className="bg-hero-gradient pt-24 pb-16">
-        <div className="container mx-auto px-4 max-w-7xl">
-          <div className="flex items-center gap-2 text-white/70 text-sm mb-4">
-            <Link href="/" className="hover:text-white transition-colors">
-              Início
-            </Link>
-            <ChevronRight className="w-4 h-4" />
-            <span className="text-white">Busca</span>
-          </div>
-          <div className="flex items-start gap-4">
-            <div className="w-14 h-14 bg-white/15 rounded-2xl flex items-center justify-center border border-white/30 flex-shrink-0">
-              <Search className="w-7 h-7 text-white" />
-            </div>
-            <div>
-              <h1 className="text-3xl md:text-4xl font-black text-white mb-2">
-                Busca no Portal Conecta
-              </h1>
-              <p className="text-white/80 text-lg max-w-2xl">
-                Projetos, editais e publicações do IFPR Campus Ivaiporã em um só lugar.
-              </p>
-            </div>
-          </div>
+      <PageHero
+        trilha={[{ href: '/', label: 'Início' }, { label: 'Busca' }]}
+        etiqueta="Encontre tudo"
+        titulo="Busca no Portal Conecta"
+        descricao="Projetos, editais e publicações do IFPR Campus Ivaiporã em um só lugar."
+        icone={<Search className="h-7 w-7 text-azul-eletrico" />}
+        fundoIcone="bg-azul-50"
+        mascote={{
+          nome: 'de-costas-recorte',
+          dica: 'Escreve uma palavra-chave que eu procuro no portal inteiro!',
+        }}
+      >
+        <BuscaForm termoInicial={params.q} />
+      </PageHero>
 
-          <BuscaForm termoInicial={params.q} />
-        </div>
-      </div>
+      {/* Conteúdo — fundo próprio e `z-10` para cobrir a sobra da mascote */}
+      <div className="relative z-10 bg-gray-50">
 
       <div className="container mx-auto px-4 max-w-5xl py-10">
         {/* Sem termo: orienta em vez de listar o portal inteiro */}
@@ -281,8 +274,8 @@ export default async function BuscaPage({
         {nadaEncontrado && (
           <div className="space-y-8">
             <div className="bg-white rounded-2xl border border-gray-100 p-8 text-center">
-              <div className="w-14 h-14 bg-gray-50 rounded-2xl flex items-center justify-center mx-auto mb-4">
-                <Search className="w-7 h-7 text-gray-400" />
+              <div className="mx-auto mb-4 w-[130px]">
+                <MascoteInterativa nome="chat" />
               </div>
               <h2 className="text-xl font-black text-gray-900 mb-2">
                 Nenhum resultado para “{resultado.termo}”
@@ -342,6 +335,7 @@ export default async function BuscaPage({
             </div>
           </div>
         )}
+      </div>
       </div>
     </div>
   );

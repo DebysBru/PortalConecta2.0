@@ -3,6 +3,7 @@
 import { Prisma } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
 import { isAdministradorGeral, whereUsuarioTemAcessoAoProjeto } from '@/lib/permissions';
+import { MENSAGENS } from '@/lib/mensagens';
 import {
   agruparContagens,
   comPercentuais,
@@ -130,7 +131,7 @@ export async function getAdminRelatorioSeries(
   email: string,
 ): Promise<{ ok: true; data: AdminRelatorioSeries } | { ok: false; error: string }> {
   if (!(await emailEhAdmin(email))) {
-    return { ok: false, error: 'Acesso negado: apenas administradores' };
+    return { ok: false, error: MENSAGENS.semPermissaoAdmin };
   }
 
   const [porStatus, porMes, projetosPorAreaBruto, editaisPorCategoriaBruto] = await Promise.all([
@@ -203,7 +204,7 @@ export async function getProfessorRelatorioSeries(
   projetoId?: string,
 ): Promise<{ ok: true; data: ProfessorRelatorioSeries } | { ok: false; error: string }> {
   if (!email) {
-    return { ok: false, error: 'Não autenticado' };
+    return { ok: false, error: MENSAGENS.naoAutenticado };
   }
 
   const escopoProjeto: Prisma.ProjetoWhereInput = {

@@ -15,12 +15,17 @@
  * (e eles estão na documentação pública do projeto) conseguia gravar arquivos de
  * até 10 MB sem autenticação — arquivos esses servidos publicamente em `/files/`.
  *
- * Limites aplicados em `src/lib/file-storage.ts`: PDF 10 MB, imagem 5 MB.
+ * Limites (revisados em 2026-10-05): cada arquivo até 20 MB, e o POST inteiro
+ * (imagens do texto + anexos) até 20 MB — a soma é conferida em
+ * `pesoDasMidiasDoPost` ao salvar o post, e também por `pesoDoPost` em
+ * src/lib/post-midias.ts. Tipos aceitos, decididos por magic bytes: PDF, PNG,
+ * JPG, WEBP, GIF, ZIP e RAR.
  */
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { verifySessionToken } from '@/lib/auth-helpers';
 import { salvarArquivo, ArquivoInvalidoError, LIMITE_PDF_BYTES, LIMITE_IMAGEM_BYTES } from '@/lib/file-storage';
+import { MENSAGENS } from '@/lib/mensagens';
 
 /** Papéis que podem enviar arquivo: quem tem painel (professor) ou o admin. */
 async function papelPodeEnviar(email: string): Promise<boolean> {
@@ -37,8 +42,8 @@ export async function POST(request: NextRequest) {
   try {
     formData = await request.formData();
   } catch (e) {
-    const msg = e instanceof Error ? e.message : 'Falha ao ler o upload';
-    return NextResponse.json({ error: msg }, { status: 400 });
+    console.error('Falha ao ler o upload:', e);
+    return NextResponse.json({ error: MENSAGENS.dadosInvalidosGenerico }, { status: 400 });
   }
 
   // ── Autorização: identidade vem do TOKEN, não do formulário ──
@@ -49,15 +54,12 @@ export async function POST(request: NextRequest) {
   }
 
   if (!(await papelPodeEnviar(sessao.email))) {
-    return NextResponse.json(
-      { error: 'Acesso negado: apenas professores e administradores podem enviar arquivos' },
-      { status: 403 }
-    );
+    return NextResponse.json({ error: MENSAGENS.semPermissaoProfessor }, { status: 403 });
   }
 
   const file = formData.get('file') as File | null;
   if (!file) {
-    return NextResponse.json({ error: 'Nenhum arquivo enviado' }, { status: 400 });
+    return NextResponse.json({ error: MENSAGENS.arquivoNaoEnviado }, { status: 400 });
   }
 
   // `subpasta` agrupa os arquivos por entidade (ex.: id do projeto), para a
@@ -88,6 +90,7 @@ export async function POST(request: NextRequest) {
     }
     const msg = e instanceof Error ? e.message : 'Erro desconhecido ao salvar o arquivo';
     console.error('Falha ao salvar arquivo:', msg);
-    return NextResponse.json({ error: `Não foi possível salvar o arquivo: ${msg}` }, { status: 500 });
+    // A mensagem crua pode trazer caminho de disco (ENOENT/EACCES) — fica no log.
+    return NextResponse.json({ error: MENSAGENS.falhaEnvioArquivo }, { status: 500 });
   }
 }

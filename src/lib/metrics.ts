@@ -91,7 +91,7 @@ export async function readPublicMetricsView(): Promise<PublicMetrics> {
 
   const row = rows[0];
   if (!row) {
-    throw new Error('public_metrics vazia — rode refresh_public_metrics()');
+    throw new Error('A tabela de métricas públicas está vazia — é preciso atualizá-la antes de usar.');
   }
 
   return {

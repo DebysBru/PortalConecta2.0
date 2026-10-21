@@ -59,5 +59,5 @@ export function decidirAtualizacaoSync(params: {
 
 /** Mensagem padrão do relatório de sync para registros preservados. */
 export function mensagemPreservado(rotulo: string, suapId: number): string {
-  return `🛡️ Preservado (editado manualmente no portal após o último sync): "${rotulo}" (SUAP ID: ${suapId}) — use sync forçada para sobrescrever`;
+  return `🛡️ Mantido como está (foi editado aqui no portal depois da última sincronização): "${rotulo}" (registro nº ${suapId} no SUAP). Use a sincronização forçada se quiser substituir pelo conteúdo do SUAP.`;
 }

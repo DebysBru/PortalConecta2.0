@@ -10,14 +10,23 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { verificarTurnstile } from '@/lib/turnstile';
 import { obterIpCliente } from '@/lib/rate-limit';
+import { MENSAGENS } from '@/lib/mensagens';
 
 export async function POST(req: NextRequest) {
-  const { token } = await req.json() as { token?: string };
+  // Sem o try/catch, um corpo malformado devolvia a página de erro HTML do
+  // Next — a tela de cadastro não conseguia ler a mensagem para o usuário.
+  let token: string | undefined;
+  try {
+    ({ token } = await req.json() as { token?: string });
+  } catch {
+    return NextResponse.json({ error: MENSAGENS.verificacaoSegurancaFalhou }, { status: 400 });
+  }
+
   const ip = obterIpCliente();
   const ok = await verificarTurnstile(token, ip);
 
   if (!ok) {
-    return NextResponse.json({ error: 'Verificação de segurança falhou. Tente novamente.' }, { status: 400 });
+    return NextResponse.json({ error: MENSAGENS.verificacaoSegurancaFalhou }, { status: 400 });
   }
   return NextResponse.json({ ok: true });
 }

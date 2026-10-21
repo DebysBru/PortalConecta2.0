@@ -8,6 +8,7 @@ import {
 import { formatDate, getDaysUntil, getStatusLabel, getStatusColor, getCategoryColor } from '@/lib/utils';
 import { prisma } from '@/lib/prisma';
 import { BotaoFavorito } from '@/components/ui/BotaoFavorito';
+import { PageHero } from '@/components/layout/PageHero';
 import { buscarEditalPublicoPorSlug, buscarResumoEditalPublico } from '@/lib/editais-publicos';
 import type { Metadata } from 'next';
 
@@ -121,55 +122,56 @@ export default async function EditalDetalhePage({ params }: { params: { slug: st
 
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* Hero */}
-      <div className="bg-hero-gradient pt-24 pb-12">
-        <div className="container mx-auto px-4 max-w-4xl">
-          <div className="flex items-center gap-2 text-white/70 text-sm mb-4">
-            <Link href="/" className="hover:text-white transition-colors">Início</Link>
-            <ChevronRight className="w-4 h-4" />
-            <Link href="/editais" className="hover:text-white transition-colors">Editais</Link>
-            <ChevronRight className="w-4 h-4" />
-            <span className="text-white line-clamp-1">{edital.titulo}</span>
-          </div>
-
-          <div className="flex flex-wrap items-center gap-2 mb-3">
-            <span className={`inline-flex px-2.5 py-1 rounded-full text-xs font-semibold ${getCategoryColor(edital.categoria)}`}>
-              {getStatusLabel(edital.categoria)}
+      <PageHero
+        trilha={[
+          { href: '/', label: 'Início' },
+          { href: '/editais', label: 'Editais' },
+          { label: edital.titulo },
+        ]}
+        etiqueta={getStatusLabel(edital.categoria)}
+        titulo={edital.titulo}
+        cor="text-azul-eletrico"
+        mascote={{
+          nome: 'relogio',
+          dica: 'Fica de olho no prazo — e confira a versão que eu expliquei!',
+        }}
+      >
+        {/* Situação do edital, em versão clara */}
+        <div className="mt-3 flex flex-wrap items-center gap-2">
+          <span className={`inline-flex px-2.5 py-1 rounded-full text-xs font-semibold ${getCategoryColor(edital.categoria)}`}>
+            {getStatusLabel(edital.categoria)}
+          </span>
+          <span className={`inline-flex px-2.5 py-1 rounded-full text-xs font-semibold border ${getStatusColor(edital.status)}`}>
+            {getStatusLabel(edital.status)}
+          </span>
+          {isUrgent && (
+            <span className="inline-flex items-center gap-1 rounded-full border border-orange-200 bg-orange-50 px-2.5 py-1 text-xs font-bold text-orange-700 animate-pulse">
+              <AlertCircle className="w-3 h-3" />
+              {daysLeft === 1 ? 'Último dia!' : `${daysLeft} dias restantes!`}
             </span>
-            <span className={`inline-flex px-2.5 py-1 rounded-full text-xs font-semibold border ${getStatusColor(edital.status)}`}>
-              {getStatusLabel(edital.status)}
-            </span>
-            {isUrgent && (
-              <span className="inline-flex items-center gap-1 text-xs font-bold text-orange-600 bg-orange-50 border border-orange-200 px-2.5 py-1 rounded-full animate-pulse">
-                <AlertCircle className="w-3 h-3" />
-                {daysLeft === 1 ? 'Último dia!' : `${daysLeft} dias restantes!`}
-              </span>
-            )}
-          </div>
-
-          <h1 className="text-2xl md:text-3xl font-black text-white mb-3">{edital.titulo}</h1>
-
-          {resumo && (
-            <p className="text-white/80 text-sm leading-relaxed max-w-3xl">{resumo}</p>
           )}
+        </div>
 
-          <div className="flex flex-wrap items-center gap-4 mt-4 text-sm text-white/70">
-            {edital.dataEncerramento && (
-              <div className="flex items-center gap-1.5">
-                <Clock className="w-4 h-4" />
-                Encerra: {formatDate(edital.dataEncerramento)}
-              </div>
-            )}
+        {resumo && (
+          <p className="mt-4 max-w-3xl text-sm leading-relaxed text-gray-500">{resumo}</p>
+        )}
+
+        <div className="mt-4 flex flex-wrap items-center gap-4 text-sm text-gray-500">
+          {edital.dataEncerramento && (
             <div className="flex items-center gap-1.5">
-              <ExternalLink className="w-4 h-4" />
-              {edital.visualizacoes} visualizações
+              <Clock className="w-4 h-4" />
+              Encerra: {formatDate(edital.dataEncerramento)}
             </div>
+          )}
+          <div className="flex items-center gap-1.5">
+            <ExternalLink className="w-4 h-4" />
+            {edital.visualizacoes} visualizações
           </div>
         </div>
-      </div>
+      </PageHero>
 
-      {/* Aviso */}
-      <div className="bg-blue-50 border-b border-blue-100">
+      {/* Aviso — opaco e com z-10 para cobrir a sobra da mascote do cabeçalho */}
+      <div className="relative z-10 bg-blue-50 border-b border-blue-100">
         <div className="container mx-auto px-4 max-w-4xl py-3">
           <div className="flex items-center gap-2 text-blue-700">
             <AlertCircle className="w-4 h-4 flex-shrink-0" />
@@ -181,7 +183,8 @@ export default async function EditalDetalhePage({ params }: { params: { slug: st
       </div>
 
       {/* Conteúdo */}
-      <div className="container mx-auto px-4 max-w-4xl py-8 space-y-6">
+      <div className="relative z-10 bg-gray-50">
+        <div className="container mx-auto px-4 max-w-4xl py-8 space-y-6">
         {/* Tabs: IFizinha / Oficial */}
         <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
           <div className="p-6">
@@ -334,6 +337,7 @@ export default async function EditalDetalhePage({ params }: { params: { slug: st
             <ArrowLeft className="w-5 h-5" />
             Voltar
           </Link>
+        </div>
         </div>
       </div>
     </div>

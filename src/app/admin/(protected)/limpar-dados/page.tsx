@@ -87,7 +87,10 @@ export default function LimparDadosPage() {
         setResult({ ok: false, message: res.error });
       }
     } catch {
-      setResult({ ok: false, message: 'Erro ao apagar dados' });
+      setResult({
+        ok: false,
+        message: 'Não conseguimos apagar os dados selecionados. Tente novamente em alguns instantes.',
+      });
     } finally {
       setDeleting(false);
     }

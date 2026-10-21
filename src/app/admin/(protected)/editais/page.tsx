@@ -9,6 +9,7 @@ import {
 import { useAuth } from '@/contexts/AuthContext';
 import { getStatusLabel, getCategoryColor, getStatusColor, formatDateShort } from '@/lib/utils';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
+import { useMensagemErro } from '@/lib/use-mensagem-erro';
 
 type Edital = Awaited<ReturnType<typeof listEditais>>[number];
 
@@ -28,7 +29,7 @@ export default function AdminEditaisPage() {
   const [editing, setEditing] = useState<Edital | null>(null);
   const [form, setForm] = useState<EditalFormData>(EMPTY_FORM);
   const [activeTab, setActiveTab] = useState<'info' | 'ifizinha'>('info');
-  const [error, setError] = useState('');
+  const [error, setError] = useMensagemErro();
   const [isPending, startTransition] = useTransition();
   const [generatingAI, setGeneratingAI] = useState(false);
   const [deleteId, setDeleteId] = useState<string | null>(null);
@@ -89,7 +90,7 @@ export default function AdminEditaisPage() {
     startTransition(async () => {
       const result = await toggleEditalPublicacao(id, user.email!);
       if (result.ok) load();
-      else setError(result.error);
+      else setError(result.error, 'Não conseguimos mudar a publicação do edital. Tente novamente.');
     });
   };
 
@@ -99,7 +100,7 @@ export default function AdminEditaisPage() {
     startTransition(async () => {
       const result = await deleteEdital(deleteId, user.email!);
       if (result.ok) load();
-      else setError(result.error);
+      else setError(result.error, 'Não conseguimos excluir o edital. Tente novamente.');
       setDeleting(false);
       setDeleteId(null);
     });
@@ -113,7 +114,7 @@ export default function AdminEditaisPage() {
         ? await updateEdital(editing.id, form, user!.email!)
         : await createEdital(form, user!.email!);
       if (result.ok) { setPanelOpen(false); load(); }
-      else setError(result.error);
+      else setError(result.error, 'Não conseguimos salvar o edital. Confira os campos e tente novamente.');
     });
   };
 
@@ -134,7 +135,7 @@ export default function AdminEditaisPage() {
       const result = await res.json();
 
       if (!res.ok || !result.ok) {
-        setError(result.error || 'Erro ao extrair dados do PDF');
+        setError(result.error, 'Não conseguimos extrair os dados do PDF. Tente novamente ou preencha os campos manualmente.');
         return;
       }
 
@@ -157,7 +158,7 @@ export default function AdminEditaisPage() {
       }));
       setExtractInfo('Dados extraídos do PDF! Revise os campos antes de salvar.');
     } catch {
-      setError('Erro ao conectar com a IA para extrair o PDF');
+      setError('Não conseguimos enviar o PDF para a IA. Confira sua conexão e tente novamente, ou preencha os campos manualmente.');
     } finally {
       setExtractingPdf(false);
       if (pdfInputRef.current) pdfInputRef.current.value = '';
@@ -385,7 +386,7 @@ export default function AdminEditaisPage() {
                         type="button"
                         onClick={async () => {
                           if (!form.titulo || !form.resumo) {
-                            setError('Preencha o título e resumo primeiro na aba "Informações"');
+                            setError('Para a IFizinha gerar a tradução, preencha antes o título e o resumo na aba "Informações".');
                             setActiveTab('info');
                             return;
                           }
@@ -406,10 +407,10 @@ export default function AdminEditaisPage() {
                             if (data.traducao) {
                               setForm((f) => ({ ...f, traducaoIFizinha: data.traducao }));
                             } else {
-                              setError(data.error || 'Erro ao gerar tradução');
+                              setError(data.error, 'A IFizinha não conseguiu gerar a tradução agora. Tente novamente em alguns instantes.');
                             }
                           } catch {
-                            setError('Erro ao conectar com a IA');
+                            setError('Não conseguimos falar com a IFizinha. Confira sua conexão e tente novamente.');
                           } finally {
                             setGeneratingAI(false);
                           }

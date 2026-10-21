@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { Sparkles, Mail, Lock, AlertCircle, User, KeyRound, LogIn, Link2, CheckCircle } from 'lucide-react';
 import { useAuth, type SuapProfile } from '@/contexts/AuthContext';
 import Image from 'next/image';
+import { MENSAGENS, mensagemAmigavel } from '@/lib/mensagens';
 
 type LoginTab = 'suap' | 'email';
 type LoginStep = 'login' | 'link_google';
@@ -75,13 +76,13 @@ export default function AdminLoginPage() {
 
       if (result.type === 'fallback') {
         setError(
-          'SUAP verificado, mas Firebase Admin não está configurado. ' +
-          'Configure FIREBASE_ADMIN_* no .env.local para login persistente.'
+          'Entramos no SUAP, mas não foi possível manter sua sessão no portal. ' +
+          'Fale com a equipe responsável pelo portal para liberar seu acesso.'
         );
       }
       setSubmitting(false);
-    } catch {
-      setError('Erro inesperado. Tente novamente.');
+    } catch (err) {
+      setError(mensagemAmigavel(err, MENSAGENS.erroInesperadoOrientacao));
       setSubmitting(false);
     }
   };
@@ -95,7 +96,7 @@ export default function AdminLoginPage() {
     try {
       const result = await completeSuapGoogleLink(pendingToken);
       if (!result.ok) {
-        setError(result.error);
+        setError(mensagemAmigavel(result.error, MENSAGENS.loginGoogleFalhou));
         linkingInProgress.current = false;
         setSubmitting(false);
         return;
@@ -104,8 +105,8 @@ export default function AdminLoginPage() {
       // `loading`/`user` confirmarem que o cookie de sessão já foi criado
       // (não navegamos aqui: ver comentário em handleEmailLogin).
       linkingInProgress.current = false;
-    } catch {
-      setError('Erro inesperado ao vincular. Tente novamente.');
+    } catch (err) {
+      setError(mensagemAmigavel(err, MENSAGENS.erroInesperadoOrientacao));
       linkingInProgress.current = false;
       setSubmitting(false);
     }
@@ -136,8 +137,8 @@ export default function AdminLoginPage() {
       // tentativa porque o cookie da 1ª já tinha terminado de ser criado em
       // background. O useEffect abaixo (user + loading) já espera esse
       // ciclo terminar antes de redirecionar.
-    } catch {
-      setError('E-mail ou senha incorretos.');
+    } catch (err) {
+      setError(mensagemAmigavel(err, MENSAGENS.emailOuSenhaIncorretos));
       setSubmitting(false);
     }
   };
@@ -149,16 +150,16 @@ export default function AdminLoginPage() {
     try {
       await signInWithGoogle();
       // Idem handleEmailLogin — deixa o useEffect redirecionar.
-    } catch {
-      setError('Não foi possível autenticar com o Google.');
+    } catch (err) {
+      setError(mensagemAmigavel(err, MENSAGENS.loginGoogleFalhou));
       setSubmitting(false);
     }
   };
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-hero-gradient flex items-center justify-center">
-        <Sparkles className="w-8 h-8 text-dourado-500 animate-sparkle" />
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <Sparkles className="w-8 h-8 text-azul-eletrico animate-sparkle" />
       </div>
     );
   }
@@ -168,35 +169,40 @@ export default function AdminLoginPage() {
   // ════════════════════════════════════════════════════════════════════════════
   if (step === 'link_google' && suapProfile) {
     return (
-      <div className="min-h-screen bg-hero-gradient flex items-center justify-center p-4">
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
         <div className="w-full max-w-sm">
           {/* Logo */}
           <div className="text-center mb-8">
-            <div className="w-16 h-16 bg-dourado-500 rounded-2xl flex items-center justify-center text-3xl mx-auto mb-4 shadow-glow-dourado">
-              ✨
-            </div>
-            <h1 className="text-2xl font-black text-white">Portal Conecta</h1>
-            <p className="text-white/65 text-sm mt-1">Área Administrativa</p>
+            <Image
+              src="/ifizinha/logo-completo.webp"
+              alt="Portal Conecta — IFPR Campus Ivaiporã"
+              width={1400}
+              height={467}
+              unoptimized
+              className="mx-auto mb-4 h-10 w-auto"
+            />
+            <h1 className="text-2xl font-black text-gray-900">Portal Conecta</h1>
+            <p className="text-gray-500 text-sm mt-1">Área Administrativa</p>
           </div>
 
-          <div className="bg-white/10 backdrop-blur-md rounded-3xl p-6 border border-white/20 shadow-2xl">
+          <div className="bg-white rounded-3xl p-6 border border-gray-100 shadow-xl">
 
             {/* Header */}
             <div className="text-center mb-5">
-              <div className="w-10 h-10 bg-dourado-500/20 rounded-2xl flex items-center justify-center mx-auto mb-3">
-                <Link2 className="w-5 h-5 text-dourado-400" />
+              <div className="w-10 h-10 bg-azul-50 rounded-2xl flex items-center justify-center mx-auto mb-3">
+                <Link2 className="w-5 h-5 text-azul-eletrico" />
               </div>
-              <h2 className="text-white font-bold text-lg">Vincule sua conta Google</h2>
-              <p className="text-white/55 text-xs mt-1.5 leading-relaxed">
+              <h2 className="text-gray-900 font-bold text-lg">Vincule sua conta Google</h2>
+              <p className="text-gray-500 text-xs mt-1.5 leading-relaxed">
                 Para acessar o portal, vincule um e-mail Google à sua conta SUAP.
                 Isso facilita o acesso futuro.
               </p>
             </div>
 
             {/* Card do perfil SUAP */}
-            <div className="bg-white/10 rounded-2xl p-4 mb-5 flex items-center gap-3 border border-white/10">
+            <div className="bg-gray-50 rounded-2xl p-4 mb-5 flex items-center gap-3 border border-gray-100">
               {suapProfile.fotoUrl ? (
-                <div className="relative w-12 h-12 rounded-full overflow-hidden ring-2 ring-dourado-500/40 flex-shrink-0">
+                <div className="relative w-12 h-12 rounded-full overflow-hidden ring-2 ring-azul-200 flex-shrink-0">
                   <Image
                     src={suapProfile.fotoUrl}
                     alt={suapProfile.name}
@@ -206,23 +212,23 @@ export default function AdminLoginPage() {
                   />
                 </div>
               ) : (
-                <div className="w-12 h-12 rounded-full bg-dourado-500/30 flex items-center justify-center flex-shrink-0 ring-2 ring-dourado-500/40">
-                  <User className="w-6 h-6 text-dourado-300" />
+                <div className="w-12 h-12 rounded-full bg-azul-50 flex items-center justify-center flex-shrink-0 ring-2 ring-azul-200">
+                  <User className="w-6 h-6 text-azul-eletrico" />
                 </div>
               )}
               <div className="min-w-0">
-                <p className="text-white font-semibold text-sm truncate">{suapProfile.name}</p>
-                <p className="text-white/50 text-xs truncate">{suapProfile.email}</p>
+                <p className="text-gray-900 font-semibold text-sm truncate">{suapProfile.name}</p>
+                <p className="text-gray-500 text-xs truncate">{suapProfile.email}</p>
                 <div className="flex items-center gap-1 mt-1">
-                  <CheckCircle className="w-3 h-3 text-green-400" />
-                  <span className="text-green-400 text-xs">SUAP verificado</span>
+                  <CheckCircle className="w-3 h-3 text-green-600" />
+                  <span className="text-green-600 text-xs">SUAP verificado</span>
                 </div>
               </div>
             </div>
 
             {/* Erro */}
             {error && (
-              <div className="flex items-start gap-2 bg-red-500/20 border border-red-400/30 rounded-xl p-3 text-red-200 text-xs mb-4">
+              <div className="flex items-start gap-2 bg-red-50 border border-red-200 rounded-xl p-3 text-red-700 text-xs mb-4">
                 <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5" />
                 {error}
               </div>
@@ -232,7 +238,7 @@ export default function AdminLoginPage() {
             <button
               onClick={handleCompleteGoogleLink}
               disabled={submitting}
-              className="w-full flex items-center justify-center gap-3 bg-white hover:bg-white/90 text-gray-800 font-semibold py-3 rounded-xl transition-all shadow-sm disabled:opacity-60 text-sm mb-3"
+              className="w-full flex items-center justify-center gap-3 bg-white border border-gray-200 text-gray-700 font-semibold py-3 rounded-xl hover:bg-gray-50 transition-all shadow-sm disabled:opacity-60 text-sm mb-3"
             >
               <svg className="w-5 h-5 flex-shrink-0" viewBox="0 0 24 24">
                 <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
@@ -247,13 +253,13 @@ export default function AdminLoginPage() {
             <button
               onClick={handleBackToLogin}
               disabled={submitting}
-              className="w-full py-2 text-white/50 hover:text-white/80 text-xs transition-colors disabled:opacity-40"
+              className="w-full py-2 text-gray-500 hover:text-gray-900 text-xs transition-colors disabled:opacity-40"
             >
               ← Voltar e usar outras credenciais SUAP
             </button>
           </div>
 
-          <p className="text-white/40 text-xs text-center mt-6">
+          <p className="text-gray-400 text-xs text-center mt-6">
             O vínculo é permanente e garante acesso seguro ao portal.
           </p>
         </div>
@@ -265,38 +271,43 @@ export default function AdminLoginPage() {
   // TELA DE LOGIN PRINCIPAL
   // ════════════════════════════════════════════════════════════════════════════
   return (
-    <div className="min-h-screen bg-hero-gradient flex items-center justify-center p-4">
+    <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
       <div className="w-full max-w-sm">
         {/* Logo */}
         <div className="text-center mb-8">
-          <div className="w-16 h-16 bg-dourado-500 rounded-2xl flex items-center justify-center text-3xl mx-auto mb-4 shadow-glow-dourado">
-            ✨
-          </div>
-          <h1 className="text-2xl font-black text-white">Portal Conecta</h1>
-          <p className="text-white/65 text-sm mt-1">Área Administrativa</p>
+          <Image
+            src="/ifizinha/logo-completo.webp"
+            alt="Portal Conecta — IFPR Campus Ivaiporã"
+            width={1400}
+            height={467}
+            unoptimized
+            className="mx-auto mb-4 h-10 w-auto"
+          />
+          <h1 className="text-2xl font-black text-gray-900">Portal Conecta</h1>
+          <p className="text-gray-500 text-sm mt-1">Área Administrativa</p>
         </div>
 
-        <div className="bg-white/10 backdrop-blur-md rounded-3xl p-6 border border-white/20 shadow-2xl">
+        <div className="bg-white rounded-3xl p-6 border border-gray-100 shadow-xl">
 
 
           {/* ── SUAP Tab ── */}
           {tab === 'suap' && (
             <>
-              <p className="text-white/60 text-xs text-center mb-4">
+              <p className="text-gray-500 text-xs text-center mb-4">
                 Use a mesma matrícula e senha do{' '}
                 <a href="https://suap.ifpr.edu.br" target="_blank" rel="noopener noreferrer"
-                  className="underline text-white/80 hover:text-white">
+                  className="underline text-azul-eletrico hover:text-azul-700">
                   suap.ifpr.edu.br
                 </a>
               </p>
 
               <form onSubmit={handleSuapLogin} className="space-y-3">
                 <div>
-                  <label className="block text-white/80 text-xs font-medium mb-1.5">
+                  <label className="label-field">
                     Matrícula SUAP
                   </label>
                   <div className="relative">
-                    <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-white/40" />
+                    <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
                     <input
                       type="text"
                       value={suapUsername}
@@ -304,14 +315,14 @@ export default function AdminLoginPage() {
                       required
                       placeholder="20201IVA..."
                       autoComplete="username"
-                      className="w-full bg-white/10 border border-white/20 text-white placeholder-white/30 rounded-xl pl-9 pr-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-dourado-500/50 focus:border-dourado-500/50"
+                      className="input-field !pl-9"
                     />
                   </div>
                 </div>
                 <div>
-                  <label className="block text-white/80 text-xs font-medium mb-1.5">Senha SUAP</label>
+                  <label className="label-field">Senha SUAP</label>
                   <div className="relative">
-                    <KeyRound className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-white/40" />
+                    <KeyRound className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
                     <input
                       type="password"
                       value={suapPassword}
@@ -319,13 +330,13 @@ export default function AdminLoginPage() {
                       required
                       placeholder="••••••••"
                       autoComplete="current-password"
-                      className="w-full bg-white/10 border border-white/20 text-white placeholder-white/30 rounded-xl pl-9 pr-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-dourado-500/50 focus:border-dourado-500/50"
+                      className="input-field !pl-9"
                     />
                   </div>
                 </div>
 
                 {error && (
-                  <div className="flex items-start gap-2 bg-red-500/20 border border-red-400/30 rounded-xl p-3 text-red-200 text-xs">
+                  <div className="flex items-start gap-2 bg-red-50 border border-red-200 rounded-xl p-3 text-red-700 text-xs">
                     <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5" />
                     {error}
                   </div>
@@ -334,7 +345,7 @@ export default function AdminLoginPage() {
                 <button
                   type="submit"
                   disabled={submitting}
-                  className="w-full flex items-center justify-center gap-2 bg-dourado-500 hover:bg-dourado-400 text-gray-900 font-bold py-3 rounded-xl transition-all shadow-glow-dourado disabled:opacity-60 disabled:cursor-not-allowed text-sm"
+                  className="w-full flex items-center justify-center gap-2 bg-hero-gradient hover:opacity-90 text-white font-bold py-3 rounded-xl transition-all shadow-card-brand disabled:opacity-60 disabled:cursor-not-allowed text-sm"
                 >
                   <LogIn className="w-4 h-4" />
                   {submitting ? 'Verificando...' : 'Entrar com SUAP'}
@@ -344,17 +355,17 @@ export default function AdminLoginPage() {
               {/* Divider */}
               <div className="relative my-4">
                 <div className="absolute inset-0 flex items-center">
-                  <div className="w-full border-t border-white/20" />
+                  <div className="w-full border-t border-gray-200" />
                 </div>
                 <div className="relative flex justify-center">
-                  <span className="bg-transparent px-3 text-white/40 text-xs">ou acesso direto</span>
+                  <span className="bg-white px-3 text-gray-500 text-xs">ou acesso direto</span>
                 </div>
               </div>
 
               <button
                 onClick={handleGoogleLogin}
                 disabled={submitting}
-                className="w-full flex items-center justify-center gap-3 bg-white/15 hover:bg-white/25 text-white font-semibold py-3 rounded-xl transition-all text-sm disabled:opacity-60 border border-white/20"
+                className="w-full flex items-center justify-center gap-3 bg-white border border-gray-200 text-gray-700 font-semibold py-3 rounded-xl hover:bg-gray-50 transition-all text-sm disabled:opacity-60"
               >
                 <svg className="w-4 h-4" viewBox="0 0 24 24">
                   <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
@@ -374,7 +385,7 @@ export default function AdminLoginPage() {
               <button
                 onClick={handleGoogleLogin}
                 disabled={submitting}
-                className="w-full flex items-center justify-center gap-3 bg-white text-gray-800 font-semibold py-3 rounded-xl hover:bg-white/90 transition-all mb-4 shadow-sm disabled:opacity-60"
+                className="w-full flex items-center justify-center gap-3 bg-white border border-gray-200 text-gray-700 font-semibold py-3 rounded-xl hover:bg-gray-50 transition-all mb-4 shadow-sm disabled:opacity-60"
               >
                 <svg className="w-5 h-5" viewBox="0 0 24 24">
                   <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
@@ -387,45 +398,45 @@ export default function AdminLoginPage() {
 
               <div className="relative my-4">
                 <div className="absolute inset-0 flex items-center">
-                  <div className="w-full border-t border-white/20" />
+                  <div className="w-full border-t border-gray-200" />
                 </div>
                 <div className="relative flex justify-center">
-                  <span className="bg-transparent px-3 text-white/50 text-xs">ou</span>
+                  <span className="bg-white px-3 text-gray-500 text-xs">ou</span>
                 </div>
               </div>
 
               <form onSubmit={handleEmailLogin} className="space-y-4">
                 <div>
-                  <label className="block text-white/80 text-xs font-medium mb-1.5">E-mail</label>
+                  <label className="label-field">E-mail</label>
                   <div className="relative">
-                    <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-white/40" />
+                    <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
                     <input
                       type="email"
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
                       required
                       placeholder="seu@email.com"
-                      className="w-full bg-white/10 border border-white/20 text-white placeholder-white/30 rounded-xl pl-9 pr-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-dourado-500/50 focus:border-dourado-500/50"
+                      className="input-field !pl-9"
                     />
                   </div>
                 </div>
                 <div>
-                  <label className="block text-white/80 text-xs font-medium mb-1.5">Senha</label>
+                  <label className="label-field">Senha</label>
                   <div className="relative">
-                    <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-white/40" />
+                    <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
                     <input
                       type="password"
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
                       required
                       placeholder="••••••••"
-                      className="w-full bg-white/10 border border-white/20 text-white placeholder-white/30 rounded-xl pl-9 pr-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-dourado-500/50 focus:border-dourado-500/50"
+                      className="input-field !pl-9"
                     />
                   </div>
                 </div>
 
                 {error && (
-                  <div className="flex items-start gap-2 bg-red-500/20 border border-red-400/30 rounded-xl p-3 text-red-200 text-xs">
+                  <div className="flex items-start gap-2 bg-red-50 border border-red-200 rounded-xl p-3 text-red-700 text-xs">
                     <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5" />
                     {error}
                   </div>
@@ -434,7 +445,7 @@ export default function AdminLoginPage() {
                 <button
                   type="submit"
                   disabled={submitting}
-                  className="w-full bg-dourado-500 hover:bg-dourado-400 text-gray-900 font-bold py-3 rounded-xl transition-all shadow-glow-dourado disabled:opacity-60 text-sm"
+                  className="w-full bg-hero-gradient hover:opacity-90 text-white font-bold py-3 rounded-xl transition-all shadow-card-brand disabled:opacity-60 text-sm"
                 >
                   {submitting ? 'Entrando...' : 'Entrar'}
                 </button>
@@ -443,15 +454,15 @@ export default function AdminLoginPage() {
           )}
         </div>
 
-        <p className="text-white/40 text-xs text-center mt-6">
+        <p className="text-gray-400 text-xs text-center mt-6">
           Apenas administradores e equipes de projeto autorizados.
         </p>
 
         <div className="mt-4 text-center space-y-2">
-          <Link href="/esqueci-senha" className="text-white/50 hover:text-white/80 text-xs transition-colors block">
+          <Link href="/esqueci-senha" className="text-gray-500 hover:text-gray-900 text-xs transition-colors block">
             Esqueci minha senha
           </Link>
-          <Link href="/cadastro" className="text-dourado-400 hover:text-dourado-300 text-xs font-semibold block">
+          <Link href="/cadastro" className="text-azul-eletrico hover:text-azul-700 text-xs font-semibold block">
             Criar nova conta
           </Link>
         </div>

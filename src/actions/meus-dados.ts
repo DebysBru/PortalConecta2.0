@@ -2,6 +2,7 @@
 
 import { prisma } from '@/lib/prisma';
 import { translatePrismaError } from '@/lib/utils';
+import { formatarDataBrasil } from '@/lib/datas';
 import { verifySessionToken } from '@/lib/auth-helpers';
 import type { Prisma } from '@prisma/client';
 
@@ -45,6 +46,11 @@ export async function getMinhasInscricoes(idToken: string) {
       semestre: true,
       tipo_interesse: true,
       status: true,
+      // Resposta do estudante a uma convocação (ver src/lib/inscricao-aluno.ts):
+      // é o que decide se os botões "Aceitar/Recusar" aparecem na tela.
+      resposta_aluno: true,
+      respondido_em: true,
+      desistiu_em: true,
       created_at: true,
       projeto: {
         select: {
@@ -88,7 +94,7 @@ export async function exportMinhasInscricoesCSV(idToken: string): Promise<string
     i.projeto.nome,
     i.tipo_interesse,
     i.status,
-    i.created_at.toLocaleDateString('pt-BR'),
+    formatarDataBrasil(i.created_at, { day: '2-digit', month: '2-digit', year: 'numeric' }),
   ]);
 
   const csv = [headers.join(','), ...rows.map((r) => r.map((c) => `"${c}"`).join(','))].join('\n');
@@ -109,7 +115,7 @@ export async function solicitarExclusaoDados(idToken: string, motivo?: string) {
       where: await whereInscricoesDoUsuario(auth.email),
       data: {
         status: 'desistente',
-        observacao_interna: `Exclusão solicitada via "Meus dados" em ${new Date().toLocaleDateString('pt-BR')}${motivo ? `. Motivo: ${motivo}` : ''}`,
+        observacao_interna: `Exclusão solicitada via "Meus dados" em ${formatarDataBrasil(new Date(), { day: '2-digit', month: '2-digit', year: 'numeric' })}${motivo ? `. Motivo: ${motivo}` : ''}`,
       },
     });
 

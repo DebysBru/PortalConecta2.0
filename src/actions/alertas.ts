@@ -72,7 +72,7 @@ export async function salvarMeuAlerta(
       },
     };
   } catch {
-    return { ok: false, error: 'Não foi possível salvar o alerta' };
+    return { ok: false, error: 'Não conseguimos salvar seu alerta agora. Tente novamente em alguns instantes.' };
   }
 }
 
@@ -90,6 +90,6 @@ export async function removerMeuAlerta(
     });
     return { ok: true };
   } catch {
-    return { ok: false, error: 'Não foi possível remover o alerta' };
+    return { ok: false, error: 'Não conseguimos remover este alerta agora. Tente novamente em alguns instantes.' };
   }
 }

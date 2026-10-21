@@ -1,5 +1,6 @@
 import { prisma } from '@/lib/prisma';
 import { verifySessionToken } from '@/lib/auth-helpers';
+import { MENSAGENS } from '@/lib/mensagens';
 
 /**
  * Resolve o usuário do banco a partir do ID token do Firebase.
@@ -22,7 +23,7 @@ export async function resolverUsuarioDaSessao(idToken?: string): Promise<SessaoU
     select: { id: true, email: true },
   });
 
-  if (!user) return { ok: false, error: 'Perfil não encontrado — faça login novamente' };
+  if (!user) return { ok: false, error: MENSAGENS.usuarioNaoEncontrado };
 
   return { ok: true, userId: user.id, email: user.email };
 }

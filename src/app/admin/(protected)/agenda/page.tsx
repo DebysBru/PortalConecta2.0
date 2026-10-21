@@ -1,11 +1,13 @@
 'use client';
 
 import React, { useEffect, useState, useTransition } from 'react';
-import { Plus, Pencil, Trash2, X, Calendar, AlertCircle } from 'lucide-react';
+import Link from 'next/link';
+import { Plus, Pencil, Trash2, X, Calendar, AlertCircle, Upload } from 'lucide-react';
 import { listEventos, createEvento, updateEvento, deleteEvento, type EventoFormData } from '@/actions/admin';
 import { useAuth } from '@/contexts/AuthContext';
 import { getStatusLabel, formatDateShort } from '@/lib/utils';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
+import { useMensagemErro } from '@/lib/use-mensagem-erro';
 
 type Evento = Awaited<ReturnType<typeof listEventos>>[number];
 
@@ -22,7 +24,7 @@ export default function AdminAgendaPage() {
   const [panelOpen, setPanelOpen] = useState(false);
   const [editing, setEditing] = useState<Evento | null>(null);
   const [form, setForm] = useState<EventoFormData>(EMPTY);
-  const [error, setError] = useState('');
+  const [error, setError] = useMensagemErro();
   const [isPending, startTransition] = useTransition();
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
@@ -66,7 +68,7 @@ export default function AdminAgendaPage() {
     setDeleting(true);
     startTransition(async () => {
       const r = await deleteEvento(deleteId, user!.email!);
-      if (r.ok) load(); else setError(r.error);
+      if (r.ok) load(); else setError(r.error, 'Não conseguimos excluir este evento. Tente novamente.');
       setDeleting(false);
       setDeleteId(null);
     });
@@ -76,7 +78,7 @@ export default function AdminAgendaPage() {
     e.preventDefault(); setError('');
     startTransition(async () => {
       const r = editing ? await updateEvento(editing.id, form, user!.email!) : await createEvento(form, user!.email!);
-      if (r.ok) { setPanelOpen(false); load(); } else setError(r.error);
+      if (r.ok) { setPanelOpen(false); load(); } else setError(r.error, 'Não conseguimos salvar o evento. Confira as datas e tente novamente.');
     });
   };
 
@@ -90,9 +92,17 @@ export default function AdminAgendaPage() {
           <h1 className="text-2xl font-black text-gray-900">Agenda</h1>
           <p className="text-gray-500 text-sm">{eventos.length} evento(s) cadastrado(s)</p>
         </div>
-        <button onClick={openNew} className="flex items-center gap-2 bg-rosa-vibrante text-white font-semibold px-4 py-2.5 rounded-xl hover:bg-rosa-vibrante/90 transition-all text-sm shadow-sm">
-          <Plus className="w-4 h-4" /> Novo Evento
-        </button>
+        <div className="flex flex-wrap items-center gap-2">
+          <Link
+            href="/admin/agenda/importar"
+            className="flex items-center gap-2 rounded-xl border border-gray-200 px-4 py-2.5 text-sm font-semibold text-gray-700 transition-all hover:border-gray-300 hover:bg-gray-50"
+          >
+            <Upload className="w-4 h-4" /> Importar calendário
+          </Link>
+          <button onClick={openNew} className="flex items-center gap-2 bg-rosa-vibrante text-white font-semibold px-4 py-2.5 rounded-xl hover:bg-rosa-vibrante/90 transition-all text-sm shadow-sm">
+            <Plus className="w-4 h-4" /> Novo Evento
+          </button>
+        </div>
       </div>
 
       <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden">

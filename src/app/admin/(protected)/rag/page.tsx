@@ -12,6 +12,7 @@ import {
   toggleDocumentoKb, updateDocumentoKbTitulo,
 } from '@/actions/rag';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
+import { useMensagemErro } from '@/lib/use-mensagem-erro';
 
 type DocMetadata = { resumo?: string; categoria?: string; tags?: string[] };
 type ChunkMetadata = { qualidade?: 'ok' | 'curto'; tabela_reformatada?: string };
@@ -73,7 +74,7 @@ export default function AdminRagPage() {
   const [uploadFile, setUploadFile] = useState<File | null>(null);
   const [saving, setSaving] = useState(false);
   const [search, setSearch] = useState('');
-  const [error, setError] = useState('');
+  const [error, setError] = useMensagemErro();
   const [editingTitulo, setEditingTitulo] = useState('');
   const [deleteDocId, setDeleteDocId] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
@@ -104,7 +105,7 @@ export default function AdminRagPage() {
 
   const handleUpload = async () => {
     if (!uploadFile || !uploadForm.titulo.trim() || !user?.email) {
-      setError('Arquivo e título são obrigatórios');
+      setError(`Para cadastrar o documento, informe ${!uploadFile ? 'o arquivo' : 'o título'}.`);
       return;
     }
 
@@ -127,10 +128,10 @@ export default function AdminRagPage() {
         setShowUpload(false);
         await loadDocs();
       } else {
-        setError(result.error || 'Erro ao enviar arquivo');
+        setError(result.error, 'Não conseguimos enviar o arquivo. Tente novamente.');
       }
     } catch {
-      setError('Erro ao enviar arquivo');
+      setError('Não conseguimos enviar o arquivo. Confira sua conexão e tente novamente.');
     } finally {
       setSaving(false);
     }
@@ -138,7 +139,9 @@ export default function AdminRagPage() {
 
   const handleTextUpload = async () => {
     if (!form.titulo.trim() || !form.conteudo.trim() || !user?.email) {
-      setError('Título e conteúdo são obrigatórios');
+      setError(
+        `Para cadastrar o documento, preencha ${!form.titulo.trim() ? 'o título' : 'o conteúdo'}.`
+      );
       return;
     }
 
@@ -151,7 +154,7 @@ export default function AdminRagPage() {
       setShowForm(false);
       await loadDocs();
     } else {
-      setError(result.error);
+      setError(result.error, 'Não conseguimos salvar o documento. Tente novamente.');
     }
     setSaving(false);
   };

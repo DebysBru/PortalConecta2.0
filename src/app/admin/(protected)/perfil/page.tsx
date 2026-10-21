@@ -14,6 +14,7 @@ import { signInWithPopup, GoogleAuthProvider, signInWithCustomToken } from 'fire
 import { auth } from '@/lib/firebase';
 import { getMyProfile, updateMyName, deleteMyAccount } from '@/actions/perfil';
 import { UserRole } from '@prisma/client';
+import { mensagemAmigavel } from '@/lib/mensagens';
 
 // ── Tipos ──────────────────────────────────────────────────────────────────────
 
@@ -111,7 +112,7 @@ export default function PerfilPage() {
       setNameStatus({ ok: true, msg: 'Nome atualizado!' });
       setTimeout(() => setNameStatus(null), 3000);
     } else {
-      setNameStatus({ ok: false, msg: res.error });
+      setNameStatus({ ok: false, msg: mensagemAmigavel(res.error, 'Não conseguimos salvar seu nome. Tente novamente.') });
     }
   };
 
@@ -141,7 +142,10 @@ export default function PerfilPage() {
       const data = await res.json() as { customToken?: string; newEmail?: string; error?: string };
 
       if (!res.ok) {
-        setRelinkStatus({ ok: false, msg: data.error ?? 'Erro ao revincular.' });
+        setRelinkStatus({
+          ok: false,
+          msg: mensagemAmigavel(data.error, 'Não conseguimos vincular a nova conta Google. Tente novamente.'),
+        });
         return;
       }
 
@@ -153,11 +157,11 @@ export default function PerfilPage() {
       setProfile((p) => p ? { ...p, email: data.newEmail ?? p.email, googleLinked: true } : p);
       setRelinkStatus({ ok: true, msg: `Novo e-mail vinculado: ${data.newEmail}` });
     } catch (err) {
-      const msg = err instanceof Error ? err.message : 'Erro desconhecido.';
+      const msg = err instanceof Error ? err.message : '';
       if (msg.includes('popup-closed') || msg.includes('cancelled')) {
-        setRelinkStatus({ ok: false, msg: 'Operação cancelada.' });
+        setRelinkStatus({ ok: false, msg: 'Você cancelou a janela do Google. Nenhuma alteração foi feita.' });
       } else {
-        setRelinkStatus({ ok: false, msg: msg });
+        setRelinkStatus({ ok: false, msg: mensagemAmigavel(err, 'Não conseguimos concluir o vínculo com o Google. Tente novamente.') });
       }
     } finally {
       setRelinking(false);
@@ -185,7 +189,7 @@ export default function PerfilPage() {
       // 2. Deletar do banco
       const res = await deleteMyAccount(idToken);
       if (!res.ok) {
-        setDeleteError(res.error);
+        setDeleteError(mensagemAmigavel(res.error, 'Não conseguimos excluir sua conta. Tente novamente ou fale com a administração do portal.'));
         setDeleting(false);
         return;
       }
@@ -194,7 +198,7 @@ export default function PerfilPage() {
       await signOut();
       router.replace('/admin/login');
     } catch {
-      setDeleteError('Erro inesperado. Tente novamente.');
+      setDeleteError('Não conseguimos excluir sua conta por um problema inesperado. Tente novamente em alguns instantes.');
       setDeleting(false);
     }
   };
@@ -212,7 +216,7 @@ export default function PerfilPage() {
     return (
       <div className="flex flex-col items-center justify-center py-24 gap-3">
         <AlertCircle className="w-8 h-8 text-red-400" />
-        <p className="text-gray-500">Não foi possível carregar o perfil.</p>
+        <p className="text-gray-500">Não conseguimos carregar seu perfil agora. Recarregue a página e tente novamente.</p>
       </div>
     );
   }

@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { DEEPSEEK_MODEL } from '@/lib/llm';
+import { MENSAGENS } from '@/lib/mensagens';
 
 const SYSTEM_PROMPT = `Você é a IFizinha, assistente virtual do Portal Conecta do IFPR Campus Ivaiporã.
 Sua tarefa é traduzir editais institucionais para linguagem simples e acessível para estudantes.
@@ -29,12 +30,12 @@ export async function POST(request: Request) {
   const { titulo, resumo, categoria, dataEncerramento } = body;
 
   if (!titulo || !resumo) {
-    return NextResponse.json({ error: 'Título e resumo são obrigatórios' }, { status: 400 });
+    return NextResponse.json({ error: MENSAGENS.camposIaObrigatorios('título e resumo do edital') }, { status: 400 });
   }
 
   const apiKey = process.env.DEEPSEEK_API_KEY;
   if (!apiKey) {
-    return NextResponse.json({ error: 'DEEPSEEK_API_KEY não configurada' }, { status: 500 });
+    return NextResponse.json({ error: MENSAGENS.iaNaoConfigurada }, { status: 500 });
   }
 
   const userMessage = `Traduza este edital para linguagem simples:
@@ -67,18 +68,18 @@ Gere a tradução completa nos campos do JSON.`;
 
   if (!response.ok) {
     console.error('DeepSeek error:', JSON.stringify(data));
-    return NextResponse.json({ error: data.error?.message || `API error ${response.status}` }, { status: 500 });
+    return NextResponse.json({ error: MENSAGENS.iaErro }, { status: 500 });
   }
 
   const content = data.choices?.[0]?.message?.content;
   if (!content) {
-    return NextResponse.json({ error: 'Resposta vazia da IA' }, { status: 500 });
+    return NextResponse.json({ error: MENSAGENS.iaErro }, { status: 500 });
   }
 
   const jsonMatch = content.match(/\{[\s\S]*\}/);
   if (!jsonMatch) {
     console.error('No JSON in response:', content.slice(0, 300));
-    return NextResponse.json({ error: 'IA não retornou JSON válido' }, { status: 500 });
+    return NextResponse.json({ error: MENSAGENS.iaRespostaInvalida }, { status: 500 });
   }
 
   const traducao = JSON.parse(jsonMatch[0]);

@@ -176,6 +176,10 @@ const config: Config = {
         "float":      "float 3s ease-in-out infinite",
         "shimmer":    "shimmer 2s linear infinite",
         "sparkle":    "sparkle 1.5s ease-in-out infinite",
+        // Respiração da mascote: 6s e só 6px, para dar vida sem competir com o
+        // conteúdo. Pausa no hover (via `[animation-play-state:paused]`) e é
+        // desligada em `prefers-reduced-motion` (ver globals.css).
+        "respira":    "respira 6s ease-in-out infinite",
       },
 
       keyframes: {
@@ -202,6 +206,10 @@ const config: Config = {
         sparkle: {
           "0%, 100%": { opacity: "1",   transform: "scale(1)" },
           "50%":      { opacity: "0.6", transform: "scale(1.2)" },
+        },
+        respira: {
+          "0%, 100%": { transform: "translateY(0px)" },
+          "50%":      { transform: "translateY(-6px)" },
         },
       },
     },

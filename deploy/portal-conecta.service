@@ -25,9 +25,9 @@
 [Unit]
 Description=Portal Conecta 2.0 (Next.js)
 Documentation=https://github.com/profronan16/PortalConecta2.0
-After=network-online.target postgresql.service
+After=network-online.target postgresql-16.service
 Wants=network-online.target
-Requires=postgresql.service
+Requires=postgresql-16.service
 
 [Service]
 Type=simple
@@ -40,6 +40,15 @@ WorkingDirectory=/var/www/portal-conecta
 EnvironmentFile=/var/www/portal-conecta/.env
 Environment=NODE_ENV=production
 Environment=PORT=3000
+
+# Fuso horário do processo — o portal é do IFPR Campus Ivaiporã e TODA data exibida
+# é do Brasil. A VPS roda em America/Chicago: sem esta linha, um prazo digitado no
+# formulário aparecia um dia antes do que a coordenação escolheu, o prazo fechava
+# no meio da tarde do dia anterior e a virada de semestre (que decide quando o
+# portal avança o semestre do aluno sozinho) acontecia no dia errado.
+# O código também formata explicitamente em America/Sao_Paulo (src/lib/datas.ts);
+# isto aqui alinha o resto do runtime (new Date(), regras de calendário).
+Environment=TZ=America/Sao_Paulo
 
 # `next start` usa o build já gerado por `npm run build`. Não use `next dev`.
 ExecStart=/usr/bin/npm run start -- --port 3000
@@ -83,7 +92,12 @@ ReadWritePaths=/var/www/portal-files
 # Recursos (ajuste conforme a RAM da VPS)
 # ------------------------------------------------------------------------------
 LimitNOFILE=65535
-MemoryMax=1G
+# Valores que estao em producao desde 06/10/2026 (a VPS tem 3.6 GB de RAM e ja
+# roda CyberPanel, MariaDB, Redis, memcached, OpenLiteSpeed, Postfix, Dovecot e
+# dois apps Node). `MemoryHigh` faz o kernel segurar o Next.js antes do limite
+# duro — sem ele o servico toma o resto da maquina e derruba os vizinhos.
+MemoryHigh=900M
+MemoryMax=1100M
 
 # ------------------------------------------------------------------------------
 # Logs

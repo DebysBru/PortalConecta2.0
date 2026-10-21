@@ -10,6 +10,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAdminAuth } from '@/lib/firebase-admin';
 import { prisma } from '@/lib/prisma';
+import { MENSAGENS } from '@/lib/mensagens';
 
 export async function POST(req: NextRequest) {
   try {
@@ -19,7 +20,10 @@ export async function POST(req: NextRequest) {
     };
 
     if (!currentEmail || !firebaseIdToken) {
-      return NextResponse.json({ error: 'Dados incompletos.' }, { status: 400 });
+      return NextResponse.json(
+        { error: 'Faltaram informações para trocar o e-mail vinculado. Feche a janela e tente novamente.' },
+        { status: 400 }
+      );
     }
 
     const adminAuth = getAdminAuth();
@@ -37,7 +41,10 @@ export async function POST(req: NextRequest) {
       if (!newEmail) throw new Error('Token sem e-mail.');
     } catch (err) {
       console.error('[relink-google] Token inválido:', err);
-      return NextResponse.json({ error: 'Token Google inválido. Tente novamente.' }, { status: 401 });
+      return NextResponse.json(
+        { error: 'Não conseguimos confirmar a nova conta Google. Feche a janela e tente novamente.' },
+        { status: 401 }
+      );
     }
 
     // ── 2. Buscar usuário atual pelo e-mail antigo ──────────────────────────────
@@ -47,7 +54,7 @@ export async function POST(req: NextRequest) {
     });
 
     if (!user) {
-      return NextResponse.json({ error: 'Usuário não encontrado.' }, { status: 404 });
+      return NextResponse.json({ error: MENSAGENS.usuarioNaoEncontrado }, { status: 404 });
     }
 
     // ── 3. Verificar se o novo e-mail já está em uso por outra conta ───────────
@@ -55,7 +62,7 @@ export async function POST(req: NextRequest) {
       const conflict = await prisma.user.findUnique({ where: { email: newEmail }, select: { id: true } });
       if (conflict && conflict.id !== user.id) {
         return NextResponse.json(
-          { error: 'Este e-mail Google já está vinculado a outra conta.' },
+          { error: 'Esta conta Google já está vinculada a outro usuário do portal. Use outra conta ou fale com a administração.' },
           { status: 409 },
         );
       }
@@ -86,6 +93,6 @@ export async function POST(req: NextRequest) {
 
   } catch (err) {
     console.error('[relink-google] Erro:', err);
-    return NextResponse.json({ error: 'Erro interno. Tente novamente.' }, { status: 500 });
+    return NextResponse.json({ error: MENSAGENS.erroInesperadoOrientacao }, { status: 500 });
   }
 }

@@ -3,8 +3,10 @@
 import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { Sparkles, Mail, Lock, AlertCircle, Loader2 } from 'lucide-react';
+import Image from 'next/image';
+import { Mail, Lock, AlertCircle, Loader2 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
+import { MENSAGENS, mensagemAmigavel } from '@/lib/mensagens';
 
 export default function ProfessorLoginPage() {
   const { signIn, signInWithGoogle, user, loading } = useAuth();
@@ -32,8 +34,8 @@ export default function ProfessorLoginPage() {
       // layout ainda não ver o cookie e mandar de volta pro login (tela
       // branca piscando) — o useEffect abaixo (user + loading) já espera
       // esse ciclo terminar antes de redirecionar.
-    } catch {
-      setError('E-mail ou senha incorretos.');
+    } catch (err) {
+      setError(mensagemAmigavel(err, MENSAGENS.emailOuSenhaIncorretos));
       setIsPending(false);
     }
   };
@@ -44,31 +46,38 @@ export default function ProfessorLoginPage() {
     try {
       await signInWithGoogle();
       // Idem handleEmailLogin — deixa o useEffect redirecionar.
-    } catch {
-      setError('Não foi possível autenticar com o Google.');
+    } catch (err) {
+      setError(mensagemAmigavel(err, MENSAGENS.loginGoogleFalhou));
       setIsPending(false);
     }
   };
 
+  // `pt-24` porque o Header é `fixed` (o PublicWrapper monta Header/Footer em
+  // qualquer rota que não seja /admin).
   return (
-    <div className="min-h-screen bg-hero-gradient flex items-center justify-center p-4">
+    <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4 pt-24">
       <div className="w-full max-w-sm">
         <div className="text-center mb-8">
-          <Link href="/" className="inline-block">
-            <div className="w-16 h-16 bg-dourado-500 rounded-2xl flex items-center justify-center text-3xl mx-auto mb-4 shadow-glow-dourado">
-              ✨
-            </div>
+          <Link href="/" className="inline-block" aria-label="Portal Conecta — página inicial">
+            <Image
+              src="/ifizinha/logo-completo.webp"
+              alt="Portal Conecta — IFPR Campus Ivaiporã"
+              width={1400}
+              height={467}
+              unoptimized
+              className="mx-auto mb-4 h-10 w-auto"
+            />
           </Link>
-          <h1 className="text-2xl font-black text-white">Painel do Professor</h1>
-          <p className="text-white/65 text-sm mt-1">Acesse sua conta</p>
+          <h1 className="text-2xl font-black text-gray-900">Painel do Professor</h1>
+          <p className="text-gray-500 text-sm mt-1">Acesse sua conta</p>
         </div>
 
-        <div className="bg-white/10 backdrop-blur-md rounded-3xl p-6 border border-white/20 shadow-2xl">
+        <div className="bg-white rounded-3xl p-6 border border-gray-100 shadow-xl">
           {/* Google button */}
           <button
             onClick={handleGoogleLogin}
             disabled={isPending}
-            className="w-full flex items-center justify-center gap-3 bg-white text-gray-800 font-semibold py-3 rounded-xl hover:bg-white/90 transition-all mb-4 shadow-sm disabled:opacity-60"
+            className="w-full flex items-center justify-center gap-3 bg-white border border-gray-200 text-gray-700 font-semibold py-3 rounded-xl hover:bg-gray-50 transition-all mb-4 shadow-sm disabled:opacity-60"
           >
             <svg className="w-5 h-5" viewBox="0 0 24 24">
               <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
@@ -81,46 +90,46 @@ export default function ProfessorLoginPage() {
 
           <div className="relative my-4">
             <div className="absolute inset-0 flex items-center">
-              <div className="w-full border-t border-white/20" />
+              <div className="w-full border-t border-gray-200" />
             </div>
             <div className="relative flex justify-center">
-              <span className="bg-transparent px-3 text-white/50 text-xs">ou</span>
+              <span className="bg-white px-3 text-gray-500 text-xs">ou</span>
             </div>
           </div>
 
           {/* Email form */}
           <form onSubmit={handleEmailLogin} className="space-y-4">
             <div>
-              <label className="block text-white/80 text-xs font-medium mb-1.5">E-mail</label>
+              <label className="label-field">E-mail</label>
               <div className="relative">
-                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-white/40" />
+                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
                 <input
                   type="email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   required
                   placeholder="seu@email.com"
-                  className="w-full bg-white/10 border border-white/20 text-white placeholder-white/30 rounded-xl pl-9 pr-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-dourado-500/50 focus:border-dourado-500/50"
+                  className="input-field !pl-9"
                 />
               </div>
             </div>
             <div>
-              <label className="block text-white/80 text-xs font-medium mb-1.5">Senha</label>
+              <label className="label-field">Senha</label>
               <div className="relative">
-                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-white/40" />
+                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
                 <input
                   type="password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   required
                   placeholder="••••••••"
-                  className="w-full bg-white/10 border border-white/20 text-white placeholder-white/30 rounded-xl pl-9 pr-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-dourado-500/50 focus:border-dourado-500/50"
+                  className="input-field !pl-9"
                 />
               </div>
             </div>
 
             {error && (
-              <div className="flex items-start gap-2 bg-red-500/20 border border-red-400/30 rounded-xl p-3 text-red-200 text-xs">
+              <div className="flex items-start gap-2 bg-red-50 border border-red-200 rounded-xl p-3 text-red-700 text-xs">
                 <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5" />
                 {error}
               </div>
@@ -129,27 +138,27 @@ export default function ProfessorLoginPage() {
             <button
               type="submit"
               disabled={isPending}
-              className="w-full flex items-center justify-center gap-2 bg-dourado-500 hover:bg-dourado-400 text-gray-900 font-bold py-3 rounded-xl transition-all shadow-glow-dourado disabled:opacity-60 text-sm"
+              className="w-full flex items-center justify-center gap-2 bg-hero-gradient hover:opacity-90 text-white font-bold py-3 rounded-xl transition-all shadow-card-brand disabled:opacity-60 text-sm"
             >
               {isPending ? <><Loader2 className="w-4 h-4 animate-spin" /> Entrando...</> : 'Entrar'}
             </button>
           </form>
 
           <div className="mt-4 text-center">
-            <Link href="/esqueci-senha" className="text-xs text-white/50 hover:text-white/80 transition-colors">
+            <Link href="/esqueci-senha" className="text-xs text-gray-500 hover:text-gray-900 transition-colors">
               Esqueci minha senha
             </Link>
           </div>
         </div>
 
         <div className="mt-6 text-center space-y-2">
-          <p className="text-white/50 text-xs">
+          <p className="text-gray-500 text-xs">
             Não tem conta?{' '}
-            <Link href="/cadastro" className="text-dourado-400 hover:text-dourado-300 font-semibold">
+            <Link href="/cadastro" className="text-azul-eletrico hover:text-azul-700 font-semibold">
               Criar conta
             </Link>
           </p>
-          <Link href="/" className="text-white/40 hover:text-white/60 text-xs transition-colors">
+          <Link href="/" className="text-gray-400 hover:text-gray-600 text-xs transition-colors">
             ← Voltar para o Portal
           </Link>
         </div>

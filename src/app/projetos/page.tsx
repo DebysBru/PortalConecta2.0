@@ -1,4 +1,5 @@
-import React from 'react';
+
+import { PageHero } from '@/components/layout/PageHero';import React from 'react';
 import Link from 'next/link';
 import { FolderOpen, ChevronRight, TrendingUp, Sparkles, ArrowRight } from 'lucide-react';
 import type { Metadata } from 'next';
@@ -36,46 +37,42 @@ export default async function ProjetosPage({
 
   return (
     <div className="min-h-screen">
-      {/* Hero */}
-      <div className="bg-hero-gradient pt-24 pb-16">
-        <div className="container mx-auto px-4 max-w-7xl">
-          <div className="flex items-center gap-2 text-white/70 text-sm mb-4">
-            <Link href="/" className="hover:text-white transition-colors">Início</Link>
-            <ChevronRight className="w-4 h-4" />
-            <span className="text-white">Projetos</span>
-          </div>
-          <div className="flex items-start gap-4">
-            <div className="w-14 h-14 bg-white/15 rounded-2xl flex items-center justify-center border border-white/30 flex-shrink-0">
-              <FolderOpen className="w-7 h-7 text-white" />
+      <PageHero
+        trilha={[{ href: '/', label: 'Início' }, { label: 'Projetos' }]}
+        etiqueta="Extensão, pesquisa e ensino"
+        titulo="Projetos de Extensão"
+        descricao="Conheça os projetos que estão transformando o Vale do Ivaí. Pesquisa, extensão e ensino conectando o IFPR à comunidade."
+        cor="text-roxo-luminoso"
+        icone={<FolderOpen className="h-7 w-7 text-roxo-luminoso" />}
+        fundoIcone="bg-roxo-50"
+        mascote={{
+          nome: 'de-costas-recorte',
+          dica: 'Estes são os projetos do campus — tem vaga aberta em vários!',
+        }}
+      >
+        {/* Estatísticas em chips claros (antes ficavam sobre a faixa escura) */}
+        <div className="mt-6 flex flex-wrap gap-3">
+          {[
+            { label: 'Em execução', value: stats.emExecucao, cor: 'bg-green-500' },
+            { label: 'Inscrições abertas', value: stats.inscricoesAbertas, cor: 'bg-azul-eletrico' },
+            { label: 'Total', value: stats.total, cor: 'bg-roxo-luminoso' },
+          ].map((s) => (
+            <div
+              key={s.label}
+              className="flex items-center gap-2.5 rounded-xl border border-gray-100 bg-gray-50 px-4 py-2.5"
+            >
+              <span className={`h-2.5 w-2.5 rounded-full ${s.cor}`} aria-hidden />
+              <span className="text-lg font-bold text-gray-900">{s.value}</span>
+              <span className="text-sm text-gray-500">{s.label}</span>
             </div>
-            <div>
-              <h1 className="text-3xl md:text-4xl font-black text-white mb-2">Projetos de Extensão</h1>
-              <p className="text-white/80 text-lg max-w-2xl">
-                Conheça os projetos que estão transformando o Vale do Ivaí.
-                Pesquisa, extensão e ensino conectando o IFPR à comunidade.
-              </p>
-            </div>
-          </div>
-
-          {/* Stats */}
-          <div className="mt-8 flex flex-wrap gap-4">
-            {[
-              { label: 'Em Execução', value: stats.emExecucao, color: 'bg-green-500' },
-              { label: 'Inscrições Abertas', value: stats.inscricoesAbertas, color: 'bg-blue-500' },
-              { label: 'Total', value: stats.total, color: 'bg-white/30' },
-            ].map((s) => (
-              <div key={s.label} className="bg-white/15 backdrop-blur-sm rounded-xl px-5 py-3 border border-white/20 flex items-center gap-3">
-                <div className={`w-3 h-3 rounded-full ${s.color}`} />
-                <span className="text-white font-bold text-lg">{s.value}</span>
-                <span className="text-white/70 text-sm">{s.label}</span>
-              </div>
-            ))}
-          </div>
+          ))}
         </div>
-      </div>
+      </PageHero>
 
-      {/* Conteúdo */}
-      <div className="container mx-auto px-4 max-w-7xl py-10">
+      {/* Conteúdo — fundo próprio e `z-10` para cobrir a sobra da mascote do
+          cabeçalho (é o que faz ela terminar exatamente na divisão) */}
+      <div className="relative z-10 bg-gray-50">
+        <div className="container mx-auto px-4 max-w-7xl py-10">
         <ProjetosExplorer
           projetos={resultado.itens}
           destaques={resultado.destaques}
@@ -106,6 +103,7 @@ export default async function ProjetosPage({
               <ArrowRight className="w-4 h-4" />
             </Link>
           </div>
+        </div>
         </div>
       </div>
     </div>

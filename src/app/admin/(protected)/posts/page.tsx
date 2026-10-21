@@ -1,17 +1,25 @@
 'use client';
 
 import React, { useEffect, useState, useTransition, Suspense } from 'react';
-import { Plus, Pencil, Trash2, X, Newspaper, AlertCircle, Filter } from 'lucide-react';
+import Link from 'next/link';
+import { Plus, Pencil, Trash2, X, Newspaper, AlertCircle, Filter, ExternalLink, EyeOff } from 'lucide-react';
 import { listPosts, createPost, updatePost, deletePost, listProjetos, type PostFormData } from '@/actions/admin';
 import { useAuth } from '@/contexts/AuthContext';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { RichTextEditor } from '@/components/ui/RichTextEditor';
+import { PostAnexosUploader } from '@/components/ui/PostAnexosUploader';
+import { SeletorDeCapaDoPost } from '@/components/ui/SeletorDeCapaDoPost';
+import { enviarArquivo } from '@/lib/upload-midia';
+import { anexosDoJson } from '@/lib/post-midias';
+import { chaveDeIconeValida } from '@/lib/post-capa';
+import { usePesoDasImagensDoTexto } from '@/lib/use-peso-midias';
+import { useMensagemErro } from '@/lib/use-mensagem-erro';
 
 type Post = Awaited<ReturnType<typeof listPosts>>[number];
 type Projeto = Awaited<ReturnType<typeof listProjetos>>[number];
 
-const EMPTY: PostFormData = { titulo: '', conteudo: '', resumo: '', imagemUrl: '', videoUrl: '', arquivoPdfUrl: '', linkExterno: '', status: 'RASCUNHO', projetoId: '' };
+const EMPTY: PostFormData = { titulo: '', conteudo: '', resumo: '', imagemUrl: '', videoUrl: '', arquivoPdfUrl: '', linkExterno: '', status: 'RASCUNHO', projetoId: '', anexos: [], icone: null };
 
 function AdminPostsContent() {
   const { user, userRole } = useAuth();
@@ -22,10 +30,15 @@ function AdminPostsContent() {
   const [panelOpen, setPanelOpen] = useState(false);
   const [editing, setEditing] = useState<Post | null>(null);
   const [form, setForm] = useState<PostFormData>(EMPTY);
-  const [error, setError] = useState('');
+  const [error, setError] = useMensagemErro();
   const [isPending, startTransition] = useTransition();
   const [deletePostId, setDeletePostId] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
+
+  // Peso das imagens do texto (vem do servidor: as de posts antigos foram
+  // enviadas noutra sessão e o navegador não sabe o tamanho).
+  const { bytesDasImagens, calculandoPeso, recalcularPesoDoTexto, resetarPeso } =
+    usePesoDasImagensDoTexto(user);
 
   const queryProjetoId = searchParams.get('projetoId') || '';
   const [filterProjetoId, setFilterProjetoId] = useState(queryProjetoId);
@@ -42,12 +55,27 @@ function AdminPostsContent() {
     setEditing(null);
     setForm({ ...EMPTY, projetoId: filterProjetoId || (projetos[0]?.id ?? '') });
     setError(''); setPanelOpen(true);
+    resetarPeso();
   };
 
   const openEdit = (post: Post) => {
     setEditing(post);
-    setForm({ titulo: post.titulo, conteudo: post.conteudo, resumo: post.resumo ?? '', imagemUrl: post.imagemUrl ?? '', videoUrl: post.videoUrl ?? '', arquivoPdfUrl: post.arquivoPdfUrl ?? '', linkExterno: post.linkExterno ?? '', status: post.status, projetoId: post.projetoId });
+    setForm({
+      titulo: post.titulo,
+      conteudo: post.conteudo,
+      resumo: post.resumo ?? '',
+      imagemUrl: post.imagemUrl ?? '',
+      videoUrl: post.videoUrl ?? '',
+      arquivoPdfUrl: post.arquivoPdfUrl ?? '',
+      linkExterno: post.linkExterno ?? '',
+      status: post.status,
+      projetoId: post.projetoId,
+      anexos: anexosDoJson(post.anexos),
+      icone: chaveDeIconeValida(post.icone) ? post.icone : null,
+    });
     setError(''); setPanelOpen(true);
+    resetarPeso();
+    void recalcularPesoDoTexto(post.conteudo);
   };
 
   const handleDelete = (id: string) => {
@@ -59,7 +87,7 @@ function AdminPostsContent() {
     setDeleting(true);
     startTransition(async () => {
       const r = await deletePost(deletePostId, user.email!);
-      if (r.ok) load(); else setError(r.error);
+      if (r.ok) load(); else setError(r.error, 'Não conseguimos excluir esta publicação. Tente novamente.');
       setDeleting(false);
       setDeletePostId(null);
     });
@@ -67,16 +95,16 @@ function AdminPostsContent() {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault(); setError('');
-    if (!user?.email) { setError('Não autenticado'); return; }
+    if (!user?.email) { setError('Sua sessão expirou. Entre novamente para publicar.'); return; }
     if (form.conteudo.replace(/<[^>]*>/g, '').trim().length === 0) {
-      setError('O texto principal do post é obrigatório');
+      setError('Escreva o texto principal da publicação antes de salvar.');
       return;
     }
     startTransition(async () => {
       const r = editing
         ? await updatePost(editing.id, form, user.email!)
         : await createPost(form, user.email!);
-      if (r.ok) { setPanelOpen(false); load(); } else setError(r.error);
+      if (r.ok) { setPanelOpen(false); load(); } else setError(r.error, 'Não conseguimos salvar a publicação. Tente novamente.');
     });
   };
 
@@ -139,6 +167,24 @@ function AdminPostsContent() {
                     </div>
                   </div>
                   <div className="flex items-center gap-1 flex-shrink-0 mt-0.5">
+                    {/* Ver o post como o visitante vê. Só para PUBLICADO: a rota
+                        pública exige status PUBLICADO, então rascunho daria 404. */}
+                    {p.status === 'PUBLICADO' ? (
+                      <Link
+                        href={`/projetos/${p.projeto.slug}/posts/${p.slug}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="p-2 rounded-lg hover:bg-gray-100 text-gray-400 hover:text-azul-eletrico transition-colors"
+                        title="Ver no portal (abre em outra aba)"
+                        aria-label="Ver no portal"
+                      >
+                        <ExternalLink className="w-4 h-4" />
+                      </Link>
+                    ) : (
+                      <span className="p-2 text-gray-300" title="Rascunho: aparece no portal só depois de publicado">
+                        <EyeOff className="w-4 h-4" />
+                      </span>
+                    )}
                     <button onClick={() => openEdit(p)} className="p-2 rounded-lg hover:bg-gray-100 text-gray-400 hover:text-azul-eletrico transition-colors" aria-label="Editar post">
                       <Pencil className="w-4 h-4" />
                     </button>
@@ -173,6 +219,22 @@ function AdminPostsContent() {
                       </td>
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-1 justify-end">
+                          {p.status === 'PUBLICADO' ? (
+                            <Link
+                              href={`/projetos/${p.projeto.slug}/posts/${p.slug}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-400 hover:text-azul-eletrico transition-colors"
+                              title="Ver no portal (abre em outra aba)"
+                              aria-label="Ver no portal"
+                            >
+                              <ExternalLink className="w-3.5 h-3.5" />
+                            </Link>
+                          ) : (
+                            <span className="p-1.5 text-gray-300" title="Rascunho: aparece no portal só depois de publicado">
+                              <EyeOff className="w-3.5 h-3.5" />
+                            </span>
+                          )}
                           <button onClick={() => openEdit(p)} className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-400 hover:text-azul-eletrico transition-colors" aria-label="Editar post">
                             <Pencil className="w-3.5 h-3.5" />
                           </button>
@@ -232,7 +294,34 @@ function AdminPostsContent() {
                   <h3 className="text-sm font-bold text-gray-900 border-b pb-2">Conteúdo</h3>
                   <div>
                     <label className="label-field">Texto Principal <span className="text-red-500">*</span></label>
-                    <RichTextEditor value={form.conteudo} onChange={(html) => set('conteudo', html)} />
+                    <RichTextEditor
+                      value={form.conteudo}
+                      onChange={(html) => {
+                        set('conteudo', html);
+                        void recalcularPesoDoTexto(html);
+                      }}
+                      onUploadImage={async (arquivo) => {
+                        if (!user) return { ok: false, error: 'Sua sessão expirou. Entre novamente para enviar imagens.' };
+                        const idToken = await user.getIdToken();
+                        const resultado = await enviarArquivo({ arquivo, idToken, subpasta: form.projetoId || undefined });
+                        if (!resultado.ok) return { ok: false, error: resultado.error };
+                        return { ok: true, url: resultado.data.url };
+                      }}
+                    />
+                    <p className="text-xs text-gray-400 mt-1">
+                      O botão de imagem da barra insere a imagem no meio do texto. Imagens e anexos somam no limite de 20 MB do post.
+                    </p>
+                  </div>
+                  <div>
+                    <label className="label-field">Anexos</label>
+                    <PostAnexosUploader
+                      obterToken={async () => (user ? user.getIdToken() : null)}
+                      subpasta={form.projetoId || undefined}
+                      anexos={anexosDoJson(form.anexos)}
+                      onChange={(anexos) => setForm((f) => ({ ...f, anexos }))}
+                      bytesNoTexto={bytesDasImagens}
+                      carregandoPeso={calculandoPeso}
+                    />
                   </div>
                   <div>
                     <label className="label-field">Resumo <span className="text-gray-400 font-normal text-xs ml-1">(Opcional, usado em cards)</span></label>
@@ -245,14 +334,25 @@ function AdminPostsContent() {
                   <h3 className="text-sm font-bold text-gray-900 border-b pb-2">Mídia</h3>
                   <div className="grid grid-cols-2 gap-4">
                     <div className="col-span-2">
-                      <label className="label-field">URL da imagem de capa</label>
-                      <input type="url" className="input-field" value={form.imagemUrl ?? ''} onChange={(e) => set('imagemUrl', e.target.value)} placeholder="https://..." />
-                      {form.imagemUrl && (
-                        <div className="mt-3 p-2 bg-gray-50 rounded-xl border border-gray-100 flex justify-center">
-                          {/* eslint-disable-next-line @next/next/no-img-element */}
-                          <img src={form.imagemUrl} alt="Preview Capa" className="max-h-40 object-cover rounded-lg shadow-sm" onError={(e) => (e.currentTarget.style.display = 'none')} />
-                        </div>
-                      )}
+                      <label className="label-field">Capa da publicação</label>
+                      <SeletorDeCapaDoPost
+                        imagemUrl={form.imagemUrl ?? ''}
+                        icone={chaveDeIconeValida(form.icone) ? form.icone : null}
+                        onImagem={(url) => set('imagemUrl', url)}
+                        onIcone={(chave) => setForm((f) => ({ ...f, icone: chave }))}
+                        obterToken={async () => (user ? user.getIdToken() : null)}
+                        subpasta={form.projetoId || undefined}
+                      />
+                      <div className="mt-3">
+                        <label className="label-field text-xs">ou cole uma URL de imagem externa</label>
+                        <input
+                          type="url"
+                          className="input-field"
+                          value={form.imagemUrl ?? ''}
+                          onChange={(e) => set('imagemUrl', e.target.value)}
+                          placeholder="https://..."
+                        />
+                      </div>
                     </div>
                     <div className="col-span-2">
                       <label className="label-field">URL de um Vídeo (YouTube/Vimeo)</label>

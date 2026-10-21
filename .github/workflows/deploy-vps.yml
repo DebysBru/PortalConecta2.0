@@ -1,0 +1,221 @@
+name: Deploy na VPS
+
+# Publica o portal sempre que entra commit na main: manda o repositorio por rsync
+# para /var/www/portal-conecta-novo, compila la e troca as pastas (blue-green),
+# com rollback automatico se o site nao responder. Toda a logica do deploy esta
+# em deploy/deploy-vps.sh (versionado); este arquivo so orquestra.
+#
+# SEGREDOS QUE PRECISAM EXISTIR NO REPOSITORIO (Settings > Secrets and variables > Actions):
+#   VPS_HOST          ip ou dominio da VPS            (ex.: 198.44.123.154)
+#   VPS_USER          usuario do ssh                  (ex.: root, ou um usuario de deploy com sudo)
+#   VPS_SSH_KEY       chave privada (conteudo inteiro, com o -----BEGIN/END-----)
+#   VPS_PORT          (opcional) porta do ssh, padrao 22
+#   VPS_KNOWN_HOSTS   (opcional) saida de `ssh-keyscan -H -p 22 <host>`; sem ela o
+#                     workflow faz o keyscan na hora (menos rigoroso, mesmo efeito)
+#
+# Sem os segredos o workflow NAO falha: ele avisa e nao publica nada. A publicacao
+# so acontece quando o deploy esta configurado de verdade.
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      pular_guardas:
+        description: "Publicar mesmo com migracao SQL pendente (ja apliquei o prisma/*-setup.sql na mao)"
+        type: boolean
+        default: false
+
+concurrency:
+  group: deploy-vps
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  conferir:
+    name: Conferir antes de publicar
+    runs-on: ubuntu-latest
+    outputs:
+      configurado: ${{ steps.segredos.outputs.configurado }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: O deploy esta configurado?
+        id: segredos
+        env:
+          HOST: ${{ secrets.VPS_HOST }}
+          USUARIO: ${{ secrets.VPS_USER }}
+          CHAVE: ${{ secrets.VPS_SSH_KEY }}
+        run: |
+          set -euo pipefail
+          if [ -n "$HOST" ] && [ -n "$USUARIO" ] && [ -n "$CHAVE" ]; then
+            echo "configurado=true" >> "$GITHUB_OUTPUT"
+            echo "Deploy configurado para $USUARIO@$HOST." | tee -a "$GITHUB_STEP_SUMMARY"
+          else
+            echo "configurado=false" >> "$GITHUB_OUTPUT"
+            {
+              echo "### Deploy automatico ainda nao configurado"
+              echo
+              echo "Defina os segredos \`VPS_HOST\`, \`VPS_USER\` e \`VPS_SSH_KEY\` em"
+              echo "**Settings → Secrets and variables → Actions** para publicar na VPS."
+              echo "Enquanto isso o commit foi publicado no GitHub e **nada foi enviado ao servidor**."
+            } >> "$GITHUB_STEP_SUMMARY"
+            echo "::notice::Deploy automatico desativado: faltam os segredos VPS_HOST/VPS_USER/VPS_SSH_KEY."
+          fi
+
+      - name: Alguma migracao SQL entrou neste commit?
+        if: steps.segredos.outputs.configurado == 'true'
+        env:
+          PULAR: ${{ inputs.pular_guardas }}
+        run: |
+          set -euo pipefail
+          if git rev-parse --verify -q 'HEAD^' >/dev/null; then
+            mudou=$(git diff --name-only 'HEAD^' 'HEAD' -- 'prisma/*.sql' || true)
+          else
+            mudou=$(git ls-tree -r --name-only HEAD -- 'prisma/*.sql' || true)
+          fi
+          if [ -z "$mudou" ]; then
+            echo "Nenhum SQL de migracao mudou neste commit."
+            exit 0
+          fi
+          echo "SQL de migracao alterado neste commit:"
+          echo "$mudou" | sed 's/^/  - /'
+          if [ "${PULAR:-false}" = "true" ]; then
+            echo "::warning::Publicando com SQL pendente porque 'pular_guardas' foi marcado."
+            exit 0
+          fi
+          {
+            echo "### Publicacao parada: migracao SQL pendente"
+            echo
+            echo "Estes arquivos mudaram e **nao sao aplicados automaticamente**"
+            echo "(\`prisma db push\` e proibido — Decisao 11):"
+            echo
+            echo '```'
+            echo "$mudou"
+            echo '```'
+            echo
+            echo "1. Rode o SQL na mao na VPS (sao idempotentes):"
+            echo '   `psql ... < prisma/arquivo-setup.sql`'
+            echo "2. Depois dispare **Actions → Deploy na VPS → Run workflow**"
+            echo "   marcando *ja apliquei o prisma/*-setup.sql na mao*."
+          } >> "$GITHUB_STEP_SUMMARY"
+          echo "::error::Migracao SQL pendente ($(echo "$mudou" | tr '\n' ' ')). Aplique o SQL na VPS e rode o workflow com 'pular_guardas'."
+          exit 1
+
+  publicar:
+    name: Publicar na VPS
+    needs: conferir
+    if: needs.conferir.outputs.configurado == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    environment:
+      name: producao
+      url: https://portal.ifcoding.com.br/
+    env:
+      HOST: ${{ secrets.VPS_HOST }}
+      USUARIO: ${{ secrets.VPS_USER }}
+      PORTA: ${{ secrets.VPS_PORT || '22' }}
+      NOVO: /var/www/portal-conecta-novo
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Preparar chave SSH
+        env:
+          CHAVE: ${{ secrets.VPS_SSH_KEY }}
+          HOSTS_CONHECIDOS: ${{ secrets.VPS_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "$CHAVE" > ~/.ssh/id_deploy
+          chmod 600 ~/.ssh/id_deploy
+          if [ -n "${HOSTS_CONHECIDOS:-}" ]; then
+            printf '%s\n' "$HOSTS_CONHECIDOS" > ~/.ssh/known_hosts
+          else
+            ssh-keyscan -H -p "$PORTA" "$HOST" > ~/.ssh/known_hosts 2>/dev/null
+            echo "::notice::VPS_KNOWN_HOSTS nao definido: host key obtido por ssh-keyscan agora."
+          fi
+          chmod 600 ~/.ssh/known_hosts
+          chave=$(ssh-keygen -lf ~/.ssh/id_deploy | awk '{print $2}')
+          echo "Chave carregada (fingerprint $chave)." >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Preparar a pasta de build na VPS
+        run: |
+          set -euo pipefail
+          ssh -i ~/.ssh/id_deploy -p "$PORTA" "$USUARIO@$HOST" "
+            set -e
+            test -d /var/www/portal-conecta || { echo 'nao existe /var/www/portal-conecta nesta maquina'; exit 1; }
+            rm -rf '$NOVO'
+            mkdir -p '$NOVO'
+            echo \"pasta de build recriada: \$NOVO\"
+          "
+          echo "Pasta \`$NOVO\` recriada na VPS." >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Enviar o repositorio (rsync)
+        run: |
+          set -euo pipefail
+          rsync -az --no-owner --no-group \
+            --exclude='.git' \
+            --exclude='node_modules' \
+            --exclude='.next' \
+            --exclude='storage' \
+            --exclude='portal-files' \
+            --exclude='.env' \
+            --exclude='.env.local' \
+            --exclude='.vercel' \
+            --exclude='*.tsbuildinfo' \
+            -e "ssh -i ~/.ssh/id_deploy -p $PORTA" \
+            ./ "$USUARIO@$HOST:$NOVO/"
+          tamanho=$(ssh -i ~/.ssh/id_deploy -p "$PORTA" "$USUARIO@$HOST" "du -sh $NOVO | cut -f1")
+          echo "Enviado \`$GITHUB_SHA\` ($tamanho) para \`$NOVO\`." >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Compilar e trocar (deploy-vps.sh)
+        run: |
+          set -euo pipefail
+          ssh -i ~/.ssh/id_deploy -p "$PORTA" "$USUARIO@$HOST" \
+            "bash $NOVO/deploy/deploy-vps.sh deploy" 2>&1 | tee deploy-vps.log
+
+      - name: Conferir o site publico
+        run: |
+          set -euo pipefail
+          url=https://portal.ifcoding.com.br/
+          for tentativa in $(seq 1 12); do
+            codigo=$(curl -s -o /dev/null -w '%{http_code}' --max-time 15 "$url" || true)
+            if [ "$codigo" = "200" ]; then
+              echo "### No ar: $url respondeu 200" >> "$GITHUB_STEP_SUMMARY"
+              echo "Publicado: $GITHUB_SHA" >> "$GITHUB_STEP_SUMMARY"
+              exit 0
+            fi
+            echo "tentativa $tentativa/12: $codigo"
+            sleep 5
+          done
+          echo "::error::O site publico nao respondeu 200 depois do deploy."
+          exit 1
+
+      - name: Guardar o log do deploy
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: deploy-vps-${{ github.run_id }}
+          path: deploy-vps.log
+          if-no-files-found: ignore
+          retention-days: 14
+
+      - name: Resumo em caso de falha
+        if: failure()
+        run: |
+          {
+            echo "### O deploy falhou"
+            echo
+            echo "O script faz rollback automatico quando o portal nao responde depois da troca."
+            echo "Para conferir o estado no servidor:"
+            echo
+            echo '```'
+            echo "bash /var/www/portal-conecta/deploy/deploy-vps.sh estado"
+            echo "systemctl status portal-conecta --no-pager"
+            echo "journalctl -u portal-conecta -n 100 --no-pager"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"

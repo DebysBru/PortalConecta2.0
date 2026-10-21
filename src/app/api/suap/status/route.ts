@@ -9,6 +9,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { testSuapConnection, fetchSuapEndpoints } from '@/lib/suap-api';
 import { getLastSyncLogs } from '@/lib/suap-sync';
 import { prisma } from '@/lib/prisma';
+import { mensagemAmigavel, MENSAGENS } from '@/lib/mensagens';
 
 export const dynamic = 'force-dynamic';
 
@@ -24,7 +25,7 @@ function isAuthorized(req: NextRequest): boolean {
 
 export async function GET(req: NextRequest) {
   if (!isAuthorized(req)) {
-    return NextResponse.json({ error: 'Não autorizado' }, { status: 401 });
+    return NextResponse.json({ error: MENSAGENS.semPermissao }, { status: 401 });
   }
 
   const [conexao, logs, totalProjetos, totalEditais, projetosComSuapId, editaisComSuapId] =
@@ -42,7 +43,9 @@ export async function GET(req: NextRequest) {
       configurado: !!(process.env.SUAP_CLIENT_ID && process.env.SUAP_CLIENT_SECRET),
       baseUrl: process.env.SUAP_BASE_URL ?? 'https://suap.ifpr.edu.br',
       campus: process.env.SUAP_CAMPUS ?? 'Ivaiporã',
-      conexao: conexao.status === 'fulfilled' ? conexao.value : { ok: false, message: String(conexao.reason) },
+      conexao: conexao.status === 'fulfilled'
+        ? conexao.value
+        : { ok: false, message: mensagemAmigavel(conexao.reason, MENSAGENS.suapIndisponivel) },
     },
     banco: {
       totalProjetos: totalProjetos.status === 'fulfilled' ? totalProjetos.value : 0,

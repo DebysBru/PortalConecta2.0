@@ -6,13 +6,15 @@ import {
   Users, Search, Download, ChevronRight, Eye,
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
-import { listMyProjetos, listInscricoes, updateInscricaoStatus, exportInscricoesCSV } from '@/actions/professor';
-import { formatDateShort } from '@/lib/utils';
+import { listMyProjetos, listInscricoes, listVagas, updateInscricaoStatus, exportInscricoesCSV } from '@/actions/professor';
+import { formatDateShort, getStatusLabel } from '@/lib/utils';
+import { vagaExcedeCota } from '@/lib/vagas';
 import { Prisma } from '@prisma/client';
 import { useToast } from '@/components/ui/toast';
 
 type Projeto = Awaited<ReturnType<typeof listMyProjetos>>[number];
 type Inscricao = Prisma.InscricaoGetPayload<{}>;
+type Vaga = Prisma.VagaGetPayload<{}> & { selecionados: number };
 
 export default function ProfessorInscricoesPage() {
   const { user } = useAuth();
@@ -20,6 +22,10 @@ export default function ProfessorInscricoesPage() {
   const [projetos, setProjetos] = useState<Projeto[]>([]);
   const [selectedProjeto, setSelectedProjeto] = useState<string>('');
   const [inscricoes, setInscricoes] = useState<Inscricao[]>([]);
+  // As vagas do projeto entram junto com as inscrições: sem elas, a tela não
+  // dizia a qual vaga cada pessoa pertence nem quantas posições aquela vaga já
+  // tem preenchidas — e era impossível entender um bloqueio de "vaga cheia".
+  const [vagas, setVagas] = useState<Vaga[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadingInscricoes, setLoadingInscricoes] = useState(false);
   const [search, setSearch] = useState('');
@@ -39,14 +45,24 @@ export default function ProfessorInscricoesPage() {
   useEffect(() => {
     if (!selectedProjeto || !user?.email) return;
     setLoadingInscricoes(true);
-    listInscricoes(selectedProjeto, user.email)
-      .then((result) => {
+    Promise.all([
+      listInscricoes(selectedProjeto, user.email),
+      listVagas(selectedProjeto, user.email),
+    ])
+      .then(([result, vagasResult]) => {
         if (result && 'data' in result && Array.isArray(result.data)) setInscricoes(result.data);
         else setInscricoes([]);
+        if (vagasResult && 'data' in vagasResult && Array.isArray(vagasResult.data)) setVagas(vagasResult.data);
+        else setVagas([]);
       })
-      .catch(() => setInscricoes([]))
+      .catch(() => {
+        setInscricoes([]);
+        setVagas([]);
+      })
       .finally(() => setLoadingInscricoes(false));
   }, [selectedProjeto, user]);
+
+  const vagaPorId = new Map(vagas.map((v) => [v.id, v]));
 
   const handleStatusChange = async (inscricaoId: string, newStatus: string) => {
     if (!user?.email) return;
@@ -55,9 +71,9 @@ export default function ProfessorInscricoesPage() {
       setInscricoes((prev) =>
         prev.map((i) => (i.id === inscricaoId ? { ...i, status: newStatus } : i))
       );
-      toast(`Status alterado para "${newStatus.replace(/_/g, ' ')}"`, 'success');
+      toast(`Status alterado para "${getStatusLabel(newStatus)}"`, 'success');
     } else {
-      toast(result.error || 'Erro ao alterar status', 'error');
+      toast(result.error || 'Não conseguimos alterar o status desta inscrição. Tente novamente.', 'error');
     }
   };
 
@@ -175,6 +191,7 @@ export default function ProfessorInscricoesPage() {
                   <th className="px-5 py-3 font-medium">Inscrito</th>
                   <th className="px-5 py-3 font-medium">Curso</th>
                   <th className="px-5 py-3 font-medium">Tipo</th>
+                  <th className="px-5 py-3 font-medium">Vaga</th>
                   <th className="px-5 py-3 font-medium">Data</th>
                   <th className="px-5 py-3 font-medium">Status</th>
                 </tr>
@@ -189,6 +206,10 @@ export default function ProfessorInscricoesPage() {
                     </td>
                     <td className="px-5 py-3 text-gray-600">{i.curso ?? '—'}</td>
                     <td className="px-5 py-3 text-gray-600">{i.tipo_interesse}</td>
+                    {/* Vaga + ocupação: é o que explica, na própria linha, por
+                        que marcar alguém como "selecionado" pode ser recusado
+                        (a vaga já tem quem a ocupe). */}
+                    <CelulaVaga vagaId={i.vaga_id} vaga={i.vaga_id ? vagaPorId.get(i.vaga_id) : undefined} />
                     <td className="px-5 py-3 text-gray-500 text-xs">{formatDateShort(i.created_at)}</td>
                     <td className="px-5 py-3">
                       <select
@@ -212,5 +233,23 @@ export default function ProfessorInscricoesPage() {
         )}
       </div>
     </div>
+  );
+}
+
+/** Célula da vaga: título + quantos já estão selecionados sobre as posições. */
+function CelulaVaga({ vagaId, vaga }: { vagaId: string | null; vaga?: Vaga }) {
+  if (!vagaId) return <td className="px-5 py-3 text-gray-400 text-xs">—</td>;
+  if (!vaga) return <td className="px-5 py-3 text-gray-400 text-xs">Vaga removida</td>;
+
+  return (
+    <td className="px-5 py-3 text-gray-600 text-xs">
+      {vaga.titulo}{' '}
+      <span
+        className={`font-semibold ${vagaExcedeCota(vaga.selecionados, vaga.quantidade) ? 'text-red-600' : 'text-gray-400'}`}
+        title="Selecionados / posições desta vaga"
+      >
+        ({vaga.selecionados}/{vaga.quantidade})
+      </span>
+    </td>
   );
 }

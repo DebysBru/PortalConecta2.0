@@ -7,10 +7,14 @@
  * As consultas ficam em `src/actions/favoritos.ts`, `src/actions/notificacoes.ts`
  * e `src/actions/alertas.ts`.
  */
+import { formatarDataBrasil } from '@/lib/datas';
 
 // ─── Favoritos ────────────────────────────────────────────────────────────────
 
-export const ENTIDADES_FAVORITAVEIS = ['projeto', 'edital'] as const;
+// 'evento' entra aqui porque a Agenda permite "acompanhar" um evento (o sino do
+// card) e isso é guardado como favorito — assim o estudante vê o que acompanha
+// também na aba Favoritos da área dele, sem um segundo mecanismo de salvar item.
+export const ENTIDADES_FAVORITAVEIS = ['projeto', 'edital', 'evento'] as const;
 export type EntidadeFavoritavel = (typeof ENTIDADES_FAVORITAVEIS)[number];
 
 /** Valida a entidade vinda do cliente — nunca confie no que chega. */
@@ -29,12 +33,15 @@ export function chaveFavorito(entidade: string, entidadeId: string): string {
 
 /** Para onde o favorito leva. */
 export function hrefFavorito(entidade: EntidadeFavoritavel, slug: string): string {
-  return entidade === 'projeto' ? `/projetos/${slug}` : `/editais/${slug}`;
+  if (entidade === 'projeto') return `/projetos/${slug}`;
+  if (entidade === 'evento') return '/agenda';
+  return `/editais/${slug}`;
 }
 
 export const ROTULO_ENTIDADE: Record<EntidadeFavoritavel, string> = {
   projeto: 'Projeto',
   edital: 'Edital',
+  evento: 'Evento da agenda',
 };
 
 // ─── Alertas de interesse ─────────────────────────────────────────────────────
@@ -64,6 +71,12 @@ export type CategoriaAlerta = (typeof CATEGORIAS_ALERTA)[number];
 export const CANAIS_ALERTA = ['portal', 'email'] as const;
 export type CanalAlerta = (typeof CANAIS_ALERTA)[number];
 
+/** Nome de cada canal como o usuário o vê na tela (nunca o slug interno). */
+export const ROTULO_CANAL_ALERTA: Record<CanalAlerta, string> = {
+  portal: 'avisos no portal',
+  email: 'e-mail',
+};
+
 export function canalAlertaValido(valor: unknown): valor is CanalAlerta {
   return typeof valor === 'string' && (CANAIS_ALERTA as readonly string[]).includes(valor);
 }
@@ -88,7 +101,10 @@ export type ResultadoValidacaoAlerta =
 /** Valida o formulário de alerta antes de tocar no banco. */
 export function validarAlerta(input: { canal?: unknown; categorias?: unknown }): ResultadoValidacaoAlerta {
   if (!canalAlertaValido(input.canal)) {
-    return { ok: false, error: `Canal inválido — use ${CANAIS_ALERTA.join(' ou ')}` };
+    return {
+      ok: false,
+      error: `Escolha por onde quer receber os avisos: ${CANAIS_ALERTA.map((c) => ROTULO_CANAL_ALERTA[c]).join(' ou ')}.`,
+    };
   }
 
   const categorias = normalizarCategoriasAlerta(input.categorias);
@@ -115,6 +131,19 @@ export function resumoCategoriasAlerta(categorias: readonly string[]): string {
   return categorias
     .map((c) => ROTULO_CATEGORIA[c as CategoriaAlerta] ?? c)
     .join(', ');
+}
+
+/**
+ * Rótulo de categoria de edital como o usuário lê na tela.
+ *
+ * A categoria chega do banco como enum (`BOLSAS`, `AUXILIOS`) — mostrar o valor
+ * cru em uma notificação entregava "Categoria BOLSAS" para o estudante.
+ */
+export function rotuloCategoriaEdital(categoria: string | null | undefined): string {
+  if (!categoria) return 'Geral';
+  // As categorias de edital são exatamente as de alerta (ver CategoriaEdital
+  // no schema), então o próprio mapa já cobre todos os valores.
+  return ROTULO_CATEGORIA[categoria as CategoriaAlerta] ?? categoria;
 }
 
 /** Um edital interessa a este alerta? Lista vazia = todas as categorias. */
@@ -162,5 +191,5 @@ export function formatarTempoRelativo(data: Date | string, agora: Date = new Dat
   if (diffDias === 1) return 'ontem';
   if (diffDias < 30) return `há ${diffDias} dias`;
 
-  return valor.toLocaleDateString('pt-BR');
+  return formatarDataBrasil(valor, { day: '2-digit', month: '2-digit', year: 'numeric' });
 }

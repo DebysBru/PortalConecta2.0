@@ -89,6 +89,21 @@ export function descreverCamposIgnorados(campos: string[]): string {
     .join(', ');
 }
 
+/**
+ * O slug (URL pública do projeto) deve ser regerado nesta edição?
+ *
+ * Regra: SÓ quando o nome muda de verdade. O slug é o endereço que o professor
+ * compartilha com os estudantes (e o que o botão "Ver no portal" abre), então
+ * salvar uma cor, a descrição ou o formulário de inscrição não pode trocar a URL
+ * por baixo. Foi o que aconteceu com o projeto "Robótica e Automação no Ensino
+ * Médio": o slug era `demo-robotica-demo` (do dado de demonstração) e qualquer
+ * salvamento o reescreveu para `robotica-e-automacao-no-ensino-medio`, deixando
+ * links já divulgados apontando para lugar nenhum.
+ */
+export function deveRegenerarSlugDoProjeto(nomeAtual: string, nomeNovo: string): boolean {
+  return nomeNovo.trim() !== nomeAtual.trim();
+}
+
 /** Trecho de update do Prisma com apenas os campos permitidos. */
 export type DadosEdicaoProfessor = {
   nome?: string;
