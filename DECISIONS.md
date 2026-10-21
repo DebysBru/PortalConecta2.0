@@ -1613,6 +1613,52 @@ alta que o JPEG com margem.
 
 ---
 
+## 33. Deploy automático pela GitHub Actions (push na `main` publica na VPS)
+
+**Pedido:** "crie uma github action para manter o VPS atualizado sempre que sai uma
+atualização nova."
+
+**Problema:** o deploy era manual e por cópia de arquivos — três incidentes em cinco
+dias nasceram daí: `public/` esquecido (favicon e ícones do PWA em 404),
+`.next/static` sobrescrito (ChunkLoadError para quem estava com o portal aberto) e o
+`mv` do `-old` derrubando o site por 20 s. Cada deploy dependia de alguém lembrar
+sete passos de um runbook.
+
+**Decisão:** `.github/workflows/deploy-vps.yml` roda a cada push na `main` e recria
+`/var/www/portal-conecta-novo`, manda o repositório por `rsync` (sem `.git`,
+`node_modules`, `.next`, `.env`, `storage/`) e executa `deploy/deploy-vps.sh deploy`
+na VPS, que compila e faz a troca blue-green. A lógica mora no script versionado, não
+no YAML: rodar na mão (`bash deploy/deploy-vps.sh deploy`) continua funcionando e é
+exatamente o mesmo caminho.
+
+**O que o script preserva (cada item é um incidente que já aconteceu):**
+
+- `.env` é copiado **da pasta que está no ar**, com dono e modo 600 — nunca vem do
+  git, e o build novo não sobe sem ele;
+- `node_modules` vai por hard link, e `.prisma`/`@prisma` por cópia real (senão o
+  `prisma generate` mexe no client que a produção está usando);
+- o `.next/static` do build no ar é mesclado no novo antes da troca (sem
+  ChunkLoadError para quem está com o portal aberto);
+- o `-old` anterior é arquivado com data em vez de fazer o `mv` falhar (o incidente
+  dos 20 s em 06/10);
+- depois da troca o script exige `200` em `http://127.0.0.1:3000/`; se não vier,
+  **volta sozinho** para o build anterior e termina com erro.
+
+**Migração continua manual:** se o commit mexe em `prisma/*.sql`, o workflow para
+antes de publicar e diz o que fazer — `prisma db push` segue proibido (Dec. 11) e SQL
+idempotente é aplicado à mão. Depois de aplicar, `Actions → Deploy na VPS → Run
+workflow` marcando "já apliquei".
+
+**Configuração:** segredos `VPS_HOST`, `VPS_USER`, `VPS_SSH_KEY` (opcionais
+`VPS_PORT` e `VPS_KNOWN_HOSTS`). Sem eles o workflow **não falha**: avisa no resumo e
+não publica nada.
+
+**Impacto:** o servidor deixa de ser atualizado à mão, e o rollback rápido passa a
+existir sempre: o `-old` mais recente fica guardado e os antigos são limpos para não
+encher o disco (havia 16 pastas de build antigas quando isto foi escrito).
+
+---
+
 ## Resumo de impactos
 
 | Decisão | Impacto | Fase | Notas |
@@ -1646,6 +1692,7 @@ alta que o JPEG com margem.
 | **Redesign — fase 3: páginas internas e 404 (Dec. 30)** | Cabeçalho claro reutilizável (`PageHero`) em editais, edital, projetos, agenda, busca, inscrição e meus-dados; telas de autenticação no tema claro; 404 com a arte da IFizinha | **no ar** (06/10, BUILD_ID `e_jnDaWmVJDRmAMLIdwRk`) | `pt-28` embutido resolve o Header fixo; nenhuma lógica tocada nas telas de auth (auditado no diff); restam só os ajustes de conteúdo e os chips de filtro da agenda |
 | **Calendário acadêmico importável + acompanhamento (Dec. 31)** | Modelo CSV/JSON (110 eventos do Calendário 2026), importação idempotente por `ref` no painel, filtros da agenda funcionando de verdade e aluno podendo acompanhar evento/filtro/calendário inteiro | **no ar** (06/10) | `prisma db push` (o projeto não usa migrations); datas ao meio-dia de Brasília; acompanhamento reaproveita a tabela `Favorito` |
 | **Mascote interativa nas páginas internas (Dec. 32)** | IFizinha nos cabeçalhos de Editais, Projetos e Agenda: hover (sobe 3%/6px), respiração de 6s que pausa no hover, balão de dica e sombras de profundidade nos cards | **no ar** (06/10) | Pose escolhida pela direção do gesto (§29) e pelo fundo medido; `prefers-reduced-motion` desliga tudo; exige `pointer-events-auto` (o wrapper é `pointer-events-none`) |
+| **Deploy automático pela GitHub Actions (Dec. 33)** | push na `main` publica sozinho: rsync do repositório, build na VPS, troca blue-green e rollback automático se o site não responder 200 | **no ar** (06/10) | `.env` copiado do build que está no ar, nunca do git; migração SQL continua manual, com guarda no workflow |
 
 ---
 

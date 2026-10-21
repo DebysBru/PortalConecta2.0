@@ -16,6 +16,44 @@ pastas leva poucos segundos.
 
 ---
 
+## Deploy automático (GitHub Actions) — o caminho normal
+
+Desde 06/10/2026 **não é preciso seguir este runbook à mão**: cada push na `main`
+dispara `.github/workflows/deploy-vps.yml`, que manda o repositório por `rsync`
+para `/var/www/portal-conecta-novo` e roda `deploy/deploy-vps.sh deploy` na VPS.
+O script faz os passos 2 a 5 daqui (dependências, build, mescla dos chunks, troca)
+e ainda verifica o `200` local depois da troca, **voltando sozinho** para o build
+anterior se o portal não responder.
+
+```bash
+# o que o workflow roda, se você quiser repetir na mão:
+bash deploy/deploy-vps.sh deploy      # build + troca + verificação + limpeza
+bash deploy/deploy-vps.sh estado      # o que está no ar agora
+bash deploy/deploy-vps.sh rollback    # volta para o -old mais recente
+```
+
+Segredos necessários no repositório (Settings → Secrets and variables → Actions):
+
+| Segredo | Para que serve |
+|---|---|
+| `VPS_HOST` | IP ou domínio da VPS (`198.44.123.154`) |
+| `VPS_USER` | usuário do SSH (`root`, ou um usuário com sudo) |
+| `VPS_SSH_KEY` | chave privada, conteúdo inteiro com `-----BEGIN/END-----` |
+| `VPS_PORT` | opcional, padrão `22` |
+| `VPS_KNOWN_HOSTS` | opcional, `ssh-keyscan -H -p 22 <host>`; sem ela o workflow faz o keyscan na hora |
+
+Sem esses segredos o workflow **não falha**: ele avisa no resumo e não publica
+nada — útil enquanto o deploy automático não está configurado.
+
+Se o commit mexe em `prisma/*.sql`, o workflow **para antes de publicar**: o SQL
+idempotente é aplicado à mão (Dec. 11 proíbe `db push`) e depois se dispara
+`Actions → Deploy na VPS → Run workflow` marcando "já apliquei".
+
+O runbook abaixo continua valendo como referência do que o script faz e como
+plano B quando o GitHub Actions estiver fora do ar.
+
+---
+
 ## Antes de começar
 
 ```bash
