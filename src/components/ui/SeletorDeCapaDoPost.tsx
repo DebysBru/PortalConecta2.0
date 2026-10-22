@@ -4,6 +4,7 @@ import React, { useRef, useState } from 'react';
 import { ImagePlus, Loader2, AlertCircle, Trash2, Check } from 'lucide-react';
 import { ICONES_DE_POST, chaveDeIconeValida, type ChaveIconePost } from '@/lib/post-capa';
 import { enviarArquivo } from '@/lib/upload-midia';
+import { EditorDeImagem } from '@/components/ui/EditorDeImagem';
 
 /**
  * Seletor de capa do post: uma imagem enviada OU um ícone do catálogo.
@@ -31,29 +32,31 @@ export function SeletorDeCapaDoPost({
   const inputArquivo = useRef<HTMLInputElement>(null);
   const [enviando, setEnviando] = useState(false);
   const [erro, setErro] = useState('');
+  const [arquivoParaEditar, setArquivoParaEditar] = useState<File | null>(null);
 
   const escolherArquivo = () => {
     setErro('');
     inputArquivo.current?.click();
   };
 
-  const enviar = async (arquivo: File | undefined) => {
-    if (!arquivo) return;
+  const enviar = async (arquivo: File | undefined): Promise<boolean> => {
+    if (!arquivo) return false;
     setErro('');
     setEnviando(true);
     try {
       const idToken = await obterToken();
       if (!idToken) {
         setErro('Sua sessão expirou. Entre novamente para enviar a imagem.');
-        return;
+        return false;
       }
       const resultado = await enviarArquivo({ arquivo, idToken, subpasta });
       if (!resultado.ok) {
         setErro(resultado.error);
-        return;
+        return false;
       }
       onImagem(resultado.data.url);
       onIcone(null); // imagem e ícone não convivem
+      return true;
     } finally {
       setEnviando(false);
       if (inputArquivo.current) inputArquivo.current.value = '';
@@ -99,8 +102,17 @@ export function SeletorDeCapaDoPost({
         type="file"
         accept="image/png,image/jpeg,image/webp,image/gif"
         className="hidden"
-        onChange={(e) => enviar(e.target.files?.[0])}
+        onChange={(e) => {
+          const arquivo = e.target.files?.[0] ?? null;
+          e.target.value = '';
+          if (arquivo) setArquivoParaEditar(arquivo);
+        }}
       />
+
+      <p className="text-xs text-gray-400">
+        Recomendado 1200×800 px (3:2). Deixe 10% de margem nas laterais e 20% no topo/base;
+        o assunto principal deve ficar no centro.
+      </p>
 
       {erro && (
         <p className="flex items-start gap-1.5 text-xs text-red-700 bg-red-50 border border-red-100 rounded-lg p-2">
@@ -155,6 +167,18 @@ export function SeletorDeCapaDoPost({
           </p>
         )}
       </div>
+
+      {arquivoParaEditar && (
+        <EditorDeImagem
+          arquivo={arquivoParaEditar}
+          tipo="post-capa"
+          onCancelar={() => setArquivoParaEditar(null)}
+          onConfirmar={async (arquivo) => {
+            const ok = await enviar(arquivo);
+            if (ok) setArquivoParaEditar(null);
+          }}
+        />
+      )}
     </div>
   );
 }

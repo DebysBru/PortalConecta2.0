@@ -5,6 +5,7 @@ import { AlertCircle, ImagePlus, Loader2, Trash2 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { enviarArquivo } from '@/lib/upload-midia';
 import { estiloDaCapa } from '@/lib/projeto-midia';
+import { EditorDeImagem } from '@/components/ui/EditorDeImagem';
 
 type Props = {
   tipo: 'logo' | 'capa';
@@ -34,17 +35,18 @@ export function CampoMidiaProjeto({
   const inputRef = useRef<HTMLInputElement>(null);
   const [enviando, setEnviando] = useState(false);
   const [erro, setErro] = useState('');
+  const [arquivoParaEditar, setArquivoParaEditar] = useState<File | null>(null);
 
   const ehCapa = tipo === 'capa';
   const rotulo = ehCapa ? 'Capa do projeto' : 'Logo do projeto';
   const arquivoDoPortal = valor.trim().startsWith('/') && !valor.trim().startsWith('//');
 
-  const enviar = async (arquivo: File | null) => {
-    if (!arquivo) return;
+  const enviar = async (arquivo: File | null): Promise<boolean> => {
+    if (!arquivo) return false;
     setErro('');
     if (!user) {
       setErro('Sua sessão expirou. Entre novamente para enviar a imagem.');
-      return;
+      return false;
     }
 
     setEnviando(true);
@@ -53,11 +55,13 @@ export function CampoMidiaProjeto({
       const resultado = await enviarArquivo({ arquivo, idToken, subpasta });
       if (!resultado.ok) {
         setErro(resultado.error);
-        return;
+        return false;
       }
       onChange(resultado.data.url);
+      return true;
     } catch {
       setErro('Não conseguimos enviar a imagem agora. Tente novamente.');
+      return false;
     } finally {
       setEnviando(false);
       if (inputRef.current) inputRef.current.value = '';
@@ -113,7 +117,7 @@ export function CampoMidiaProjeto({
           onChange={(e) => {
             const arquivo = e.target.files?.[0] ?? null;
             e.target.value = '';
-            void enviar(arquivo);
+            if (arquivo) setArquivoParaEditar(arquivo);
           }}
         />
         <button
@@ -141,16 +145,28 @@ export function CampoMidiaProjeto({
         )}
       </div>
 
-      {ehCapa && (
-        <p className="text-xs text-gray-400">
-          A capa substitui o fundo azul do cabeçalho do projeto. Use uma imagem horizontal.
-        </p>
-      )}
+      <p className="text-xs text-gray-400">
+        {ehCapa
+          ? 'Recomendado 2400×1200 px (2:1). No desktop o topo/base é recortado; no celular as laterais. Mantenha o assunto principal nos 60% centrais.'
+          : 'Recomendado 512×512 px (1:1), PNG ou WebP com fundo transparente. Deixe cerca de 10% de margem.'}
+      </p>
       {erro && (
         <p className="flex items-start gap-1.5 text-xs text-red-700">
           <AlertCircle className="w-3.5 h-3.5 flex-shrink-0 mt-0.5" />
           {erro}
         </p>
+      )}
+
+      {arquivoParaEditar && (
+        <EditorDeImagem
+          arquivo={arquivoParaEditar}
+          tipo={ehCapa ? 'projeto-capa' : 'logo'}
+          onCancelar={() => setArquivoParaEditar(null)}
+          onConfirmar={async (arquivo) => {
+            const ok = await enviar(arquivo);
+            if (ok) setArquivoParaEditar(null);
+          }}
+        />
       )}
     </div>
   );
