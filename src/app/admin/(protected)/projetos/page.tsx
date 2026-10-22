@@ -518,7 +518,9 @@ export default function AdminProjetosPage() {
                       </div>
                       <div>
                         <label className="label-field">Logo URL</label>
-                        <input type="url" className="input-field" value={form.logoUrl ?? ''} onChange={(e) => set('logoUrl', e.target.value)} placeholder="https://..." />
+                        {/* Também aceita o caminho interno `/files/...` enviado pelo
+                            gestor da página; por isso não é type="url". */}
+                        <input type="text" inputMode="url" className="input-field" value={form.logoUrl ?? ''} onChange={(e) => set('logoUrl', e.target.value)} placeholder="https://... ou /files/..." />
                       </div>
                       {form.logoUrl && (
                         <div className="col-span-2 flex justify-center p-4 bg-gray-50 rounded-xl border border-gray-100">

@@ -28,11 +28,17 @@ const storageMock = vi.hoisted(() => ({
   LIMITE_IMAGEM_BYTES: 5 * 1024 * 1024,
 }));
 
+const permissoesMock = vi.hoisted(() => ({
+  ehGestorDoProjeto: vi.fn(),
+}));
+
 vi.mock('@/lib/prisma', () => ({ prisma: prismaMock, db: prismaMock }));
 vi.mock('@/lib/auth-helpers', () => authMock);
 vi.mock('@/lib/file-storage', () => storageMock);
+vi.mock('@/lib/permissions', () => permissoesMock);
 
 import { POST } from '@/app/api/files/upload/route';
+import { ehGestorDoProjeto } from '@/lib/permissions';
 
 function requisicao(campos: Record<string, string | File>): Request {
   const fd = new FormData();
@@ -44,6 +50,7 @@ const arquivoFalso = () => new File([Buffer.from('%PDF-1.4 teste')], 'edital.pdf
 
 beforeEach(() => {
   vi.clearAllMocks();
+  vi.mocked(ehGestorDoProjeto).mockResolvedValue(false);
   storageMock.salvarArquivo.mockResolvedValue({
     path: 'pdf/2026/edital.pdf',
     url: '/files/pdf/2026/edital.pdf',
@@ -151,5 +158,28 @@ describe('token válido com papel adequado', () => {
 
     expect(resposta.status).toBe(400);
     expect(storageMock.salvarArquivo).not.toHaveBeenCalled();
+  });
+
+  it('aceita o GESTOR da página, mas só com a subpasta do projeto que gerencia', async () => {
+    authMock.verifySessionToken.mockResolvedValue({ ok: true, uid: 'u7', email: 'aluno@ifpr.edu.br' });
+    prismaMock.user.findUnique.mockResolvedValue({ role: 'ESTUDANTE' });
+    vi.mocked(ehGestorDoProjeto).mockResolvedValue(true);
+
+    const resposta = await POST(
+      requisicao({ idToken: 'valido', subpasta: 'projeto-1', file: arquivoFalso() }) as never,
+    );
+
+    expect(resposta.status).toBe(200);
+    expect(ehGestorDoProjeto).toHaveBeenCalledWith('projeto-1', 'aluno@ifpr.edu.br');
+  });
+
+  it('recusa gestor sem subpasta (não há projeto a validar)', async () => {
+    authMock.verifySessionToken.mockResolvedValue({ ok: true, uid: 'u8', email: 'aluno@ifpr.edu.br' });
+    prismaMock.user.findUnique.mockResolvedValue({ role: 'ESTUDANTE' });
+
+    const resposta = await POST(requisicao({ idToken: 'valido', file: arquivoFalso() }) as never);
+
+    expect(resposta.status).toBe(403);
+    expect(ehGestorDoProjeto).not.toHaveBeenCalled();
   });
 });

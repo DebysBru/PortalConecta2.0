@@ -7,7 +7,7 @@ import {
   Search, TrendingUp, AlertCircle, Save, ExternalLink,
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
-import { listMyProjetos, updateMyProjeto, type MyProjetoFormData } from '@/actions/professor';
+import { listMyProjetos, listProjetosQueGerencio, updateMyProjeto, type MyProjetoFormData } from '@/actions/professor';
 import { getStatusLabel, getStatusColor, formatDateShort } from '@/lib/utils';
 import { FormularioExtraEditor } from '@/components/ui/FormularioExtraEditor';
 import { parsePerguntasExtra, type PerguntaExtra } from '@/lib/formulario-extra';
@@ -24,8 +24,9 @@ type Projeto = Awaited<ReturnType<typeof listMyProjetos>>[number];
 const STATUS_LIST = ['ATIVO', 'EM_EXECUCAO', 'ENCERRADO', 'SUSPENSO', 'INSCRICOES_ABERTAS', 'SEM_VAGAS'];
 
 export default function ProfessorProjetosPage() {
-  const { user } = useAuth();
+  const { user, userRole } = useAuth();
   const { toast } = useToast();
+  const somenteGestor = userRole === 'ESTUDANTE';
   const [projetos, setProjetos] = useState<Projeto[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
@@ -41,8 +42,16 @@ export default function ProfessorProjetosPage() {
 
   const load = () => {
     if (!user?.email) return;
-    listMyProjetos(user.email)
-      .then(setProjetos)
+    Promise.all([
+      listMyProjetos(user.email),
+      listProjetosQueGerencio(user.email),
+    ])
+      .then(([coordenados, geridos]) => {
+        // Quem é gestor pode ter os dois vínculos; o Map evita duplicar.
+        const mapa = new Map<string, Projeto>();
+        for (const p of [...coordenados, ...geridos]) mapa.set(p.id, p);
+        setProjetos([...mapa.values()]);
+      })
       .catch(console.error)
       .finally(() => setLoading(false));
   };
@@ -111,8 +120,14 @@ export default function ProfessorProjetosPage() {
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-black text-gray-900">Meus Projetos</h1>
-          <p className="text-gray-500 text-sm">{projetos.length} projeto(s) que você coordena</p>
+          <h1 className="text-2xl font-black text-gray-900">
+            {somenteGestor ? 'Projetos que gerencio' : 'Meus Projetos'}
+          </h1>
+          <p className="text-gray-500 text-sm">
+            {somenteGestor
+              ? `${projetos.length} projeto(s) em que você é gestor da página`
+              : `${projetos.length} projeto(s) que você coordena`}
+          </p>
         </div>
       </div>
 
@@ -181,20 +196,26 @@ export default function ProfessorProjetosPage() {
                     "Gerenciar" = inscrições/vagas/posts (área do professor);
                     "Ver no portal" = a página pública, o que o estudante vê. */}
                 <div className="flex gap-2">
-                  <button
-                    onClick={() => openEdit(projeto)}
-                    title="Editar os dados do projeto"
-                    className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl border border-gray-200 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-all"
-                  >
-                    <Pencil className="w-3.5 h-3.5" />
-                    Editar
-                  </button>
+                  {!somenteGestor && (
+                    <button
+                      onClick={() => openEdit(projeto)}
+                      title="Editar os dados do projeto"
+                      className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl border border-gray-200 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-all"
+                    >
+                      <Pencil className="w-3.5 h-3.5" />
+                      Editar
+                    </button>
+                  )}
                   <Link
-                    href={`/professor/projetos/${projeto.id}`}
-                    title="Inscrições, vagas e posts do projeto"
+                    href={
+                      somenteGestor
+                        ? `/professor/projetos/${projeto.id}/pagina`
+                        : `/professor/projetos/${projeto.id}`
+                    }
+                    title={somenteGestor ? 'Editar a página e os posts do projeto' : 'Inscrições, vagas e posts do projeto'}
                     className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl bg-azul-eletrico text-white text-sm font-medium hover:bg-azul-eletrico/90 transition-all"
                   >
-                    Gerenciar
+                    {somenteGestor ? 'Editar página' : 'Gerenciar'}
                     <ChevronRight className="w-3.5 h-3.5" />
                   </Link>
                 </div>

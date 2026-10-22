@@ -8,7 +8,7 @@ import {
   ArrowLeft, Save, X,
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
-import { listPosts, createPost, updatePost, deletePost, getProjetoDetalhes } from '@/actions/professor';
+import { listPosts, createPost, updatePost, deletePost, getProjetoParaConteudo } from '@/actions/professor';
 import { formatDateShort } from '@/lib/utils';
 import { Prisma } from '@prisma/client';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
@@ -27,9 +27,10 @@ const isConteudoVazio = (html: string) => html.replace(/<[^>]*>/g, '').trim().le
 type Post = Prisma.PostGetPayload<{}>;
 
 export default function ProfessorPostsPage({ params }: { params: { id: string } }) {
-  const { user } = useAuth();
+  const { user, userRole } = useAuth();
   const router = useRouter();
   const { toast } = useToast();
+  const somenteGestor = userRole === 'ESTUDANTE';
   const [posts, setPosts] = useState<Post[]>([]);
   const [projetoNome, setProjetoNome] = useState('');
   // O slug do projeto entra na URL pública do post (/projetos/<slug>/posts/<slug>).
@@ -57,15 +58,15 @@ export default function ProfessorPostsPage({ params }: { params: { id: string } 
 
   useEffect(() => {
     if (!user?.email) return;
-    getProjetoDetalhes(params.id, user.email).then((p) => {
-      if (!p) { router.replace('/professor'); return; }
+    getProjetoParaConteudo(params.id, user.email).then((p) => {
+      if (!p) { router.replace(somenteGestor ? '/professor/projetos' : '/professor'); return; }
       setProjetoNome(p.nome);
       setProjetoSlug(p.slug);
       return listPosts(params.id, user.email!);
     }).then((result) => {
       if (result && 'data' in result && Array.isArray(result.data)) setPosts(result.data);
     }).catch(console.error).finally(() => setLoading(false));
-  }, [user, params.id, router]);
+  }, [user, params.id, router, somenteGestor]);
 
   const resetForm = () => {
     setForm({ titulo: '', conteudo: '', resumo: '', status: 'RASCUNHO', imagemUrl: '', icone: null, anexos: [] });
@@ -153,7 +154,7 @@ export default function ProfessorPostsPage({ params }: { params: { id: string } 
         <ChevronRight className="w-3.5 h-3.5" />
         <Link href="/professor/projetos" className="hover:text-azul-eletrico transition-colors">Projetos</Link>
         <ChevronRight className="w-3.5 h-3.5" />
-        <Link href={`/professor/projetos/${params.id}`} className="hover:text-azul-eletrico transition-colors">{projetoNome}</Link>
+        <Link href={somenteGestor ? `/professor/projetos/${params.id}/pagina` : `/professor/projetos/${params.id}`} className="hover:text-azul-eletrico transition-colors">{projetoNome}</Link>
         <ChevronRight className="w-3.5 h-3.5" />
         <span className="text-gray-900 font-medium">Posts</span>
       </div>

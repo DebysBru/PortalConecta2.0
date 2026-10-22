@@ -2,6 +2,7 @@
 
 import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import {
   FolderOpen, Users, FileText, TrendingUp,
   AlertCircle, ChevronRight, Clock, Eye,
@@ -15,11 +16,19 @@ type Projeto = Awaited<ReturnType<typeof listMyProjetos>>[number];
 
 export default function ProfessorDashboardPage() {
   const { user, userRole } = useAuth();
+  const router = useRouter();
   const [stats, setStats] = useState<Stats | null>(null);
   const [projetos, setProjetos] = useState<Projeto[]>([]);
   const [loading, setLoading] = useState(true);
 
+  const somenteGestor = userRole === 'ESTUDANTE';
+
   useEffect(() => {
+    if (somenteGestor) router.replace('/professor/projetos');
+  }, [somenteGestor, router]);
+
+  useEffect(() => {
+    if (somenteGestor) { setLoading(false); return; }
     if (!user) return;
     Promise.all([
       getProfessorStats(user.email!),
@@ -28,7 +37,7 @@ export default function ProfessorDashboardPage() {
       .then(([s, p]) => { setStats(s); setProjetos(p); })
       .catch(console.error)
       .finally(() => setLoading(false));
-  }, [user]);
+  }, [user, somenteGestor]);
 
   if (loading) {
     return (

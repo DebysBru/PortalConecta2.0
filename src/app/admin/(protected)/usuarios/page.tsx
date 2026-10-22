@@ -16,7 +16,7 @@ type Projeto = Awaited<ReturnType<typeof listProjetos>>[number];
 const ROLE_LABELS: Record<UserRole, string> = {
   ESTUDANTE: 'Estudante',
   PROFESSOR: 'Professor',
-  ADMIN: 'Administrador',
+  ADMIN: 'Administrador Geral',
 };
 
 const ROLE_COLORS: Record<UserRole, string> = {
@@ -102,6 +102,12 @@ export default function AdminUsuariosPage() {
       <div>
         <h1 className="text-2xl font-black text-gray-900">Usuários</h1>
         <p className="text-gray-500 text-sm">{users.length} usuário(s) registrado(s)</p>
+        <p className="text-xs text-gray-500 mt-2 max-w-3xl">
+          A opção <strong>Administrador Geral</strong> concede acesso ao painel administrativo
+          completo. Só o e-mail mestre definido na configuração do portal pode promover ou
+          rebaixar alguém nesse nível — os demais administradores não conseguem criar novos
+          administradores.
+        </p>
       </div>
 
       {/* Invite form */}

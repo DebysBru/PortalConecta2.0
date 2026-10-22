@@ -36,6 +36,9 @@ export default function AdminInscricoesPage() {
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('todos');
   const [selectedInscricao, setSelectedInscricao] = useState<Inscricao | null>(null);
+  // Alteração só é aplicada (e notificada) ao clicar em Confirmar.
+  const [pendingStatus, setPendingStatus] = useState<Record<string, string>>({});
+  const [confirmandoStatus, setConfirmandoStatus] = useState<string | null>(null);
 
   useEffect(() => {
     if (!user?.email) return;
@@ -74,17 +77,30 @@ export default function AdminInscricoesPage() {
     URL.revokeObjectURL(url);
   };
 
-  const handleStatusChange = async (inscricaoId: string, newStatus: string) => {
+  const confirmarStatus = async (inscricaoId: string) => {
     if (!user?.email) return;
+    const newStatus = pendingStatus[inscricaoId];
+    if (!newStatus) return;
+
+    setConfirmandoStatus(inscricaoId);
     const result = await updateInscricaoStatus(inscricaoId, newStatus, undefined, user.email);
     if (result.ok) {
       setInscricoes((prev) =>
         prev.map((i) => (i.id === inscricaoId ? { ...i, status: newStatus } : i))
       );
-      toast(`Status alterado para "${getStatusLabel(newStatus)}"`, 'success');
+      setPendingStatus((prev) => {
+        const next = { ...prev };
+        delete next[inscricaoId];
+        return next;
+      });
+      toast(
+        `Alteração confirmada: "${getStatusLabel(newStatus)}". O aluno será notificado.`,
+        'success',
+      );
     } else {
       toast(result.error || 'Não conseguimos alterar o status desta inscrição. Tente novamente.', 'error');
     }
+    setConfirmandoStatus(null);
   };
 
   const filtered = inscricoes.filter((i) => {
@@ -208,8 +224,8 @@ export default function AdminInscricoesPage() {
                     <td className="px-5 py-3 text-gray-500 text-xs">{formatDateShort(i.created_at)}</td>
                     <td className="px-5 py-3">
                       <select
-                        value={i.status}
-                        onChange={(e) => handleStatusChange(i.id, e.target.value)}
+                        value={pendingStatus[i.id] ?? i.status}
+                        onChange={(e) => setPendingStatus((prev) => ({ ...prev, [i.id]: e.target.value }))}
                         className="text-xs border border-gray-200 rounded-lg px-2 py-1 bg-white focus:outline-none focus:ring-1 focus:ring-azul-eletrico/30"
                       >
                         <option value="recebida">Recebida</option>
@@ -219,6 +235,27 @@ export default function AdminInscricoesPage() {
                         <option value="nao_selecionado">Não selecionado</option>
                         <option value="desistente">Desistente</option>
                       </select>
+                      {pendingStatus[i.id] && pendingStatus[i.id] !== i.status && (
+                        <div className="mt-1.5 flex items-center gap-1">
+                          <button
+                            onClick={() => confirmarStatus(i.id)}
+                            disabled={confirmandoStatus === i.id}
+                            className="px-2 py-1 rounded-md bg-azul-eletrico text-white text-[11px] font-semibold hover:bg-azul-eletrico/90 disabled:opacity-60 transition-colors"
+                          >
+                            {confirmandoStatus === i.id ? 'Confirmando...' : 'Confirmar alteração'}
+                          </button>
+                          <button
+                            onClick={() => setPendingStatus((prev) => {
+                              const next = { ...prev };
+                              delete next[i.id];
+                              return next;
+                            })}
+                            className="px-2 py-1 rounded-md border border-gray-200 text-[11px] text-gray-600 hover:bg-gray-50 transition-colors"
+                          >
+                            Cancelar
+                          </button>
+                        </div>
+                      )}
                     </td>
                     <td className="px-5 py-3">
                       <button

@@ -25,12 +25,20 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { verifySessionToken } from '@/lib/auth-helpers';
 import { salvarArquivo, ArquivoInvalidoError, LIMITE_PDF_BYTES, LIMITE_IMAGEM_BYTES } from '@/lib/file-storage';
+import { ehGestorDoProjeto } from '@/lib/permissions';
 import { MENSAGENS } from '@/lib/mensagens';
 
-/** Papéis que podem enviar arquivo: quem tem painel (professor) ou o admin. */
-async function papelPodeEnviar(email: string): Promise<boolean> {
+/**
+ * Quem pode enviar arquivo: professor/admin do painel OU o gestor da página
+ * daquele projeto (aluno selecionado), desde que o upload venha com a
+ * `subpasta` do projeto que ele gerencia. O gestor não pode enviar para outro
+ * projeto nem sem subpasta.
+ */
+async function papelPodeEnviar(email: string, subpasta?: string): Promise<boolean> {
   const user = await prisma.user.findUnique({ where: { email }, select: { role: true } });
-  return user?.role === 'ADMIN' || user?.role === 'PROFESSOR';
+  if (user?.role === 'ADMIN' || user?.role === 'PROFESSOR') return true;
+  if (user?.role !== 'ESTUDANTE' || !subpasta) return false;
+  return ehGestorDoProjeto(subpasta, email);
 }
 
 export async function POST(request: NextRequest) {
@@ -53,7 +61,12 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: sessao.error }, { status: 401 });
   }
 
-  if (!(await papelPodeEnviar(sessao.email))) {
+  // `subpasta` agrupa os arquivos por entidade (ex.: id do projeto), para a
+  // pasta no disco continuar navegável. É saneada em `salvarArquivo` e também
+  // é o escopo que o gestor da página tem permissão para usar.
+  const subpasta = (formData.get('subpasta') as string | null) || undefined;
+
+  if (!(await papelPodeEnviar(sessao.email, subpasta))) {
     return NextResponse.json({ error: MENSAGENS.semPermissaoProfessor }, { status: 403 });
   }
 
@@ -61,10 +74,6 @@ export async function POST(request: NextRequest) {
   if (!file) {
     return NextResponse.json({ error: MENSAGENS.arquivoNaoEnviado }, { status: 400 });
   }
-
-  // `subpasta` agrupa os arquivos por entidade (ex.: id do projeto), para a
-  // pasta no disco continuar navegável. É saneada em `salvarArquivo`.
-  const subpasta = (formData.get('subpasta') as string | null) || undefined;
 
   try {
     const buffer = Buffer.from(await file.arrayBuffer());

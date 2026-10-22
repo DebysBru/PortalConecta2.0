@@ -6,8 +6,9 @@
  * o tamanho). O cálculo do limite, no entanto, NÃO depende desta rota: ao salvar,
  * `createPost`/`updatePost` refazem a conta a partir do disco.
  *
- * Autorização igual à do upload: ID token do Firebase verificado no servidor e
- * papel ADMIN/PROFESSOR. Sem isso, qualquer visitante usaria a rota para
+ * Autorização: ID token do Firebase verificado no servidor + papel
+ * ADMIN/PROFESSOR **ou** gestor de página (o gestor também edita posts e
+ * precisa do indicador de peso). Sem isso, visitante usaria a rota para
  * descobrir o tamanho de arquivos do servidor.
  */
 import { NextRequest, NextResponse } from 'next/server';
@@ -15,6 +16,7 @@ import { prisma } from '@/lib/prisma';
 import { verifySessionToken } from '@/lib/auth-helpers';
 import { infoArquivo } from '@/lib/file-storage';
 import { caminhoInternoDaUrl, LIMITE_POST_BYTES } from '@/lib/post-midias';
+import { usuarioTemAlgumProjetoComoGestor } from '@/lib/permissions';
 import { MENSAGENS } from '@/lib/mensagens';
 
 /** Teto de URLs por requisição — a tela manda as mídias de UM post. */
@@ -34,7 +36,9 @@ export async function POST(request: NextRequest) {
   }
 
   const user = await prisma.user.findUnique({ where: { email: sessao.email }, select: { role: true } });
-  if (user?.role !== 'ADMIN' && user?.role !== 'PROFESSOR') {
+  const ehProfessorOuAdmin = user?.role === 'ADMIN' || user?.role === 'PROFESSOR';
+  const ehGestor = !ehProfessorOuAdmin && (await usuarioTemAlgumProjetoComoGestor(sessao.email));
+  if (!ehProfessorOuAdmin && !ehGestor) {
     return NextResponse.json({ error: MENSAGENS.semPermissaoProfessor }, { status: 403 });
   }
 

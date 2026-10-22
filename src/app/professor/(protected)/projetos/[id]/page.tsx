@@ -7,11 +7,14 @@ import {
   ChevronRight, Users, FolderOpen, Calendar, Mail,
   Download, Search, Filter, AlertCircle, CheckCircle,
   Clock, XCircle, Eye, ArrowLeft, FileText, Plus, Trash2, Briefcase, Loader2, ExternalLink,
+  ShieldCheck, UserPlus, Pencil,
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import {
   getProjetoDetalhes, listInscricoes, updateInscricaoStatus, exportInscricoesCSV, toggleInscricoes, abrirInscricoes,
   listVagas, createVaga, updateVaga, deleteVaga, type VagaFormData,
+  listarGestoresDaPagina, listarCandidatosAGestor, definirGestorDaPagina,
+  type GestorDaPagina, type CandidatoAGestor,
 } from '@/actions/professor';
 import { getStatusLabel, getStatusColor, formatDateShort } from '@/lib/utils';
 import { rotuloRespostaAluno } from '@/lib/inscricao-aluno';
@@ -26,9 +29,10 @@ type Inscricao = Prisma.InscricaoGetPayload<{}>;
 type Vaga = Prisma.VagaGetPayload<{}> & { selecionados: number };
 
 export default function ProfessorProjetoDetalhePage({ params }: { params: { id: string } }) {
-  const { user } = useAuth();
+  const { user, userRole } = useAuth();
   const router = useRouter();
   const { toast } = useToast();
+  const somenteGestor = userRole === 'ESTUDANTE';
   const [projeto, setProjeto] = useState<Projeto | null>(null);
   const [inscricoes, setInscricoes] = useState<Inscricao[]>([]);
   const [vagas, setVagas] = useState<Vaga[]>([]);
@@ -39,6 +43,52 @@ export default function ProfessorProjetoDetalhePage({ params }: { params: { id: 
   const [editingVaga, setEditingVaga] = useState<Vaga | null>(null);
   const [showAbrirModal, setShowAbrirModal] = useState(false);
   const [togglingInscricoes, setTogglingInscricoes] = useState(false);
+  const [gestores, setGestores] = useState<GestorDaPagina[]>([]);
+  const [candidatos, setCandidatos] = useState<CandidatoAGestor[]>([]);
+  const [novoGestor, setNovoGestor] = useState('');
+  const [salvandoGestor, setSalvandoGestor] = useState(false);
+  // Mudança de status fica "em rascunho" até o professor clicar em Confirmar.
+  // É o que evita o aluno receber uma notificação a cada troca no select.
+  const [pendingStatus, setPendingStatus] = useState<Record<string, string>>({});
+  const [confirmandoStatus, setConfirmandoStatus] = useState<string | null>(null);
+
+  const recarregarGestores = async () => {
+    if (!user?.email) return;
+    const [g, c] = await Promise.all([
+      listarGestoresDaPagina(params.id, user.email),
+      listarCandidatosAGestor(params.id, user.email),
+    ]);
+    if (g.ok) setGestores(g.data);
+    if (c.ok) setCandidatos(c.data);
+  };
+
+  const adicionarGestor = async () => {
+    if (!user?.email || !novoGestor) return;
+    setSalvandoGestor(true);
+    const r = await definirGestorDaPagina(params.id, novoGestor, true, user.email);
+    if (r.ok) {
+      toast('Aluno nomeado gestor da página', 'success');
+      setNovoGestor('');
+      await recarregarGestores();
+    } else {
+      toast(r.error, 'error');
+    }
+    setSalvandoGestor(false);
+  };
+
+  const removerGestor = async (userId: string, nome: string) => {
+    if (!user?.email) return;
+    if (!confirm(`Remover ${nome} como gestor da página deste projeto?`)) return;
+    setSalvandoGestor(true);
+    const r = await definirGestorDaPagina(params.id, userId, false, user.email);
+    if (r.ok) {
+      toast('Gestor removido', 'success');
+      await recarregarGestores();
+    } else {
+      toast(r.error, 'error');
+    }
+    setSalvandoGestor(false);
+  };
 
   const recarregarVagas = async () => {
     if (!user?.email) return;
@@ -47,11 +97,16 @@ export default function ProfessorProjetoDetalhePage({ params }: { params: { id: 
   };
 
   useEffect(() => {
-    if (!user?.email) return;
+    if (somenteGestor) router.replace(`/professor/projetos/${params.id}/pagina`);
+  }, [somenteGestor, params.id, router]);
+
+  useEffect(() => {
+    if (!user?.email || somenteGestor) { if (somenteGestor) setLoading(false); return; }
     getProjetoDetalhes(params.id, user.email)
       .then((p) => {
         if (!p) { router.replace('/professor'); return; }
         setProjeto(p);
+        void recarregarGestores().catch(console.error);
         return Promise.all([
           listInscricoes(params.id, user.email!),
           listVagas(params.id, user.email!),
@@ -69,7 +124,7 @@ export default function ProfessorProjetoDetalhePage({ params }: { params: { id: 
       })
       .catch(console.error)
       .finally(() => setLoading(false));
-  }, [user, params.id, router]);
+  }, [user, params.id, router, somenteGestor]);
 
   const vagaPorId = new Map(vagas.map((v) => [v.id, v]));
 
@@ -116,17 +171,33 @@ export default function ProfessorProjetoDetalhePage({ params }: { params: { id: 
     }
   };
 
-  const handleStatusChange = async (inscricaoId: string, newStatus: string) => {
+  const confirmarStatus = async (inscricaoId: string) => {
     if (!user?.email) return;
+    const newStatus = pendingStatus[inscricaoId];
+    if (!newStatus) return;
+
+    setConfirmandoStatus(inscricaoId);
     const result = await updateInscricaoStatus(inscricaoId, newStatus, undefined, user.email);
     if (result.ok) {
       setInscricoes((prev) =>
         prev.map((i) => (i.id === inscricaoId ? { ...i, status: newStatus } : i))
       );
-      toast(`Status alterado para "${getStatusLabel(newStatus)}"`, 'success');
+      setPendingStatus((prev) => {
+        const next = { ...prev };
+        delete next[inscricaoId];
+        return next;
+      });
+      toast(
+        `Alteração confirmada: "${getStatusLabel(newStatus)}". O aluno será notificado.`,
+        'success',
+      );
+      // Um aluno recém-selecionado passa a aparecer na lista de candidatos a
+      // gestor da página sem precisar recarregar o painel.
+      void recarregarGestores().catch(console.error);
     } else {
       toast(result.error || 'Não conseguimos alterar o status desta inscrição. Tente novamente.', 'error');
     }
+    setConfirmandoStatus(null);
   };
 
   const handleExport = async () => {
@@ -247,6 +318,13 @@ export default function ProfessorProjetoDetalhePage({ params }: { params: { id: 
             <FileText className="w-3.5 h-3.5" />
             Gerenciar Posts
           </Link>
+          <Link
+            href={`/professor/projetos/${params.id}/pagina`}
+            className="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-gray-200 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+          >
+            <Pencil className="w-3.5 h-3.5" />
+            Editar página
+          </Link>
           <button
             onClick={handleToggleInscricoes}
             disabled={togglingInscricoes}
@@ -298,6 +376,78 @@ export default function ProfessorProjetoDetalhePage({ params }: { params: { id: 
               <p className="font-medium text-gray-900">{projeto.status === 'INSCRICOES_ABERTAS' ? 'Abertas' : 'Fechadas'}</p>
             </div>
           </div>
+        </div>
+      </div>
+
+      {/* Gestores da página */}
+      <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
+        <div className="px-5 py-4 border-b border-gray-50">
+          <h2 className="font-bold text-gray-900 flex items-center gap-2">
+            <ShieldCheck className="w-4 h-4 text-azul-eletrico" />
+            Gestores da página ({gestores.length})
+          </h2>
+          <p className="text-xs text-gray-500 mt-1">
+            Alunos bolsistas ou voluntários selecionados neste projeto que podem editar os posts
+            e a apresentação pública da página. Eles <strong>não</strong> podem alterar dados
+            sensíveis, abrir vagas, ver inscrições ou excluir o projeto.
+          </p>
+        </div>
+
+        <div className="p-5 space-y-4">
+          {gestores.length === 0 ? (
+            <p className="text-sm text-gray-500">
+              Nenhum aluno é gestor da página ainda.
+            </p>
+          ) : (
+            <div className="divide-y divide-gray-50 rounded-xl border border-gray-100">
+              {gestores.map((g) => (
+                <div key={g.userId} className="flex items-center justify-between gap-3 px-4 py-3">
+                  <div className="min-w-0">
+                    <p className="text-sm font-semibold text-gray-900 truncate">{g.nome}</p>
+                    <p className="text-xs text-gray-500 truncate">{g.email}</p>
+                  </div>
+                  <button
+                    onClick={() => removerGestor(g.userId, g.nome)}
+                    disabled={salvandoGestor}
+                    className="flex-shrink-0 px-3 py-1.5 rounded-lg border border-gray-200 text-xs text-gray-600 hover:bg-red-50 hover:text-red-600 hover:border-red-200 disabled:opacity-60 transition-colors"
+                  >
+                    Remover
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {candidatos.filter((c) => !c.jaEhGestor).length > 0 ? (
+            <div className="flex flex-col sm:flex-row gap-2 sm:items-center">
+              <select
+                value={novoGestor}
+                onChange={(e) => setNovoGestor(e.target.value)}
+                className="input-field flex-1"
+              >
+                <option value="">Selecione um aluno selecionado...</option>
+                {candidatos.filter((c) => !c.jaEhGestor).map((c) => (
+                  <option key={c.userId} value={c.userId}>
+                    {c.nome} — {c.tipoInteresse === 'AMBOS' ? 'Bolsista/Voluntário' : c.tipoInteresse === 'BOLSISTA' ? 'Bolsista' : 'Voluntário'}
+                  </option>
+                ))}
+              </select>
+              <button
+                onClick={adicionarGestor}
+                disabled={!novoGestor || salvandoGestor}
+                className="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-xl bg-azul-eletrico text-white text-sm font-semibold hover:bg-azul-eletrico/90 disabled:opacity-50 transition-colors"
+              >
+                {salvandoGestor ? <Loader2 className="w-4 h-4 animate-spin" /> : <UserPlus className="w-4 h-4" />}
+                Nomear gestor
+              </button>
+            </div>
+          ) : (
+            <p className="text-xs text-gray-500">
+              {candidatos.length === 0
+                ? 'Nenhum aluno selecionado com conta no portal ainda. Marque um candidato como “selecionado” para poder nomeá-lo.'
+                : 'Todos os alunos selecionados já são gestores da página.'}
+            </p>
+          )}
         </div>
       </div>
 
@@ -469,8 +619,8 @@ export default function ProfessorProjetoDetalhePage({ params }: { params: { id: 
                     </td>
                     <td className="px-5 py-3">
                       <select
-                        value={inscricao.status}
-                        onChange={(e) => handleStatusChange(inscricao.id, e.target.value)}
+                        value={pendingStatus[inscricao.id] ?? inscricao.status}
+                        onChange={(e) => setPendingStatus((prev) => ({ ...prev, [inscricao.id]: e.target.value }))}
                         className="text-xs border border-gray-200 rounded-lg px-2 py-1 bg-white focus:outline-none focus:ring-1 focus:ring-azul-eletrico/30"
                       >
                         <option value="recebida">Recebida</option>
@@ -480,6 +630,27 @@ export default function ProfessorProjetoDetalhePage({ params }: { params: { id: 
                         <option value="nao_selecionado">Não selecionado</option>
                         <option value="desistente">Desistente</option>
                       </select>
+                      {pendingStatus[inscricao.id] && pendingStatus[inscricao.id] !== inscricao.status && (
+                        <div className="mt-1.5 flex items-center gap-1">
+                          <button
+                            onClick={() => confirmarStatus(inscricao.id)}
+                            disabled={confirmandoStatus === inscricao.id}
+                            className="px-2 py-1 rounded-md bg-azul-eletrico text-white text-[11px] font-semibold hover:bg-azul-eletrico/90 disabled:opacity-60 transition-colors"
+                          >
+                            {confirmandoStatus === inscricao.id ? 'Confirmando...' : 'Confirmar alteração'}
+                          </button>
+                          <button
+                            onClick={() => setPendingStatus((prev) => {
+                              const next = { ...prev };
+                              delete next[inscricao.id];
+                              return next;
+                            })}
+                            className="px-2 py-1 rounded-md border border-gray-200 text-[11px] text-gray-600 hover:bg-gray-50 transition-colors"
+                          >
+                            Cancelar
+                          </button>
+                        </div>
+                      )}
                       {/* O que o ALUNO respondeu à convocação. Fica visível na
                           lista (e não só no detalhe) porque é a informação que
                           decide se a vaga está realmente preenchida. */}

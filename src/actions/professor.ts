@@ -8,10 +8,11 @@ import { cache } from '@/lib/cache';
 import { sincronizarProjetoSintetico } from '@/lib/projeto-sintetico';
 import { sanitizeHtml } from '@/lib/rich-text';
 import type { PerguntaExtra } from '@/lib/formulario-extra';
-import { isAdministradorGeral, projetosAcessiveis, temAcessoAoProjeto, whereUsuarioTemAcessoAoProjeto } from '@/lib/permissions';
+import { isAdministradorGeral, projetosAcessiveis, temAcessoAoProjeto, whereUsuarioTemAcessoAoProjeto, permissaoDeGestor, projetosComoGestor } from '@/lib/permissions';
 // Meu trabalho (edição controlada + notificação no portal):
 import { camposBloqueadosParaEdicao, deveRegenerarSlugDoProjeto, filtrarEdicaoProjeto } from '@/lib/projetos-edicao';
-import { notificarMudancaStatusInscricao } from '@/lib/notificacoes';
+import { criarNotificacao, notificarMudancaStatusInscricao } from '@/lib/notificacoes';
+import { getVerifiedServerSession } from '@/lib/session';
 import { rotuloRespostaAluno } from '@/lib/inscricao-aluno';
 import { mensagemVagaLotada } from '@/lib/vagas';
 import { limparAnexosRemovidos, validarMidiasDoPost } from '@/lib/post-midias-server';
@@ -84,6 +85,25 @@ export async function listMyProjetos(email: string) {
   return projetosAcessiveis(email);
 }
 
+/**
+ * Projetos em que o usuário é GESTOR DA PÁGINA (aluno bolsista/voluntário).
+ * Fica separado de `listMyProjetos` para não misturar com o vínculo de
+ * coordenação: o gestor tem um painel limitado.
+ */
+export async function listProjetosQueGerencio(email: string) {
+  const sessao = await getVerifiedServerSession();
+  if (!sessao?.email || sessao.email.toLowerCase() !== email.toLowerCase()) return [];
+
+  const ids = await projetosComoGestor(email);
+  if (ids.length === 0) return [];
+
+  return prisma.projeto.findMany({
+    where: { id: { in: ids } },
+    orderBy: { updatedAt: 'desc' },
+    include: { _count: { select: { inscricoes: true } } },
+  });
+}
+
 export async function getProjetoDetalhes(projetoId: string, userEmail: string) {
   if (!(await temAcessoAoProjeto(projetoId, userEmail))) return null;
 
@@ -97,6 +117,261 @@ export async function getProjetoDetalhes(projetoId: string, userEmail: string) {
       cursos: true,
       _count: { select: { inscricoes: true } },
     },
+  });
+}
+
+// ==================== GESTÃO DA PÁGINA (aluno gestor) ====================
+
+export type PaginaProjetoFormData = {
+  resumoCurto?: string;
+  descricao?: string;
+  logoUrl?: string;
+  corPrimaria?: string;
+  email?: string;
+  instagram?: string;
+  site?: string;
+};
+
+export type GestorDaPagina = {
+  userId: string;
+  nome: string;
+  email: string;
+  desde: Date;
+};
+
+export type CandidatoAGestor = {
+  userId: string;
+  nome: string;
+  email: string;
+  tipoInteresse: string;
+  jaEhGestor: boolean;
+};
+
+/**
+ * Dados de apresentação da página que o gestor PODE editar.
+ * Nada de coordenador, status, SUAP, vagas, inscrições ou exclusão.
+ */
+export async function getPaginaDoProjeto(projetoId: string, userEmail: string) {
+  if (!(await temAcessoAoProjeto(projetoId, userEmail, { incluirGestor: true }))) return null;
+
+  return prisma.projeto.findUnique({
+    where: { id: projetoId },
+    select: {
+      id: true,
+      nome: true,
+      slug: true,
+      resumoCurto: true,
+      descricao: true,
+      logoUrl: true,
+      corPrimaria: true,
+      email: true,
+      instagram: true,
+      site: true,
+    },
+  });
+}
+
+/** Salva apenas a apresentação da página — exclusivo de quem coordena ou gere. */
+export async function salvarPaginaDoProjeto(
+  projetoId: string,
+  data: PaginaProjetoFormData,
+  userEmail: string,
+): Promise<ActionResult> {
+  try {
+    if (!(await temAcessoAoProjeto(projetoId, userEmail, { incluirGestor: true }))) {
+      return { ok: false, error: MENSAGENS.semPermissao };
+    }
+
+    const resumoCurto = (data.resumoCurto ?? '').trim();
+    const descricao = (data.descricao ?? '').trim();
+    const logoUrl = (data.logoUrl ?? '').trim();
+    const corPrimaria = (data.corPrimaria ?? '').trim();
+    const email = (data.email ?? '').trim();
+    const instagram = (data.instagram ?? '').trim();
+    const site = (data.site ?? '').trim();
+
+    if (resumoCurto.length > 200) {
+      return { ok: false, error: 'O resumo da página deve ter no máximo 200 caracteres.' };
+    }
+    if (descricao.length > 8000) {
+      return { ok: false, error: 'A descrição da página deve ter no máximo 8.000 caracteres.' };
+    }
+    if (logoUrl && !/^(https?:\/\/|\/)/i.test(logoUrl)) {
+      return { ok: false, error: 'A logo precisa ser uma URL http(s) ou um arquivo enviado pelo portal.' };
+    }
+    if (corPrimaria && !/^#[0-9a-f]{6}$/i.test(corPrimaria)) {
+      return { ok: false, error: 'A cor principal precisa estar no formato #RRGGBB.' };
+    }
+    if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      return { ok: false, error: 'Informe um e-mail de contato válido.' };
+    }
+    if (site && !/^https?:\/\//i.test(site)) {
+      return { ok: false, error: 'O site precisa começar com http:// ou https://.' };
+    }
+    if (instagram.length > 120) {
+      return { ok: false, error: 'O Instagram informado é longo demais.' };
+    }
+
+    await prisma.projeto.update({
+      where: { id: projetoId },
+      data: {
+        resumoCurto: resumoCurto || null,
+        descricao: descricao || null,
+        logoUrl: logoUrl || null,
+        corPrimaria: corPrimaria || '#2F52D3',
+        email: email || null,
+        instagram: instagram || null,
+        site: site || null,
+      },
+    });
+    cache.invalidate('chat:');
+    await sincronizarProjetoSintetico(projetoId).catch(console.error);
+
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: translatePrismaError(e) };
+  }
+}
+
+/** Lista quem já é gestor da página (só coordenação/admin vê). */
+export async function listarGestoresDaPagina(projetoId: string, userEmail: string) {
+  if (!(await temAcessoAoProjeto(projetoId, userEmail))) {
+    return { ok: false as const, error: MENSAGENS.semPermissaoCoordenador };
+  }
+
+  const permissoes = await prisma.userPermission.findMany({
+    where: { permission: permissaoDeGestor(projetoId) },
+    include: { user: { select: { id: true, name: true, email: true } } },
+    orderBy: { created_at: 'asc' },
+  });
+
+  return {
+    ok: true as const,
+    data: permissoes.map<GestorDaPagina>((p) => ({
+      userId: p.user.id,
+      nome: p.user.name ?? p.user.email,
+      email: p.user.email,
+      desde: p.created_at,
+    })),
+  };
+}
+
+/** Alunos selecionados no projeto que podem receber o cargo (só coordenação vê). */
+export async function listarCandidatosAGestor(projetoId: string, userEmail: string) {
+  if (!(await temAcessoAoProjeto(projetoId, userEmail))) {
+    return { ok: false as const, error: MENSAGENS.semPermissaoCoordenador };
+  }
+
+  const [inscricoes, permissoes] = await Promise.all([
+    prisma.inscricao.findMany({
+      where: { projeto_id: projetoId, status: 'selecionado', user_id: { not: null } },
+      orderBy: { nome_completo: 'asc' },
+      select: {
+        user_id: true,
+        nome_completo: true,
+        email: true,
+        tipo_interesse: true,
+      },
+    }),
+    prisma.userPermission.findMany({
+      where: { permission: permissaoDeGestor(projetoId) },
+      select: { user_id: true },
+    }),
+  ]);
+
+  const gestores = new Set(permissoes.map((p) => p.user_id));
+  const vistos = new Set<string>();
+  const candidatos: CandidatoAGestor[] = [];
+
+  for (const inscricao of inscricoes) {
+    if (!inscricao.user_id || vistos.has(inscricao.user_id)) continue;
+    vistos.add(inscricao.user_id);
+    candidatos.push({
+      userId: inscricao.user_id,
+      nome: inscricao.nome_completo,
+      email: inscricao.email,
+      tipoInteresse: inscricao.tipo_interesse,
+      jaEhGestor: gestores.has(inscricao.user_id),
+    });
+  }
+
+  return { ok: true as const, data: candidatos };
+}
+
+/**
+ * Concede/remove o cargo de gestor da página.
+ * Exige coordenador/vice/admin e que o aluno esteja SELECIONADO no projeto.
+ */
+export async function definirGestorDaPagina(
+  projetoId: string,
+  targetUserId: string,
+  ativo: boolean,
+  userEmail: string,
+): Promise<ActionResult> {
+  try {
+    if (!(await temAcessoAoProjeto(projetoId, userEmail))) {
+      return { ok: false, error: MENSAGENS.semPermissaoCoordenador };
+    }
+
+    const [projeto, alvo, autor] = await Promise.all([
+      prisma.projeto.findUnique({ where: { id: projetoId }, select: { nome: true } }),
+      prisma.user.findUnique({ where: { id: targetUserId }, select: { id: true, name: true, email: true } }),
+      prisma.user.findUnique({ where: { email: userEmail }, select: { id: true } }),
+    ]);
+
+    if (!projeto) return { ok: false, error: 'Projeto não encontrado.' };
+    if (!alvo) return { ok: false, error: 'Usuário não encontrado.' };
+
+    const permission = permissaoDeGestor(projetoId);
+
+    if (ativo) {
+      const selecionado = await prisma.inscricao.findFirst({
+        where: { projeto_id: projetoId, user_id: targetUserId, status: 'selecionado' },
+        select: { id: true },
+      });
+      if (!selecionado) {
+        return {
+          ok: false,
+          error: 'Só um aluno selecionado neste projeto (bolsista ou voluntário) pode ser gestor da página.',
+        };
+      }
+
+      await prisma.userPermission.upsert({
+        where: { user_id_permission: { user_id: targetUserId, permission } },
+        update: { granted_by: autor?.id ?? null },
+        create: { user_id: targetUserId, permission, granted_by: autor?.id ?? null },
+      });
+
+      await criarNotificacao({
+        userId: targetUserId,
+        titulo: `Você agora é gestor da página de "${projeto.nome}"`,
+        texto:
+          'Você pode editar os posts e a apresentação da página do projeto. ' +
+          'Vagas, inscrições e dados institucionais continuam com a coordenação.',
+        link: `/professor/projetos/${projetoId}/pagina`,
+      }).catch(console.error);
+    } else {
+      await prisma.userPermission.deleteMany({
+        where: { user_id: targetUserId, permission },
+      });
+    }
+
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: translatePrismaError(e) };
+  }
+}
+
+/**
+ * Resumo mínimo do projeto para a tela de posts (gestor incluído).
+ * Não devolve coordenadores, inscrições nem nada sensível.
+ */
+export async function getProjetoParaConteudo(projetoId: string, userEmail: string) {
+  if (!(await temAcessoAoProjeto(projetoId, userEmail, { incluirGestor: true }))) return null;
+
+  return prisma.projeto.findUnique({
+    where: { id: projetoId },
+    select: { id: true, nome: true, slug: true },
   });
 }
 
@@ -309,6 +584,20 @@ export async function updateInscricaoStatus(
       return { ok: false, error: MENSAGENS.semPermissaoCoordenador };
     }
 
+    // Só os estados previstos na tela. Antes, qualquer string era aceita e ia
+    // direto para o banco (inclusive um erro de digitação do cliente).
+    const STATUS_VALIDOS = [
+      'recebida', 'em_analise', 'selecionado', 'lista_espera', 'nao_selecionado', 'desistente',
+    ];
+    if (!STATUS_VALIDOS.includes(status)) {
+      return { ok: false, error: 'Situação de inscrição inválida.' };
+    }
+
+    // A notificação só faz sentido quando o STATUS mudou. Se o professor apenas
+    // salvou a mesma situação (ou só a observação interna), o aluno não recebe
+    // nada — era o excesso de avisos que motivou o botão de confirmação.
+    const mudouStatus = status !== inscricaoAtual.status;
+
     // Seleção por vaga: não deixa selecionar além da quantidade de posições da
     // vaga. Além de bloquear, a mensagem NOMEIA quem já está selecionado —
     // antes ela só dizia "já está com todas as N posições preenchidas", e quem
@@ -353,7 +642,7 @@ export async function updateInscricaoStatus(
     // ausente, por exemplo, que lança antes de devolver a promessa) estouraria
     // aqui e a coordenação veria "algo não saiu como esperado" para uma mudança
     // que, de fato, foi aplicada — e repetir a operação não resolveria nada.
-    if (inscricaoAtual.email) {
+    if (mudouStatus && inscricaoAtual.email) {
       void Promise.resolve()
         .then(() =>
           enviarAtualizacaoStatus({
@@ -371,16 +660,18 @@ export async function updateInscricaoStatus(
     // ROADMAP 6.2: espelha o aviso no portal (sino de notificações) para quem
     // se inscreveu logado. Não bloqueia a resposta nem falha a action. O destino
     // é "Meus Dados", onde o aluno responde à convocação (ver lib/notificacoes).
-    void Promise.resolve()
-      .then(() =>
-        notificarMudancaStatusInscricao({
-          userId: inscricaoAtual.user_id,
-          protocolo: inscricaoAtual.protocolo,
-          projetoNome: inscricaoAtual.projeto.nome,
-          novoStatus: status,
-        }),
-      )
-      .catch(console.error);
+    if (mudouStatus) {
+      void Promise.resolve()
+        .then(() =>
+          notificarMudancaStatusInscricao({
+            userId: inscricaoAtual.user_id,
+            protocolo: inscricaoAtual.protocolo,
+            projetoNome: inscricaoAtual.projeto.nome,
+            novoStatus: status,
+          }),
+        )
+        .catch(console.error);
+    }
 
     return { ok: true };
   } catch (e) {
@@ -933,7 +1224,7 @@ function validarCamposDoPost(data: PostFormData): Validado<{
 }
 
 export async function listPosts(projetoId: string, userEmail: string) {
-  if (!(await temAcessoAoProjeto(projetoId, userEmail))) return { ok: false, error: MENSAGENS.semPermissao } as const;
+  if (!(await temAcessoAoProjeto(projetoId, userEmail, { incluirGestor: true }))) return { ok: false, error: MENSAGENS.semPermissao } as const;
 
   const posts = await prisma.post.findMany({
     where: { projetoId },
@@ -945,7 +1236,7 @@ export async function listPosts(projetoId: string, userEmail: string) {
 
 export async function createPost(projetoId: string, data: PostFormData, userEmail: string): Promise<ActionResult> {
   try {
-    if (!(await temAcessoAoProjeto(projetoId, userEmail))) return { ok: false, error: MENSAGENS.semPermissao };
+    if (!(await temAcessoAoProjeto(projetoId, userEmail, { incluirGestor: true }))) return { ok: false, error: MENSAGENS.semPermissao };
 
     const user = await prisma.user.findUnique({ where: { email: userEmail } });
     if (!user) return { ok: false, error: MENSAGENS.usuarioNaoEncontrado };
@@ -990,7 +1281,7 @@ export async function updatePost(postId: string, data: PostFormData, userEmail: 
     });
     if (!post) return { ok: false, error: 'Não encontramos esta publicação. Ela pode ter sido removida por outra pessoa.' };
 
-    if (!(await temAcessoAoProjeto(post.projetoId, userEmail))) return { ok: false, error: MENSAGENS.semPermissao };
+    if (!(await temAcessoAoProjeto(post.projetoId, userEmail, { incluirGestor: true }))) return { ok: false, error: MENSAGENS.semPermissao };
 
     const v = validarCamposDoPost(data);
     if (!v.ok) return v;
@@ -1028,7 +1319,7 @@ export async function deletePost(postId: string, userEmail: string): Promise<Act
     const post = await prisma.post.findUnique({ where: { id: postId }, select: { projetoId: true } });
     if (!post) return { ok: false, error: 'Não encontramos esta publicação. Ela pode ter sido removida por outra pessoa.' };
 
-    if (!(await temAcessoAoProjeto(post.projetoId, userEmail))) return { ok: false, error: MENSAGENS.semPermissao };
+    if (!(await temAcessoAoProjeto(post.projetoId, userEmail, { incluirGestor: true }))) return { ok: false, error: MENSAGENS.semPermissao };
 
     await prisma.post.delete({ where: { id: postId } });
 

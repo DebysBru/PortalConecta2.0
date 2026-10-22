@@ -19,8 +19,10 @@ import type { PerguntaExtra } from '@/lib/formulario-extra';
 import {
   isAdministradorGeral,
   isCoordenadorOuViceDoProjeto,
+  PERMISSAO_ADMIN_GERAL,
   resolveUserRole,
   usuarioTemAlgumProjeto,
+  usuarioTemAlgumProjetoComoGestor,
 } from '@/lib/permissions';
 import {
   CategoriaEdital, StatusEdital, StatusProjeto, StatusPost,
@@ -75,7 +77,10 @@ export async function getUserRole(email: string): Promise<UserRole | null> {
   return resolveUserRole(email);
 }
 
-export async function ensureUser(email: string, name?: string): Promise<{ id: string; role: UserRole }> {
+export async function ensureUser(
+  email: string,
+  name?: string,
+): Promise<{ id: string; role: UserRole; isMasterAdmin: boolean; isGestor: boolean }> {
   const user = await prisma.user.upsert({
     where: { email },
     update: name ? { name } : {},
@@ -85,7 +90,13 @@ export async function ensureUser(email: string, name?: string): Promise<{ id: st
   // cliente já receba ADMIN/PROFESSOR corretos no primeiro login, em vez do
   // ESTUDANTE default do upsert acima.
   const role = (await resolveUserRole(email)) ?? user.role;
-  return { id: user.id, role };
+  return {
+    id: user.id,
+    role,
+    // Flags de interface: o servidor revalida tudo em cada action.
+    isMasterAdmin: isAdministradorGeral(email),
+    isGestor: await usuarioTemAlgumProjetoComoGestor(email),
+  };
 }
 
 // ── Dashboard stats ───────────────────────────────────────────────────────────
@@ -766,7 +777,15 @@ export async function deleteEvento(id: string, callerEmail: string): Promise<Act
 export async function listUsuarios() {
   return prisma.user.findMany({ 
     orderBy: { createdAt: 'desc' },
-    include: { projetosAdmin: { select: { id: true, nome: true } } }
+    include: {
+      projetosAdmin: { select: { id: true, nome: true } },
+      // A tela mostra quem foi promovido pelo e-mail mestre (o papel ADMIN
+      // sozinho também vale para o próprio mestre, que não tem permission).
+      permissions: {
+        where: { permission: PERMISSAO_ADMIN_GERAL },
+        select: { id: true },
+      },
+    }
   });
 }
 
@@ -779,6 +798,13 @@ export async function updateUserRole(userId: string, role: UserRole, projetoId: 
     const auth = await requireAdminEmail(callerEmail);
     if (!auth.ok) return auth;
 
+    // Gerenciar usuários é exclusivo do e-mail mestre. Um Administrador Geral
+    // promovido pode usar o restante do painel, mas NÃO pode criar outro admin
+    // (nem mudar papéis) — era exatamente a restrição pedida.
+    if (!isAdministradorGeral(callerEmail)) {
+      return { ok: false, error: MENSAGENS.semPermissaoAdminGeral };
+    }
+
     const caller = await prisma.user.findUnique({ where: { email: callerEmail }, select: { id: true } });
     if (caller && caller.id === userId) {
       return { ok: false, error: 'Você não pode alterar o seu próprio nível de acesso.' };
@@ -788,17 +814,34 @@ export async function updateUserRole(userId: string, role: UserRole, projetoId: 
       return { ok: false, error: 'Escolha a qual projeto este professor ficará vinculado.' };
     }
 
-    // Só existe um Administrador Geral (ADMIN_EMAILS) — ninguém mais pode
-    // virar ADMIN por aqui, mesmo sendo o próprio Administrador Geral quem
-    // chamou a action. Sem essa checagem, o painel de Usuários permitia criar
-    // administradores adicionais, contrariando o modelo de "um só Admin Geral
-    // + professores restritos aos próprios projetos".
+    const target = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { email: true, role: true },
+    });
+    if (!target) return { ok: false, error: 'Usuário não encontrado.' };
+
     if (role === 'ADMIN') {
-      const target = await prisma.user.findUnique({ where: { id: userId }, select: { email: true } });
-      if (!target || !isAdministradorGeral(target.email)) {
-        return { ok: false, error: 'O portal tem um único Administrador Geral, definido na configuração do sistema. Não é possível promover outra pessoa a esse nível.' };
+      // O e-mail mestre já é ADMIN por configuração; qualquer outro passa a ser
+      // Administrador Geral via permissão explícita `admin_geral`.
+      if (!isAdministradorGeral(target.email)) {
+        await prisma.userPermission.upsert({
+          where: { user_id_permission: { user_id: userId, permission: PERMISSAO_ADMIN_GERAL } },
+          update: { granted_by: caller?.id ?? null },
+          create: { user_id: userId, permission: PERMISSAO_ADMIN_GERAL, granted_by: caller?.id ?? null },
+        });
       }
+      await prisma.user.update({ where: { id: userId }, data: { role: 'ADMIN' } });
+      return { ok: true };
     }
+
+    // Rebaixar o e-mail mestre é proibido. Para os demais, sair de ADMIN
+    // remove a permissão que sustentava o papel (o próximo login recalcula).
+    if (isAdministradorGeral(target.email)) {
+      return { ok: false, error: 'O Administrador Geral definido na configuração do sistema não pode ser rebaixado por aqui.' };
+    }
+    await prisma.userPermission.deleteMany({
+      where: { user_id: userId, permission: PERMISSAO_ADMIN_GERAL },
+    });
 
     await prisma.user.update({ where: { id: userId }, data: { role } });
 
@@ -826,9 +869,18 @@ export async function deleteUser(userId: string, callerEmail: string): Promise<A
     const auth = await requireAdminEmail(callerEmail);
     if (!auth.ok) return auth;
 
+    if (!isAdministradorGeral(callerEmail)) {
+      return { ok: false, error: MENSAGENS.semPermissaoAdminGeral };
+    }
+
     const caller = await prisma.user.findUnique({ where: { email: callerEmail }, select: { id: true } });
     if (caller && caller.id === userId) {
       return { ok: false, error: 'Você não pode excluir a sua própria conta enquanto está logado nela.' };
+    }
+
+    const alvo = await prisma.user.findUnique({ where: { id: userId }, select: { email: true } });
+    if (alvo && isAdministradorGeral(alvo.email)) {
+      return { ok: false, error: 'O Administrador Geral definido na configuração do sistema não pode ser excluído.' };
     }
 
     await prisma.user.delete({ where: { id: userId } });
@@ -843,13 +895,12 @@ export async function inviteUser(email: string, role: UserRole, projetoId: strin
     const auth = await requireAdminEmail(callerEmail);
     if (!auth.ok) return auth;
 
-    if (role === 'PROFESSOR' && !projetoId) {
-      return { ok: false, error: 'Escolha a qual projeto este professor ficará vinculado.' };
+    if (!isAdministradorGeral(callerEmail)) {
+      return { ok: false, error: MENSAGENS.semPermissaoAdminGeral };
     }
 
-    // Mesma regra de updateUserRole: só o Administrador Geral (ADMIN_EMAILS) pode ser ADMIN.
-    if (role === 'ADMIN' && !isAdministradorGeral(email)) {
-      return { ok: false, error: 'O portal tem um único Administrador Geral, definido na configuração do sistema. Não é possível convidar outra pessoa com esse nível de acesso.' };
+    if (role === 'PROFESSOR' && !projetoId) {
+      return { ok: false, error: 'Escolha a qual projeto este professor ficará vinculado.' };
     }
 
     const user = await prisma.user.upsert({
@@ -857,6 +908,21 @@ export async function inviteUser(email: string, role: UserRole, projetoId: strin
       update: { role },
       create: { email, name: email, role },
     });
+
+    if (role === 'ADMIN' && !isAdministradorGeral(email)) {
+      // Convite com nível ADMIN cria a permissão que sustenta o papel.
+      await prisma.userPermission.upsert({
+        where: { user_id_permission: { user_id: user.id, permission: PERMISSAO_ADMIN_GERAL } },
+        update: {},
+        create: { user_id: user.id, permission: PERMISSAO_ADMIN_GERAL },
+      });
+    } else if (role !== 'ADMIN') {
+      // Rebaixar pelo convite também precisa remover a permissão; sem isso o
+      // próximo login recalcularia o papel e devolveria ADMIN.
+      await prisma.userPermission.deleteMany({
+        where: { user_id: user.id, permission: PERMISSAO_ADMIN_GERAL },
+      });
+    }
 
     if (role === 'PROFESSOR' && projetoId) {
       await prisma.projeto.update({
