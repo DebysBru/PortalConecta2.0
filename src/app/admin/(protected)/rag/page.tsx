@@ -74,6 +74,7 @@ export default function AdminRagPage() {
   const [uploadFile, setUploadFile] = useState<File | null>(null);
   const [saving, setSaving] = useState(false);
   const [search, setSearch] = useState('');
+  const [limiteLista, setLimiteLista] = useState(80);
   const [error, setError] = useMensagemErro();
   const [editingTitulo, setEditingTitulo] = useState('');
   const [deleteDocId, setDeleteDocId] = useState<string | null>(null);
@@ -216,6 +217,11 @@ export default function AdminRagPage() {
     d.titulo.toLowerCase().includes(search.toLowerCase()) ||
     d.tipo.toLowerCase().includes(search.toLowerCase())
   );
+
+  // A base do campus tem ~3.270 documentos: renderizar todos de uma vez trava a
+  // aba. A lista mostra os primeiros e o botão "mostrar mais" revela o resto.
+  const visiveis = filtered.slice(0, limiteLista);
+  const restantes = filtered.length - visiveis.length;
 
   if (loading) {
     return (
@@ -560,7 +566,11 @@ export default function AdminRagPage() {
           type="search"
           placeholder="Buscar documentos..."
           value={search}
-          onChange={(e) => setSearch(e.target.value)}
+          onChange={(e) => {
+            setSearch(e.target.value);
+            // Nova busca, lista nova: volta ao primeiro bloco de resultados.
+            setLimiteLista(80);
+          }}
           className="w-full pl-10 pr-4 py-2 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-azul-eletrico"
         />
       </div>
@@ -594,7 +604,7 @@ export default function AdminRagPage() {
         </div>
       ) : (
         <div className="space-y-3">
-          {filtered.map((doc) => (
+          {visiveis.map((doc) => (
             <div key={doc.id} className="bg-white rounded-2xl border border-gray-100 p-5 hover:shadow-sm transition-shadow">
               <div className="flex items-start justify-between gap-4">
                 <div
@@ -661,6 +671,15 @@ export default function AdminRagPage() {
               </div>
             </div>
           ))}
+
+          {restantes > 0 && (
+            <button
+              onClick={() => setLimiteLista((atual) => atual + 80)}
+              className="w-full rounded-xl border border-dashed border-gray-300 bg-white py-3 text-sm font-semibold text-gray-600 transition-colors hover:border-azul-eletrico/40 hover:text-azul-eletrico"
+            >
+              Mostrar mais {Math.min(restantes, 80)} de {restantes} documento(s)
+            </button>
+          )}
         </div>
       )}
 

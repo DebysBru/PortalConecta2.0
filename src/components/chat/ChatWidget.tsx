@@ -2,13 +2,16 @@
 
 import React, { useState, useRef, useEffect } from 'react';
 import Image from 'next/image';
-import { MessageCircle, X, Send, Sparkles, Loader2 } from 'lucide-react';
+import { MessageCircle, X, Send, Sparkles, Loader2, Link2, ExternalLink } from 'lucide-react';
 import Markdown from 'react-markdown';
 import { EVENTO_ABRIR_CHAT } from '@/lib/ifizinha-chat';
+import { rotuloDoLink, type FonteResposta } from '@/lib/fontes-resposta';
 
 type Message = {
   role: 'user' | 'assistant';
   content: string;
+  /** Fontes citadas na resposta — exibidas como links para conferência. */
+  fontes?: FonteResposta[];
 };
 
 export function ChatWidget() {
@@ -16,7 +19,8 @@ export function ChatWidget() {
   const [messages, setMessages] = useState<Message[]>([
     {
       role: 'assistant',
-      content: 'Oi! Eu sou a IFizinha! ✨ Posso te ajudar com informações sobre projetos e editais do IFPR Campus Ivaiporã. O que você quer saber?',
+      content:
+        'Oi! Eu sou a IFizinha! ✨ Posso te ajudar com informações sobre editais, cursos, bolsas, projetos e a vida acadêmica no IFPR Campus Ivaiporã. Sempre que eu responder com base em um documento do campus, deixo o link da fonte logo abaixo — assim você confere tudo no site oficial. O que você quer saber?',
     },
   ]);
   const [input, setInput] = useState('');
@@ -53,14 +57,19 @@ export function ChatWidget() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           message: userMessage,
-          history: messages.slice(-6),
+          // Só role/content vai para o servidor — mandar o objeto inteiro
+          // levaria a lista de fontes de cada mensagem sem uso nenhum.
+          history: messages.slice(-6).map(({ role, content }) => ({ role, content })),
         }),
       });
 
       const data = await response.json();
 
       if (data.reply) {
-        setMessages((prev) => [...prev, { role: 'assistant', content: data.reply }]);
+        setMessages((prev) => [
+          ...prev,
+          { role: 'assistant', content: data.reply, fontes: Array.isArray(data.fontes) ? data.fontes : [] },
+        ]);
       } else {
         setMessages((prev) => [
           ...prev,
@@ -185,6 +194,59 @@ export function ChatWidget() {
                   ) : (
                     msg.content
                   )}
+
+                  {/* Fontes — o "igual as IA fazem": lista numerada com link
+                      para a página oficial de onde a informação saiu. Aparece
+                      mesmo quando o modelo esquece de citar no texto, porque a
+                      lista é montada no servidor a partir dos trechos que a
+                      busca devolveu. */}
+                  {msg.role === 'assistant' && msg.fontes && msg.fontes.length > 0 && (
+                    <div className="mt-3 border-t border-gray-300/70 pt-2">
+                      <p className="mb-1.5 flex items-center gap-1 text-[11px] font-semibold uppercase tracking-wide text-gray-500">
+                        <Link2 className="h-3 w-3" />
+                        Fontes
+                      </p>
+                      <ul className="space-y-1">
+                        {msg.fontes.map((fonte) => (
+                          <li key={`${fonte.numero}-${fonte.url ?? fonte.titulo}`}>
+                            {fonte.url ? (
+                              <a
+                                href={fonte.url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                title={fonte.titulo}
+                                className="group flex items-start gap-1.5 rounded-md px-1 py-0.5 text-[11px] leading-snug text-azul-eletrico hover:bg-blue-50"
+                              >
+                                <span className="mt-px flex h-4 w-4 flex-shrink-0 items-center justify-center rounded bg-azul-eletrico/10 text-[9px] font-bold">
+                                  {fonte.numero}
+                                </span>
+                                <span className="min-w-0 flex-1">
+                                  <span className="line-clamp-2 font-medium group-hover:underline">
+                                    {fonte.titulo}
+                                  </span>
+                                  <span className="flex items-center gap-1 text-[10px] text-gray-500">
+                                    {fonte.categoria}
+                                    {rotuloDoLink(fonte.url) ? ` · ${rotuloDoLink(fonte.url)}` : ''}
+                                    <ExternalLink className="h-2.5 w-2.5" />
+                                  </span>
+                                </span>
+                              </a>
+                            ) : (
+                              <span className="flex items-start gap-1.5 px-1 py-0.5 text-[11px] leading-snug text-gray-500">
+                                <span className="mt-px flex h-4 w-4 flex-shrink-0 items-center justify-center rounded bg-gray-200 text-[9px] font-bold text-gray-600">
+                                  {fonte.numero}
+                                </span>
+                                <span className="min-w-0 flex-1">{fonte.titulo}</span>
+                              </span>
+                            )}
+                          </li>
+                        ))}
+                      </ul>
+                      <p className="mt-1 text-[10px] leading-snug text-gray-400">
+                        Confira sempre na fonte oficial antes de se inscrever.
+                      </p>
+                    </div>
+                  )}
                 </div>
               </div>
             ))}
@@ -206,7 +268,7 @@ export function ChatWidget() {
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
                 onKeyPress={handleKeyPress}
-                placeholder="Pergunte sobre projetos ou editais..."
+                placeholder="Pergunte sobre editais, cursos, bolsas..."
                 className="flex-1 px-4 py-2.5 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-azul-eletrico focus:border-transparent"
                 disabled={isLoading}
               />
@@ -219,7 +281,15 @@ export function ChatWidget() {
               </button>
             </div>
             <p className="text-[10px] text-gray-400 text-center mt-2">
-              A IFizinha responde com base nos dados do portal.
+              Respostas com base nos documentos oficiais do campus — com link da fonte.{' '}
+              <a
+                href="/ifizinha/conteudos"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="underline hover:text-azul-eletrico"
+              >
+                Ver tudo o que eu conheço
+              </a>
             </p>
           </div>
         </div>

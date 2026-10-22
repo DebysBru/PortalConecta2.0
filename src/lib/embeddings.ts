@@ -109,12 +109,21 @@ export async function generateBatchEmbeddings(
 }
 
 /**
- * Chamada à API de Embeddings do Gemini (batchEmbedContents) com retry exponencial.
+ * Chamada à API de Embeddings do Gemini (batchEmbedContents) com retry.
+ *
+ * Dois cuidados que vieram de importações reais:
+ *
+ * 1. **429 (limite de uso) não é erro fatal.** O tier gratuito do Gemini tem
+ *    limite por minuto; importar o corpus do campus (~31 mil trechos) encosta
+ *    nesse limite. Esperar e repetir resolve — por isso o 429 tem espera
+ *    própria (`Retry-After`, se o provedor mandar, ou backoff maior).
+ * 2. **5 tentativas, não 3**, com espera de até ~30 s: 3 tentativas com espera
+ *    de 0,5–2 s não sustentam um lote grande.
  */
 async function requestGeminiEmbeddingsWithRetry(
   inputs: string[],
   cfg: EmbeddingConfig,
-  retries = 3
+  retries = 5
 ): Promise<number[][]> {
   let lastError: Error | null = null;
 
@@ -134,6 +143,25 @@ async function requestGeminiEmbeddingsWithRetry(
           })),
         }),
       });
+
+      if (response.status === 429) {
+        const retryAfterSegundos = Number(response.headers.get('retry-after')) || 0;
+        const esperaMs = retryAfterSegundos > 0
+          ? Math.min(retryAfterSegundos * 1000, 90_000)
+          : Math.min(30_000, 2000 * Math.pow(2, attempt - 1));
+
+        log.warn('Limite de uso do provedor de embeddings — aguardando antes de repetir', {
+          tentativa: attempt,
+          totalTentativas: retries,
+          esperaMs,
+        });
+
+        lastError = new Error('Gemini Embedding API error (429): limite de uso');
+        if (attempt < retries) {
+          await new Promise((r) => setTimeout(r, esperaMs));
+        }
+        continue;
+      }
 
       if (!response.ok) {
         const errBody = await response.text().catch(() => '');
@@ -155,8 +183,8 @@ async function requestGeminiEmbeddingsWithRetry(
       lastError = err instanceof Error ? err : new Error(String(err));
       log.warn('Tentativa de embedding falhou', { tentativa: attempt, totalTentativas: retries, erro: lastError.message });
       if (attempt < retries) {
-        // Backoff exponencial: 500ms, 1000ms, 2000ms
-        await new Promise((r) => setTimeout(r, Math.pow(2, attempt - 1) * 500));
+        // Backoff exponencial: 1s, 2s, 4s, 8s
+        await new Promise((r) => setTimeout(r, Math.pow(2, attempt - 1) * 1000));
       }
     }
   }
