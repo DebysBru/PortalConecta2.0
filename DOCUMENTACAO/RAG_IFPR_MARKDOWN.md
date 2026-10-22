@@ -117,8 +117,14 @@ npm run rag:importar -- --forcar
 Toda resposta da IFizinha vem acompanhada da lista de fontes, com link para a
 página oficial — o mesmo padrão de "IA com citações".
 
-- O contexto enviado ao modelo numera cada documento: `[fonte 1]`, `[fonte 2]`...
-- O modelo é instruído a citar o número no fim da frase (`... até 10 de março [1].`).
+- O contexto enviado ao modelo numera **tudo** no mesmo formato: `[fonte 1]`,
+  `[fonte 2]`... (documento, projeto e edital). Isso é proposital: quando o
+  projeto usava `[projeto 1]`, o modelo citava só documento e a página do
+  projeto não aparecia na lista.
+- O modelo é instruído a citar o número no fim da frase (`... até 10 de março [1].`)
+  e a citar **cada item** quando lista projetos/editais.
+- A lista final mostra **apenas as fontes citadas** e **apenas as que têm link**
+  (`filtrarFontesCitadas`): fonte sem link não deixa ninguém conferir a origem.
 - O servidor monta a lista a partir dos trechos que a busca **realmente**
   devolveu (`src/lib/fontes-resposta.ts`) e a envia junto da resposta:
 
@@ -147,6 +153,19 @@ texto. Instrução de prompt é sugestão; lista montada por código é garantia
 
 Projetos e editais cadastrados no portal também entram como fonte, apontando
 para `/projetos/<slug>` e `/editais/<slug>`.
+
+### Perguntas sobre uma pessoa
+
+"Quais projetos o prof. Ronan está envolvido?" é pergunta sobre **uma pessoa**,
+não sobre projetos em geral. `src/lib/pessoa-na-pergunta.ts` compara a pergunta
+com a lista real de coordenadores do banco e, quando reconhece alguém, a consulta
+passa a filtrar por `coordenador`/`viceCoordenadorNome` **sem o corte de 10** e o
+contexto informa o total.
+
+Isso corrigiu um bug real (22/10/2026): a lista do prof. Ronan vinha com 5 dos 6
+projetos e sem o do "TV Box", porque a consulta pegava os 10 projetos do topo do
+portal e só 1 era dele. O que faltava aparecia apenas quando a pessoa citava o
+nome do projeto na pergunta.
 
 ---
 
