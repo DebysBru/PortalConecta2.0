@@ -15,6 +15,8 @@ type Configuracao = {
   dica: string;
   areaSegura: string;
   areaSeguraInset: string;
+  /** Faixa da imagem que já é ocupada por texto/logo na tela final. */
+  reservaLateral?: { largura: string; rotulo: string };
   previas: Previa[];
 };
 
@@ -41,10 +43,11 @@ const CONFIGURACOES: Record<TipoMidiaParaRecortar, Configuracao> = {
     larguraSaida: 2400,
     alturaSaida: 1200,
     dica:
-      'Proporção 2:1 • saída 2400×1200 px. No desktop o topo/base é recortado; no celular as laterais. ' +
-      'Mantenha o assunto principal nos 60% centrais.',
-    areaSegura: 'Assunto principal no centro',
-    areaSeguraInset: '27% 20%',
+      'Proporção 2:1 • saída 2400×1200 px. Posicione o assunto principal à DIREITA: o logo, o título e o status ocupam a faixa esquerda. ' +
+      'No celular as laterais são recortadas; evite o canto direito extremo, onde fica a mascote.',
+    areaSegura: 'Assunto à direita, livre do texto',
+    areaSeguraInset: '18% 14% 18% 52%',
+    reservaLateral: { largura: '50%', rotulo: 'Logo + título + status' },
     previas: [
       { rotulo: 'Desktop', proporcao: 4.44 },
       { rotulo: 'Celular', proporcao: 1.23 },
@@ -280,6 +283,17 @@ export function EditorDeImagem({
                     <span className="text-xs">Carregando imagem…</span>
                   </div>
                 )}
+                {/* Faixa que o layout real reserva para logo/título/status. */}
+                {config.reservaLateral && (
+                  <div
+                    className="pointer-events-none absolute inset-y-0 left-0 bg-gradient-to-r from-black/55 via-black/20 to-transparent"
+                    style={{ width: config.reservaLateral.largura }}
+                  >
+                    <span className="absolute bottom-2 left-2 rounded bg-black/55 px-1.5 py-0.5 text-[10px] font-medium text-white">
+                      {config.reservaLateral.rotulo}
+                    </span>
+                  </div>
+                )}
                 {/* Guia de área segura */}
                 <div className="pointer-events-none absolute rounded border border-dashed border-white/80" style={{ inset: config.areaSeguraInset }}>
                   <span className="absolute left-2 top-2 rounded bg-black/55 px-1.5 py-0.5 text-[10px] font-medium text-white">
@@ -322,7 +336,7 @@ export function EditorDeImagem({
                   <div key={item.rotulo}>
                     <p className="mb-1 text-xs font-medium text-gray-500">{item.rotulo}</p>
                     <div
-                      className="overflow-hidden rounded-xl border border-gray-200 bg-gray-100"
+                      className="relative overflow-hidden rounded-xl border border-gray-200 bg-gray-100"
                       style={{
                         aspectRatio: String(item.proporcao),
                         backgroundImage: previa ? `url("${previa}")` : undefined,
@@ -330,6 +344,19 @@ export function EditorDeImagem({
                         backgroundPosition: 'center',
                       }}
                     >
+                      {config.reservaLateral && (
+                        <div
+                          className="pointer-events-none absolute inset-y-0 left-0 bg-gradient-to-r from-black/65 via-black/30 to-transparent p-2"
+                          style={{ width: '58%' }}
+                        >
+                          <div className="mb-1.5 h-4 w-4 rounded bg-white/80" />
+                          <div className="h-1.5 w-3/4 rounded bg-white/90" />
+                          <div className="mt-1 h-1 w-1/2 rounded bg-white/60" />
+                          <p className="absolute bottom-1.5 left-2 text-[9px] font-medium text-white/90">
+                            Texto e logo
+                          </p>
+                        </div>
+                      )}
                       {!previa && (
                         <div className="flex h-full items-center justify-center text-xs text-gray-400">
                           Gerando prévia…

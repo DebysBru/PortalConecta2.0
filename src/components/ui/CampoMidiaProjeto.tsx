@@ -147,7 +147,7 @@ export function CampoMidiaProjeto({
 
       <p className="text-xs text-gray-400">
         {ehCapa
-          ? 'Recomendado 2400×1200 px (2:1). No desktop o topo/base é recortado; no celular as laterais. Mantenha o assunto principal nos 60% centrais.'
+          ? 'Recomendado 2400×1200 px (2:1). Posicione o assunto principal à direita: o logo, o título e o status ficam na faixa esquerda. Evite o canto direito extremo (mascote).'
           : 'Recomendado 512×512 px (1:1), PNG ou WebP com fundo transparente. Deixe cerca de 10% de margem.'}
       </p>
       {erro && (
