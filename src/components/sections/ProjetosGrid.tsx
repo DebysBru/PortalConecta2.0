@@ -6,6 +6,7 @@ import { withCache } from '@/lib/cache';
 import { MascoteIFizinha } from '@/components/ifizinha/MascoteIFizinha';
 import { LogoDoProjeto } from '@/components/projetos/LogoDoProjeto';
 import { estiloDaCapa } from '@/lib/projeto-midia';
+import { textoSimples } from '@/lib/texto';
 
 type Projeto = {
   slug: string;
@@ -60,7 +61,7 @@ function DestaqueCard({ projeto }: { projeto: Projeto }) {
             <span className="truncate">{projeto.coordenador}</span>
           </p>
           <p className="text-sm text-gray-500 leading-relaxed flex-1 line-clamp-2 mb-4">
-            {projeto.descricao}
+            {textoSimples(projeto.descricao)}
           </p>
           <div className="flex items-center justify-between mt-auto">
             <span
@@ -98,7 +99,7 @@ function CompactCard({ projeto }: { projeto: Projeto }) {
               {projeto.nome}
             </h3>
             <p className="text-xs text-gray-400 mt-0.5 truncate">{projeto.coordenador}</p>
-            <p className="text-xs text-gray-500 mt-1.5 line-clamp-1">{projeto.descricao}</p>
+            <p className="text-xs text-gray-500 mt-1.5 line-clamp-1">{textoSimples(projeto.descricao)}</p>
           </div>
 
           <div className="flex flex-col items-end gap-2 flex-shrink-0">

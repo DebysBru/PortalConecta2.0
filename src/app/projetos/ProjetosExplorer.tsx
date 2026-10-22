@@ -11,6 +11,7 @@ import { getStatusLabel } from '@/lib/utils';
 import { MascoteInterativa } from '@/components/ifizinha/MascoteInterativa';
 import { LogoDoProjeto } from '@/components/projetos/LogoDoProjeto';
 import { estiloDaCapa } from '@/lib/projeto-midia';
+import { textoSimples } from '@/lib/texto';
 import {
   buildProjetosHref,
   paginasVisiveis,
@@ -18,15 +19,10 @@ import {
   type ProjetoFiltroParams,
 } from '@/lib/projetos-filtros';
 
-// Versão leve, sem dependência, do `stripHtml` de '@/lib/rich-text' — aquele
-// usa `sanitize-html`, uma lib pensada pra rodar no servidor, que se
-// importada aqui (componente client) infla bastante o bundle enviado ao
-// navegador. Como o resultado só vira texto puro dentro de um <p> (nunca
-// dangerouslySetInnerHTML), um strip por regex é seguro o bastante — o React
-// escapa o texto normalmente na renderização.
+// O helper puro também decodifica entidades e tags escapadas (`&lt;p&gt;`),
+// sem puxar o sanitize-html para o bundle do componente client.
 function stripHtmlLite(text: string | null | undefined): string {
-  if (!text) return '';
-  return text.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
+  return textoSimples(text);
 }
 
 type Props = {

@@ -21,6 +21,7 @@ import { useMensagemErro } from '@/lib/use-mensagem-erro';
 import { LogoDoProjeto } from '@/components/projetos/LogoDoProjeto';
 import { CamposDeApresentacaoDoProjeto } from '@/components/projetos/CamposDeApresentacaoDoProjeto';
 import { estiloDaCapa } from '@/lib/projeto-midia';
+import { textoSimples } from '@/lib/texto';
 
 type Projeto = Awaited<ReturnType<typeof listMyProjetos>>[number];
 
@@ -182,7 +183,7 @@ export default function ProfessorProjetosPage() {
                 <h3 className="font-bold text-gray-900 text-base leading-snug mb-1">
                   {projeto.nome}
                 </h3>
-                <p className="text-sm text-gray-500 mb-3 line-clamp-2">{projeto.descricao}</p>
+                <p className="text-sm text-gray-500 mb-3 line-clamp-2">{textoSimples(projeto.descricao)}</p>
 
                 <div className="flex items-center justify-between mb-4">
                   <span
