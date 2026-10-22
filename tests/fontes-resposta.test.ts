@@ -146,17 +146,17 @@ describe('filtrarFontesCitadas', () => {
     expect(resultado.map((f) => f.numero)).toEqual([1, 3]);
   });
 
-  it('número citado que não existe na lista cai no fallback de documentos', () => {
+  it('número citado que não existe na lista cai no fallback', () => {
     // Modelo citou um número fora da faixa (alucinou): não dá para exibir link
-    // de fonte inexistente, então mostra as fontes de documento disponíveis.
+    // de fonte inexistente, então mostra as primeiras fontes com link.
     const resultado = filtrarFontesCitadas('Conforme o documento [9].', fontes);
-    expect(resultado.map((f) => f.numero)).toEqual([1, 2]);
+    expect(resultado.map((f) => f.numero)).toEqual([1, 2, 3]);
   });
 
-  it('quando o modelo não cita nada, mostra até 3 fontes de documento', () => {
+  it('quando o modelo não cita nada, mostra até 3 fontes com link', () => {
     const resultado = filtrarFontesCitadas('A carga é de 1.333 horas.', fontes);
-    expect(resultado.map((f) => f.numero)).toEqual([1, 2]);
-    expect(resultado.every((f) => f.tipo === 'documento')).toBe(true);
+    expect(resultado.map((f) => f.numero)).toEqual([1, 2, 3]);
+    expect(resultado.every((f) => !!f.url)).toBe(true);
   });
 
   it('não repete a mesma fonte citada várias vezes', () => {

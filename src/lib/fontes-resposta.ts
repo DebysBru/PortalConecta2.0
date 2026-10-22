@@ -195,5 +195,7 @@ export function filtrarFontesCitadas(reply: string, fontes: FonteResposta[]): Fo
 
   if (usadas.length > 0) return usadas.slice(0, LIMITE_DE_FONTES);
 
-  return fontes.filter((fonte) => fonte.tipo === 'documento').slice(0, 3);
+  // Nada citado: mantém as primeiras fontes com link. Elas são, por construção,
+  // as mais relevantes para a pergunta (documentos do RAG vêm antes).
+  return fontes.filter((fonte) => !!fonte.url).slice(0, 3);
 }
