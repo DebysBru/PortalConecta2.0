@@ -154,6 +154,27 @@ texto. Instrução de prompt é sugestão; lista montada por código é garantia
 Projetos e editais cadastrados no portal também entram como fonte, apontando
 para `/projetos/<slug>` e `/editais/<slug>`.
 
+### Contexto: sem HTML e sem texto cortado
+
+As descrições de projeto do portal são HTML do editor rico em **todos** os 233
+registros (média de 4.421 caracteres; a maior tem 81 mil). Até 22/10/2026 o chat
+mandava `descricao.slice(0, 200)` — o modelo recebia `<p style="border:none"...`
+e o começo da frase, e respondia que "o texto vem cortado".
+
+Agora `src/lib/trecho-contexto.ts` limpa o HTML (`textoSimples`) e corta no fim
+de uma frase, **sem reticências** (a reticência é o que fazia o modelo anunciar
+que faltava conteúdo). O orçamento é de ~14 mil caracteres dividido entre os
+projetos da lista. Editais passam pelo mesmo processo.
+
+### Busca por tema
+
+`Projeto.area` guarda **"Pesquisa"/"Extensão"** (o tipo), não a área temática —
+o filtro antigo (`area = 'Tecnologia'`) devolvia zero e a resposta saía só dos
+trechos do RAG. Hoje "informática/programação" vira um conjunto de palavras
+vizinhas (software, redes, computação, maker...) buscadas em nome, resumo,
+descrição e tags, com fallback para a lista do portal se o tema não retornar
+nada. "Projeto ativo" também passou a incluir `INSCRICOES_ABERTAS`.
+
 ### Perguntas sobre uma pessoa
 
 "Quais projetos o prof. Ronan está envolvido?" é pergunta sobre **uma pessoa**,
