@@ -11,7 +11,7 @@ import { LIMPEZA_TABLES } from '@/lib/limpeza-tables';
 import { sincronizarProjetoSintetico, removerProjetoSintetico } from '@/lib/projeto-sintetico';
 import { sanitizeHtml } from '@/lib/rich-text';
 import { limparAnexosRemovidos, validarMidiasDoPost } from '@/lib/post-midias-server';
-import { chaveDeIconeValida } from '@/lib/post-capa';
+import { chaveDeIconeValida, erroDeUrlDeCapa } from '@/lib/post-capa';
 import { getVerifiedServerSession } from '@/lib/session';
 import { parseDataDoFormulario } from '@/lib/datas';
 import type { Prisma } from '@prisma/client';
@@ -280,6 +280,7 @@ export type ProjetoFormData = {
   viceCoordenadorEmail?: string;
   area: string;
   descricao?: string;
+  resumoCurto?: string;
   dataInicio?: string;
   servidores?: string;
   alunos?: string;
@@ -387,6 +388,7 @@ export async function createProjeto(data: ProjetoFormData, callerEmail: string):
         viceCoordenadorEmail: dbData.viceCoordenadorEmail?.trim().toLowerCase() || null,
         area: dbData.area,
         descricao: dbData.descricao ?? null,
+        resumoCurto: dbData.resumoCurto ?? null,
         dataInicio: dbData.dataInicio ? new Date(dbData.dataInicio) : null,
         servidores: dbData.servidores ?? null,
         alunos: dbData.alunos ?? null,
@@ -442,6 +444,8 @@ export async function updateProjeto(id: string, data: Partial<ProjetoFormData>, 
     if (data.viceCoordenadorEmail !== undefined) updateData.viceCoordenadorEmail = data.viceCoordenadorEmail?.trim().toLowerCase() || null;
     if (data.area !== undefined) updateData.area = data.area;
     if (data.descricao !== undefined) updateData.descricao = data.descricao;
+    if (data.descricao !== undefined) updateData.descricao = data.descricao;
+    if (data.resumoCurto !== undefined) updateData.resumoCurto = data.resumoCurto;
     if (data.dataInicio !== undefined) updateData.dataInicio = data.dataInicio ? parseDataDoFormulario(data.dataInicio) : null;
     if (data.servidores !== undefined) updateData.servidores = data.servidores;
     if (data.alunos !== undefined) updateData.alunos = data.alunos;
@@ -584,6 +588,9 @@ export async function createPost(data: PostFormData, authorEmail: string): Promi
     const slug = `${slugify(data.titulo)}-${Date.now().toString(36)}`;
     const conteudo = sanitizeHtml(data.conteudo);
 
+    const erroCapa = erroDeUrlDeCapa(data.imagemUrl);
+    if (erroCapa) return { ok: false, error: erroCapa };
+
     // Mesmo orçamento do painel do professor (20 MB por post, somando imagens do
     // texto + anexos). Sem isto, um post criado pelo admin escaparia do limite.
     const midias = await validarMidiasDoPost(conteudo, data.anexos);
@@ -664,6 +671,11 @@ export async function updatePost(id: string, data: Partial<PostFormData>, userEm
 
     const conteudoFinal = data.conteudo !== undefined ? sanitizeHtml(data.conteudo) : atual.conteudo;
     const anexosEntrada = data.anexos !== undefined ? data.anexos : atual.anexos;
+
+    if (data.imagemUrl !== undefined) {
+      const erroCapa = erroDeUrlDeCapa(data.imagemUrl);
+      if (erroCapa) return { ok: false, error: erroCapa };
+    }
 
     // Mesmo orçamento do painel do professor (20 MB por post).
     const midias = await validarMidiasDoPost(conteudoFinal, anexosEntrada);

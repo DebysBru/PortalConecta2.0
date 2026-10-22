@@ -19,7 +19,7 @@ import {
 import { useToast } from '@/components/ui/toast';
 import { useMensagemErro } from '@/lib/use-mensagem-erro';
 import { LogoDoProjeto } from '@/components/projetos/LogoDoProjeto';
-import { CampoMidiaProjeto } from '@/components/ui/CampoMidiaProjeto';
+import { CamposDeApresentacaoDoProjeto } from '@/components/projetos/CamposDeApresentacaoDoProjeto';
 import { estiloDaCapa } from '@/lib/projeto-midia';
 
 type Projeto = Awaited<ReturnType<typeof listMyProjetos>>[number];
@@ -36,7 +36,7 @@ export default function ProfessorProjetosPage() {
   const [panelOpen, setPanelOpen] = useState(false);
   const [editing, setEditing] = useState<Projeto | null>(null);
   const [form, setForm] = useState<MyProjetoFormData>({
-    nome: '', coordenador: '', area: '', descricao: '',
+    nome: '', coordenador: '', area: '', descricao: '', resumoCurto: '',
     status: 'EM_EXECUCAO', corPrimaria: '#2F52D3',
     logoUrl: '', bannerUrl: '',
     email: '', instagram: '', site: '', formularioExtra: [],
@@ -74,6 +74,7 @@ export default function ProfessorProjetosPage() {
       coordenador: projeto.coordenador,
       area: projeto.area,
       descricao: projeto.descricao ?? '',
+      resumoCurto: projeto.resumoCurto ?? '',
       status: projeto.status,
       corPrimaria: projeto.corPrimaria,
       logoUrl: projeto.logoUrl ?? '',
@@ -247,7 +248,7 @@ export default function ProfessorProjetosPage() {
       {panelOpen && (
         <>
           <div className="fixed inset-0 bg-black/40 z-40" onClick={() => setPanelOpen(false)} />
-          <div className="fixed top-0 right-0 h-full w-full max-w-lg bg-white z-50 shadow-2xl flex flex-col overflow-hidden">
+          <div className="fixed top-0 right-0 h-full w-full max-w-2xl bg-white z-50 shadow-2xl flex flex-col overflow-hidden">
             <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
               <h2 className="font-bold text-gray-900">Editar Projeto</h2>
               <button onClick={() => setPanelOpen(false)} className="p-1.5 rounded-lg hover:bg-gray-100 transition-colors">
@@ -309,48 +310,16 @@ export default function ProfessorProjetosPage() {
                   />
                 </Field>
 
-                <Field label="Descrição">
-                  <textarea className="input-field min-h-[100px] resize-none" value={form.descricao} onChange={(e) => setForm((f) => ({ ...f, descricao: e.target.value }))} />
-                </Field>
-
                 {editing && (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
-                    <CampoMidiaProjeto
-                      tipo="logo"
-                      nome={form.nome || editing.nome}
-                      valor={form.logoUrl ?? ''}
-                      corPrimaria={form.corPrimaria}
-                      subpasta={editing.id}
-                      onChange={(url) => setForm((f) => ({ ...f, logoUrl: url }))}
-                    />
-                    <CampoMidiaProjeto
-                      tipo="capa"
-                      nome={form.nome || editing.nome}
-                      valor={form.bannerUrl ?? ''}
-                      corPrimaria={form.corPrimaria}
-                      subpasta={editing.id}
-                      onChange={(url) => setForm((f) => ({ ...f, bannerUrl: url }))}
-                    />
-                  </div>
+                  <CamposDeApresentacaoDoProjeto
+                    nome={form.nome || editing.nome}
+                    valores={form}
+                    subpasta={editing.id}
+                    onChange={(campo, valor) =>
+                      setForm((f) => ({ ...f, [campo]: valor }))
+                    }
+                  />
                 )}
-
-                <div className="grid grid-cols-2 gap-4">
-                  <Field label="Cor principal">
-                    <input type="color" className="input-field h-10 p-1 cursor-pointer" value={form.corPrimaria} onChange={(e) => setForm((f) => ({ ...f, corPrimaria: e.target.value }))} />
-                  </Field>
-                  <Field label="Email">
-                    <input type="email" className="input-field" value={form.email} onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))} />
-                  </Field>
-                </div>
-
-                <div className="grid grid-cols-2 gap-4">
-                  <Field label="Instagram">
-                    <input className="input-field" value={form.instagram} onChange={(e) => setForm((f) => ({ ...f, instagram: e.target.value }))} placeholder="@usuario" />
-                  </Field>
-                  <Field label="Site">
-                    <input type="url" className="input-field" value={form.site} onChange={(e) => setForm((f) => ({ ...f, site: e.target.value }))} />
-                  </Field>
-                </div>
 
                 <div className="pt-2">
                   <div className="border-b pb-2 mb-3">

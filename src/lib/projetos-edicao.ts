@@ -113,6 +113,7 @@ export type DadosEdicaoProfessor = {
   area?: string;
   status?: string;
   descricao?: string | null;
+  resumoCurto?: string | null;
   corPrimaria?: string;
   logoUrl?: string | null;
   bannerUrl?: string | null;

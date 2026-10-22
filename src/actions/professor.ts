@@ -16,7 +16,7 @@ import { getVerifiedServerSession } from '@/lib/session';
 import { rotuloRespostaAluno } from '@/lib/inscricao-aluno';
 import { mensagemVagaLotada } from '@/lib/vagas';
 import { limparAnexosRemovidos, validarMidiasDoPost } from '@/lib/post-midias-server';
-import { chaveDeIconeValida } from '@/lib/post-capa';
+import { chaveDeIconeValida, erroDeUrlDeCapa } from '@/lib/post-capa';
 import { chaveDoDiaBrasil, fimDoDiaBrasil, inicioDoDiaBrasil, parseDataDoFormulario, formatarDataBrasil } from '@/lib/datas';
 import {
   LIMITES, OPCOES, validarCampos, validarCorHexadecimal, validarEmail, validarJsonPequeno,
@@ -36,6 +36,7 @@ export type MyProjetoFormData = {
   coordenador: string;
   area: string;
   descricao?: string;
+  resumoCurto?: string;
   status: string;
   corPrimaria: string;
   logoUrl?: string;
@@ -432,6 +433,7 @@ export async function updateMyProjeto(
         area: data.area,
         status: data.status,
         descricao: data.descricao || null,
+        resumoCurto: data.resumoCurto || null,
         corPrimaria: data.corPrimaria,
         logoUrl: data.logoUrl || null,
         bannerUrl: data.bannerUrl || null,
@@ -491,6 +493,13 @@ export async function updateMyProjeto(
     if (permitido.area !== undefined) update.area = v.valor.area ?? '';
     if (permitido.status !== undefined) update.status = v.valor.status as Prisma.ProjetoUpdateInput['status'];
     if (permitido.descricao !== undefined) update.descricao = v.valor.descricao;
+    if (permitido.resumoCurto !== undefined) {
+      const resumo = String(permitido.resumoCurto ?? '').trim();
+      if (resumo.length > 200) {
+        return { ok: false, error: 'O resumo curto deve ter no máximo 200 caracteres.' };
+      }
+      update.resumoCurto = resumo || null;
+    }
     if (permitido.corPrimaria !== undefined) update.corPrimaria = v.valor.corPrimaria ?? undefined;
     for (const campo of ['logoUrl', 'bannerUrl'] as const) {
       const valor = permitido[campo];
@@ -1228,7 +1237,7 @@ function validarCamposDoPost(data: PostFormData): Validado<{
   imagemUrl: string | null;
   status: 'RASCUNHO' | 'PUBLICADO';
 }> {
-  return validarCampos<{
+  const resultado = validarCampos<{
     titulo: string;
     resumo: string | null;
     conteudo: string;
@@ -1243,6 +1252,13 @@ function validarCamposDoPost(data: PostFormData): Validado<{
     // mandar qualquer string — e ela iria direto para o banco.
     status: () => validarOpcao(data.status, 'Situação do post', ['RASCUNHO', 'PUBLICADO'] as const),
   });
+
+  if (!resultado.ok) return resultado;
+
+  const erroCapa = erroDeUrlDeCapa(resultado.valor.imagemUrl);
+  if (erroCapa) return { ok: false, error: erroCapa };
+
+  return resultado;
 }
 
 export async function listPosts(projetoId: string, userEmail: string) {
