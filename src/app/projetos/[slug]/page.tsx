@@ -152,6 +152,9 @@ export default async function ProjetoPage({ params }: { params: Params }) {
                 <Users className="w-4 h-4" />
                 <span>Coordenação: <strong className="text-white">{projeto.coordenador}</strong></span>
               </div>
+              <div className="mt-3">
+                <BotaoFavorito entidade="projeto" entidadeId={projeto.id} variante="escuro" />
+              </div>
             </div>
           </div>
         </div>
@@ -475,11 +478,6 @@ export default async function ProjetoPage({ params }: { params: Params }) {
                   </Link>
                 </>
               )}
-            </div>
-
-            {/* Favoritar (ROADMAP 6.3) — sobre o gradiente, variante escura */}
-            <div className="mt-3">
-              <BotaoFavorito entidade="projeto" entidadeId={projeto.id} variante="escuro" />
             </div>
           </div>
         </div>
