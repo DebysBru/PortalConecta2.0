@@ -69,13 +69,23 @@ export default async function ProjetoPage({ params }: { params: Params }) {
 
   if (!projeto) notFound();
 
-  // Buscar projetos relacionados (mesma área)
+  // Projetos relacionados = MESMO COORDENADOR do projeto aberto.
+  //
+  // Antes a régua era "mesma área" — então dois projetos de áreas iguais e
+  // coordenadores diferentes apareciam como relacionados. A relação agora é
+  // pela identidade da coordenação: e-mail quando cadastrado; se o projeto
+  // antigo só tiver o nome, compara o nome (sem diferenciar maiúsculas).
+  // Sem nenhum projeto do mesmo coordenador, a seção inteira não é renderizada.
+  const filtroDoMesmoCoordenador = projeto.coordenadorEmail
+    ? { coordenadorEmail: projeto.coordenadorEmail }
+    : { coordenador: { equals: projeto.coordenador.trim(), mode: 'insensitive' as const } };
+
   const relacionados = await prisma.projeto.findMany({
     where: {
       id: { not: projeto.id },
-      area: projeto.area,
       review_status: 'PUBLICADO',
       deleted_at: null,
+      ...filtroDoMesmoCoordenador,
     },
     take: 3,
     select: {
@@ -84,6 +94,7 @@ export default async function ProjetoPage({ params }: { params: Params }) {
       slug: true,
       area: true,
       corPrimaria: true,
+      logoUrl: true,
       coordenador: true,
       resumoCurto: true,
     },
@@ -325,19 +336,19 @@ export default async function ProjetoPage({ params }: { params: Params }) {
               </div>
             )}
 
-            {/* Projetos relacionados */}
+            {/* Projetos do mesmo coordenador — some quando não há nenhum. */}
             {relacionados.length > 0 && (
               <div>
-                <h2 className="font-bold text-gray-900 text-2xl mb-6">Projetos Relacionados</h2>
+                <h2 className="font-bold text-gray-900 text-2xl mb-6">Outros projetos deste coordenador</h2>
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                   {relacionados.map((r) => (
                     <Link key={r.id} href={`/projetos/${r.slug}`} className="group block">
                       <div className="bg-white rounded-xl border border-gray-100 p-4 hover:border-gray-200 hover:shadow-md transition-all">
                         <div
-                          className="w-10 h-10 rounded-lg flex items-center justify-center text-white font-bold text-sm mb-3"
+                          className="w-10 h-10 rounded-lg flex items-center justify-center text-white font-bold text-sm mb-3 overflow-hidden"
                           style={{ backgroundColor: r.corPrimaria }}
                         >
-                          {r.nome.charAt(0)}
+                          <LogoDoProjeto nome={r.nome} logoUrl={r.logoUrl} />
                         </div>
                         <h3 className="font-semibold text-gray-900 text-sm group-hover:text-azul-eletrico transition-colors line-clamp-2">
                           {r.nome}
