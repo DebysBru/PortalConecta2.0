@@ -286,6 +286,7 @@ export type ProjetoFormData = {
   observacao?: string;
   status: StatusProjeto;
   logoUrl?: string;
+  bannerUrl?: string;
   corPrimaria?: string;
   email?: string;
   instagram?: string;
@@ -392,6 +393,7 @@ export async function createProjeto(data: ProjetoFormData, callerEmail: string):
         observacao: dbData.observacao ?? null,
         status: dbData.status,
         logoUrl: dbData.logoUrl ?? null,
+        bannerUrl: dbData.bannerUrl ?? null,
         corPrimaria: dbData.corPrimaria ?? '#2F52D3',
         email: dbData.email ?? null,
         instagram: dbData.instagram ?? null,
@@ -411,6 +413,7 @@ export async function createProjeto(data: ProjetoFormData, callerEmail: string):
     // Derivar eventos automaticamente
     await derivarEventosProjeto(projeto.id).catch(console.error);
     cache.invalidate('chat:');
+    cache.invalidate('home:');
     await sincronizarProjetoSintetico(projeto.id).catch(console.error);
 
     return { ok: true, data: { id: projeto.id, slug: projeto.slug } };
@@ -445,6 +448,7 @@ export async function updateProjeto(id: string, data: Partial<ProjetoFormData>, 
     if (data.observacao !== undefined) updateData.observacao = data.observacao;
     if (data.status !== undefined) updateData.status = data.status;
     if (data.logoUrl !== undefined) updateData.logoUrl = data.logoUrl;
+    if (data.bannerUrl !== undefined) updateData.bannerUrl = data.bannerUrl;
     if (data.corPrimaria !== undefined) updateData.corPrimaria = data.corPrimaria;
     if (data.email !== undefined) updateData.email = data.email;
     if (data.instagram !== undefined) updateData.instagram = data.instagram;
@@ -464,6 +468,7 @@ export async function updateProjeto(id: string, data: Partial<ProjetoFormData>, 
     // Re-derivar eventos quando dados mudam
     await derivarEventosProjeto(id).catch(console.error);
     cache.invalidate('chat:');
+    cache.invalidate('home:');
     await sincronizarProjetoSintetico(id).catch(console.error);
 
     return { ok: true };
@@ -486,6 +491,7 @@ export async function toggleProjetoPublicacao(id: string, callerEmail: string): 
     const review_status = projeto.review_status === 'PUBLICADO' ? 'RASCUNHO' : 'PUBLICADO';
     await prisma.projeto.update({ where: { id }, data: { review_status } });
     cache.invalidate('chat:');
+    cache.invalidate('home:');
     await sincronizarProjetoSintetico(id).catch(console.error);
 
     return { ok: true, data: { review_status } };

@@ -27,6 +27,8 @@ export const PROJETO_CARD_SELECT = {
   coordenador: true,
   status: true,
   corPrimaria: true,
+  logoUrl: true,
+  bannerUrl: true,
   descricao: true,
   destaque: true,
 } satisfies Prisma.ProjetoSelect;
@@ -39,6 +41,8 @@ export type ProjetoCard = {
   coordenador: string;
   status: string;
   corPrimaria: string;
+  logoUrl: string | null;
+  bannerUrl: string | null;
   descricao: string | null;
   destaque: boolean;
 };

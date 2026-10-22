@@ -18,6 +18,9 @@ import {
 } from '@/lib/projetos-edicao';
 import { useToast } from '@/components/ui/toast';
 import { useMensagemErro } from '@/lib/use-mensagem-erro';
+import { LogoDoProjeto } from '@/components/projetos/LogoDoProjeto';
+import { CampoMidiaProjeto } from '@/components/ui/CampoMidiaProjeto';
+import { estiloDaCapa } from '@/lib/projeto-midia';
 
 type Projeto = Awaited<ReturnType<typeof listMyProjetos>>[number];
 
@@ -35,6 +38,7 @@ export default function ProfessorProjetosPage() {
   const [form, setForm] = useState<MyProjetoFormData>({
     nome: '', coordenador: '', area: '', descricao: '',
     status: 'EM_EXECUCAO', corPrimaria: '#2F52D3',
+    logoUrl: '', bannerUrl: '',
     email: '', instagram: '', site: '', formularioExtra: [],
   });
   const [error, setError] = useMensagemErro();
@@ -72,6 +76,8 @@ export default function ProfessorProjetosPage() {
       descricao: projeto.descricao ?? '',
       status: projeto.status,
       corPrimaria: projeto.corPrimaria,
+      logoUrl: projeto.logoUrl ?? '',
+      bannerUrl: projeto.bannerUrl ?? '',
       email: projeto.email ?? '',
       instagram: projeto.instagram ?? '',
       site: projeto.site ?? '',
@@ -158,11 +164,11 @@ export default function ProfessorProjetosPage() {
             >
               {/* Color header */}
               <div
-                className="h-20 relative flex items-end p-4"
-                style={{ background: `linear-gradient(135deg, ${projeto.corPrimaria} 0%, ${projeto.corPrimaria}cc 100%)` }}
+                className="h-20 relative flex items-end p-4 overflow-hidden"
+                style={estiloDaCapa(projeto.corPrimaria, projeto.bannerUrl)}
               >
-                <div className="w-12 h-12 bg-white/20 rounded-xl flex items-center justify-center text-white font-black text-xl border border-white/30">
-                  {projeto.nome.charAt(0)}
+                <div className="w-12 h-12 bg-white/20 rounded-xl flex items-center justify-center text-white font-black text-xl border border-white/30 overflow-hidden">
+                  <LogoDoProjeto nome={projeto.nome} logoUrl={projeto.logoUrl} />
                 </div>
                 <div className="ml-auto flex items-center gap-2">
                   <span className="text-white/80 text-xs bg-black/20 rounded-full px-2.5 py-1 font-medium">
@@ -306,6 +312,27 @@ export default function ProfessorProjetosPage() {
                 <Field label="Descrição">
                   <textarea className="input-field min-h-[100px] resize-none" value={form.descricao} onChange={(e) => setForm((f) => ({ ...f, descricao: e.target.value }))} />
                 </Field>
+
+                {editing && (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+                    <CampoMidiaProjeto
+                      tipo="logo"
+                      nome={form.nome || editing.nome}
+                      valor={form.logoUrl ?? ''}
+                      corPrimaria={form.corPrimaria}
+                      subpasta={editing.id}
+                      onChange={(url) => setForm((f) => ({ ...f, logoUrl: url }))}
+                    />
+                    <CampoMidiaProjeto
+                      tipo="capa"
+                      nome={form.nome || editing.nome}
+                      valor={form.bannerUrl ?? ''}
+                      corPrimaria={form.corPrimaria}
+                      subpasta={editing.id}
+                      onChange={(url) => setForm((f) => ({ ...f, bannerUrl: url }))}
+                    />
+                  </div>
+                )}
 
                 <div className="grid grid-cols-2 gap-4">
                   <Field label="Cor principal">

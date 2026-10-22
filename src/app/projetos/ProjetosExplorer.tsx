@@ -9,6 +9,8 @@ import {
 } from 'lucide-react';
 import { getStatusLabel } from '@/lib/utils';
 import { MascoteInterativa } from '@/components/ifizinha/MascoteInterativa';
+import { LogoDoProjeto } from '@/components/projetos/LogoDoProjeto';
+import { estiloDaCapa } from '@/lib/projeto-midia';
 import {
   buildProjetosHref,
   paginasVisiveis,
@@ -149,9 +151,9 @@ export function ProjetosExplorer({
             {destaques.map((projeto) => (
               <Link key={projeto.id} href={`/projetos/${projeto.slug}`} className="group block">
                 <div className="bg-white rounded-2xl border border-gray-100 shadow-[0_1px_2px_rgba(15,23,42,0.04)] hover:border-gray-200 hover:shadow-card-hover transition-all duration-300 hover:-translate-y-1 overflow-hidden h-full flex flex-col">
-                  <div className="h-24 relative flex items-end p-4" style={{ background: `linear-gradient(135deg, ${projeto.corPrimaria} 0%, ${projeto.corPrimaria}cc 100%)` }}>
-                    <div className="w-14 h-14 bg-white/20 rounded-2xl flex items-center justify-center text-white font-black text-2xl border border-white/30">
-                      {projeto.nome.charAt(0)}
+                  <div className="h-24 relative flex items-end p-4 overflow-hidden" style={estiloDaCapa(projeto.corPrimaria, projeto.bannerUrl)}>
+                    <div className="w-14 h-14 bg-white/20 rounded-2xl flex items-center justify-center text-white font-black text-2xl border border-white/30 overflow-hidden">
+                      <LogoDoProjeto nome={projeto.nome} logoUrl={projeto.logoUrl} />
                     </div>
                     <div className="ml-auto">
                       <span className="text-white/80 text-xs bg-black/20 rounded-full px-2.5 py-1 font-medium">
@@ -220,14 +222,14 @@ export function ProjetosExplorer({
             {projetos.map((projeto) => (
               <Link key={projeto.id} href={`/projetos/${projeto.slug}`} className="group block">
                 <div className="bg-white rounded-2xl border border-gray-100 shadow-[0_1px_2px_rgba(15,23,42,0.04)] hover:border-gray-200 hover:shadow-card-brand transition-all duration-200 hover:-translate-y-0.5 overflow-hidden">
-                  <div className="h-2 w-full" style={{ backgroundColor: projeto.corPrimaria }} />
+                  <div className={projeto.bannerUrl ? 'h-14 w-full' : 'h-2 w-full'} style={projeto.bannerUrl ? estiloDaCapa(projeto.corPrimaria, projeto.bannerUrl) : { backgroundColor: projeto.corPrimaria }} />
                   <div className="p-4">
                     <div className="flex items-start gap-3 mb-3">
                       <div
-                        className="w-10 h-10 rounded-xl flex items-center justify-center text-white font-bold text-base flex-shrink-0 shadow-sm"
+                        className="w-10 h-10 rounded-xl flex items-center justify-center text-white font-bold text-base flex-shrink-0 shadow-sm overflow-hidden"
                         style={{ backgroundColor: projeto.corPrimaria }}
                       >
-                        {projeto.nome.charAt(0)}
+                        <LogoDoProjeto nome={projeto.nome} logoUrl={projeto.logoUrl} />
                       </div>
                       <div className="min-w-0">
                         <h3 className="font-semibold text-gray-900 text-sm leading-snug group-hover:text-azul-eletrico transition-colors line-clamp-2">

@@ -38,6 +38,8 @@ export type MyProjetoFormData = {
   descricao?: string;
   status: string;
   corPrimaria: string;
+  logoUrl?: string;
+  bannerUrl?: string;
   email?: string;
   instagram?: string;
   site?: string;
@@ -126,6 +128,7 @@ export type PaginaProjetoFormData = {
   resumoCurto?: string;
   descricao?: string;
   logoUrl?: string;
+  bannerUrl?: string;
   corPrimaria?: string;
   email?: string;
   instagram?: string;
@@ -163,6 +166,7 @@ export async function getPaginaDoProjeto(projetoId: string, userEmail: string) {
       resumoCurto: true,
       descricao: true,
       logoUrl: true,
+      bannerUrl: true,
       corPrimaria: true,
       email: true,
       instagram: true,
@@ -185,6 +189,7 @@ export async function salvarPaginaDoProjeto(
     const resumoCurto = (data.resumoCurto ?? '').trim();
     const descricao = (data.descricao ?? '').trim();
     const logoUrl = (data.logoUrl ?? '').trim();
+    const bannerUrl = (data.bannerUrl ?? '').trim();
     const corPrimaria = (data.corPrimaria ?? '').trim();
     const email = (data.email ?? '').trim();
     const instagram = (data.instagram ?? '').trim();
@@ -198,6 +203,9 @@ export async function salvarPaginaDoProjeto(
     }
     if (logoUrl && !/^(https?:\/\/|\/)/i.test(logoUrl)) {
       return { ok: false, error: 'A logo precisa ser uma URL http(s) ou um arquivo enviado pelo portal.' };
+    }
+    if (bannerUrl && !/^(https?:\/\/|\/)/i.test(bannerUrl)) {
+      return { ok: false, error: 'A capa precisa ser uma URL http(s) ou um arquivo enviado pelo portal.' };
     }
     if (corPrimaria && !/^#[0-9a-f]{6}$/i.test(corPrimaria)) {
       return { ok: false, error: 'A cor principal precisa estar no formato #RRGGBB.' };
@@ -218,6 +226,7 @@ export async function salvarPaginaDoProjeto(
         resumoCurto: resumoCurto || null,
         descricao: descricao || null,
         logoUrl: logoUrl || null,
+        bannerUrl: bannerUrl || null,
         corPrimaria: corPrimaria || '#2F52D3',
         email: email || null,
         instagram: instagram || null,
@@ -225,6 +234,7 @@ export async function salvarPaginaDoProjeto(
       },
     });
     cache.invalidate('chat:');
+    cache.invalidate('home:');
     await sincronizarProjetoSintetico(projetoId).catch(console.error);
 
     return { ok: true };
@@ -423,6 +433,8 @@ export async function updateMyProjeto(
         status: data.status,
         descricao: data.descricao || null,
         corPrimaria: data.corPrimaria,
+        logoUrl: data.logoUrl || null,
+        bannerUrl: data.bannerUrl || null,
         email: data.email || null,
         instagram: data.instagram || null,
         site: data.site || null,
@@ -480,6 +492,15 @@ export async function updateMyProjeto(
     if (permitido.status !== undefined) update.status = v.valor.status as Prisma.ProjetoUpdateInput['status'];
     if (permitido.descricao !== undefined) update.descricao = v.valor.descricao;
     if (permitido.corPrimaria !== undefined) update.corPrimaria = v.valor.corPrimaria ?? undefined;
+    for (const campo of ['logoUrl', 'bannerUrl'] as const) {
+      const valor = permitido[campo];
+      if (valor === undefined) continue;
+      const url = String(valor ?? '').trim();
+      if (url && !/^(https?:\/\/|\/)/i.test(url)) {
+        return { ok: false, error: 'A logo/capa precisa ser uma URL http(s) ou um arquivo enviado pelo portal.' };
+      }
+      update[campo] = url || null;
+    }
     if (permitido.email !== undefined) update.email = v.valor.email;
     if (permitido.instagram !== undefined) update.instagram = urls.valor.instagram;
     if (permitido.site !== undefined) update.site = urls.valor.site;
@@ -493,6 +514,7 @@ export async function updateMyProjeto(
 
     await prisma.projeto.update({ where: { id: projetoId }, data: update });
     cache.invalidate('chat:');
+    cache.invalidate('home:');
     await sincronizarProjetoSintetico(projetoId).catch(console.error);
 
     return { ok: true, data: { ignorados } };

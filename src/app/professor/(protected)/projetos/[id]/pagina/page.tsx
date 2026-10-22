@@ -1,9 +1,9 @@
 'use client';
 
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
 import {
-  AlertCircle, ArrowLeft, ExternalLink, FileText, ImagePlus, Loader2, Palette, Save, Trash2,
+  AlertCircle, ArrowLeft, ExternalLink, FileText, Loader2, Palette, Save,
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import {
@@ -11,7 +11,7 @@ import {
   salvarPaginaDoProjeto,
   type PaginaProjetoFormData,
 } from '@/actions/professor';
-import { enviarArquivo } from '@/lib/upload-midia';
+import { CampoMidiaProjeto } from '@/components/ui/CampoMidiaProjeto';
 import { useToast } from '@/components/ui/toast';
 
 /**
@@ -25,10 +25,8 @@ import { useToast } from '@/components/ui/toast';
 export default function PaginaDoProjetoPage({ params }: { params: { id: string } }) {
   const { user, userRole } = useAuth();
   const { toast } = useToast();
-  const inputLogo = useRef<HTMLInputElement>(null);
   const [carregando, setCarregando] = useState(true);
   const [salvando, setSalvando] = useState(false);
-  const [enviandoLogo, setEnviandoLogo] = useState(false);
   const [erro, setErro] = useState('');
   const [nome, setNome] = useState('');
   const [slug, setSlug] = useState('');
@@ -36,6 +34,7 @@ export default function PaginaDoProjetoPage({ params }: { params: { id: string }
     resumoCurto: '',
     descricao: '',
     logoUrl: '',
+    bannerUrl: '',
     corPrimaria: '#2F52D3',
     email: '',
     instagram: '',
@@ -58,6 +57,7 @@ export default function PaginaDoProjetoPage({ params }: { params: { id: string }
           resumoCurto: p.resumoCurto ?? '',
           descricao: p.descricao ?? '',
           logoUrl: p.logoUrl ?? '',
+          bannerUrl: p.bannerUrl ?? '',
           corPrimaria: p.corPrimaria ?? '#2F52D3',
           email: p.email ?? '',
           instagram: p.instagram ?? '',
@@ -70,31 +70,6 @@ export default function PaginaDoProjetoPage({ params }: { params: { id: string }
 
   const atualizar = (campo: keyof PaginaProjetoFormData, valor: string) => {
     setForm((atual) => ({ ...atual, [campo]: valor }));
-  };
-
-  const enviarLogo = async (arquivo: File | null) => {
-    if (!arquivo) return;
-    setErro('');
-    if (!user) {
-      setErro('Sua sessão expirou. Entre novamente para enviar a imagem.');
-      return;
-    }
-    setEnviandoLogo(true);
-    try {
-      const idToken = await user.getIdToken();
-      const resultado = await enviarArquivo({ arquivo, idToken, subpasta: params.id });
-      if (!resultado.ok) {
-        setErro(resultado.error);
-        return;
-      }
-      atualizar('logoUrl', resultado.data.url);
-      toast('Logo enviada. Clique em Salvar para publicar.', 'success');
-    } catch {
-      setErro('Não conseguimos enviar a imagem agora. Tente novamente.');
-    } finally {
-      setEnviandoLogo(false);
-      if (inputLogo.current) inputLogo.current.value = '';
-    }
   };
 
   const salvar = async (e: React.FormEvent) => {
@@ -188,49 +163,23 @@ export default function PaginaDoProjetoPage({ params }: { params: { id: string }
           />
         </div>
 
-        <div>
-          <label className="label-field">Logo do projeto</label>
-          <div className="flex flex-wrap items-center gap-3">
-            <div className="w-20 h-20 rounded-xl border border-gray-200 bg-gray-50 overflow-hidden flex items-center justify-center">
-              {form.logoUrl ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img src={form.logoUrl} alt="Logo do projeto" className="w-full h-full object-cover" />
-              ) : (
-                <ImagePlus className="w-7 h-7 text-gray-300" />
-              )}
-            </div>
-            <input
-              ref={inputLogo}
-              type="file"
-              accept="image/png,image/jpeg,image/webp,image/gif"
-              className="hidden"
-              onChange={(e) => {
-                const arquivo = e.target.files?.[0] ?? null;
-                e.target.value = '';
-                void enviarLogo(arquivo);
-              }}
-            />
-            <button
-              type="button"
-              onClick={() => inputLogo.current?.click()}
-              disabled={enviandoLogo}
-              className="inline-flex items-center gap-2 px-3 py-2 rounded-xl border border-gray-300 bg-white text-sm font-semibold text-gray-700 hover:bg-gray-50 disabled:opacity-60 transition-colors"
-            >
-              {enviandoLogo ? <Loader2 className="w-4 h-4 animate-spin" /> : <ImagePlus className="w-4 h-4" />}
-              {enviandoLogo ? 'Enviando...' : form.logoUrl ? 'Trocar logo' : 'Enviar logo'}
-            </button>
-            {form.logoUrl && (
-              <button
-                type="button"
-                onClick={() => atualizar('logoUrl', '')}
-                className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border border-gray-200 text-sm text-gray-600 hover:bg-red-50 hover:text-red-600 transition-colors"
-              >
-                <Trash2 className="w-3.5 h-3.5" />
-                Remover
-              </button>
-            )}
-          </div>
-          <p className="text-xs text-gray-400 mt-2">PNG, JPG, WEBP ou GIF. O arquivo fica no storage do portal.</p>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+          <CampoMidiaProjeto
+            tipo="logo"
+            nome={nome}
+            valor={form.logoUrl ?? ''}
+            corPrimaria={form.corPrimaria}
+            subpasta={params.id}
+            onChange={(url) => atualizar('logoUrl', url)}
+          />
+          <CampoMidiaProjeto
+            tipo="capa"
+            nome={nome}
+            valor={form.bannerUrl ?? ''}
+            corPrimaria={form.corPrimaria}
+            subpasta={params.id}
+            onChange={(url) => atualizar('bannerUrl', url)}
+          />
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">

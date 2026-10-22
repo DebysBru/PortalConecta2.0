@@ -21,6 +21,8 @@ export type CampoControladoPeloSuap = (typeof CAMPOS_CONTROLADOS_PELO_SUAP)[numb
 export const CAMPOS_LIVRES_DO_PROFESSOR = [
   'descricao',
   'corPrimaria',
+  'logoUrl',
+  'bannerUrl',
   'email',
   'instagram',
   'site',
@@ -112,6 +114,8 @@ export type DadosEdicaoProfessor = {
   status?: string;
   descricao?: string | null;
   corPrimaria?: string;
+  logoUrl?: string | null;
+  bannerUrl?: string | null;
   email?: string | null;
   instagram?: string | null;
   site?: string | null;

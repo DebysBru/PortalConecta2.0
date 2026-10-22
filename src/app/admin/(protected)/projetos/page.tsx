@@ -6,6 +6,7 @@ import { listProjetos, createProjeto, updateProjeto, deleteProjeto, toggleProjet
 import { toggleInscricoes, abrirInscricoes } from '@/actions/professor';
 import { AbrirInscricoesModal } from '@/components/ui/AbrirInscricoesModal';
 import { FormularioExtraEditor } from '@/components/ui/FormularioExtraEditor';
+import { LogoDoProjeto } from '@/components/projetos/LogoDoProjeto';
 import { parsePerguntasExtra, type PerguntaExtra } from '@/lib/formulario-extra';
 import { getStatusLabel, getStatusColor } from '@/lib/utils';
 import { useAuth } from '@/contexts/AuthContext';
@@ -20,7 +21,7 @@ const TIPO_LIST = ['Pesquisa', 'Extensão'];
 const EMPTY_FORM: ProjetoFormData = {
   nome: '', coordenador: '', coordenadorEmail: '', viceCoordenadorNome: '', viceCoordenadorEmail: '', area: '', descricao: '',
   dataInicio: '', servidores: '', alunos: '', observacao: '',
-  status: 'EM_EXECUCAO', logoUrl: '', corPrimaria: '#2F52D3',
+  status: 'EM_EXECUCAO', logoUrl: '', bannerUrl: '', corPrimaria: '#2F52D3',
   email: '', instagram: '', site: '', destaque: false, adminEmails: '', formularioExtra: [],
 };
 
@@ -84,6 +85,7 @@ export default function AdminProjetosPage() {
       observacao: projeto.observacao ?? '',
       status: projeto.status,
       logoUrl: projeto.logoUrl ?? '',
+      bannerUrl: projeto.bannerUrl ?? '',
       corPrimaria: projeto.corPrimaria,
       email: projeto.email ?? '',
       instagram: projeto.instagram ?? '',
@@ -271,8 +273,8 @@ export default function AdminProjetosPage() {
             <div className="md:hidden divide-y divide-gray-50">
               {filteredProjetos.map((p) => (
                 <div key={p.id} className="p-4 flex items-center gap-3">
-                  <div className="w-9 h-9 rounded-xl flex items-center justify-center text-white font-bold text-sm flex-shrink-0" style={{ backgroundColor: p.corPrimaria }}>
-                    {p.nome.charAt(0)}
+                  <div className="w-9 h-9 rounded-xl flex items-center justify-center text-white font-bold text-sm flex-shrink-0 overflow-hidden" style={{ backgroundColor: p.corPrimaria }}>
+                    <LogoDoProjeto nome={p.nome} logoUrl={p.logoUrl} />
                   </div>
                   <div className="flex-1 min-w-0">
                     <p className="font-semibold text-gray-900 text-sm truncate">{p.nome}</p>
@@ -350,8 +352,8 @@ export default function AdminProjetosPage() {
                     <tr key={p.id} className="border-b border-gray-50 hover:bg-gray-50/50 transition-colors">
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-3">
-                          <div className="w-7 h-7 rounded-lg flex items-center justify-center text-white text-xs font-bold flex-shrink-0" style={{ backgroundColor: p.corPrimaria }}>
-                            {p.nome.charAt(0)}
+                          <div className="w-7 h-7 rounded-lg flex items-center justify-center text-white text-xs font-bold flex-shrink-0 overflow-hidden" style={{ backgroundColor: p.corPrimaria }}>
+                            <LogoDoProjeto nome={p.nome} logoUrl={p.logoUrl} />
                           </div>
                           <div>
                             <p className="font-semibold text-gray-900 truncate max-w-[200px]">{p.nome}</p>
@@ -522,6 +524,16 @@ export default function AdminProjetosPage() {
                             gestor da página; por isso não é type="url". */}
                         <input type="text" inputMode="url" className="input-field" value={form.logoUrl ?? ''} onChange={(e) => set('logoUrl', e.target.value)} placeholder="https://... ou /files/..." />
                       </div>
+                      <div>
+                        <label className="label-field">Capa do projeto (URL)</label>
+                        <input type="text" inputMode="url" className="input-field" value={form.bannerUrl ?? ''} onChange={(e) => set('bannerUrl', e.target.value)} placeholder="https://... ou /files/..." />
+                      </div>
+                      {form.bannerUrl && (
+                        <div className="col-span-2 rounded-xl border border-gray-100 p-2">
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img src={form.bannerUrl} alt="Preview Capa" className="w-full h-28 object-cover rounded-lg" onError={(e) => (e.currentTarget.style.display = 'none')} />
+                        </div>
+                      )}
                       {form.logoUrl && (
                         <div className="col-span-2 flex justify-center p-4 bg-gray-50 rounded-xl border border-gray-100">
                           {/* eslint-disable-next-line @next/next/no-img-element */}

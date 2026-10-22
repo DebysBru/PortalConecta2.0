@@ -10,6 +10,7 @@ import {
 import { useAuth } from '@/contexts/AuthContext';
 import { getProfessorStats, listMyProjetos } from '@/actions/professor';
 import { formatDateShort, getStatusLabel, getStatusColor } from '@/lib/utils';
+import { LogoDoProjeto } from '@/components/projetos/LogoDoProjeto';
 
 type Stats = Awaited<ReturnType<typeof getProfessorStats>>;
 type Projeto = Awaited<ReturnType<typeof listMyProjetos>>[number];
@@ -97,10 +98,10 @@ export default function ProfessorDashboardPage() {
                 className="flex items-center gap-4 px-5 py-4 hover:bg-gray-50 transition-colors"
               >
                 <div
-                  className="w-10 h-10 rounded-xl flex items-center justify-center text-white font-bold text-sm flex-shrink-0"
+                  className="w-10 h-10 rounded-xl flex items-center justify-center text-white font-bold text-sm flex-shrink-0 overflow-hidden"
                   style={{ backgroundColor: p.corPrimaria }}
                 >
-                  {p.nome.charAt(0)}
+                  <LogoDoProjeto nome={p.nome} logoUrl={p.logoUrl} />
                 </div>
                 <div className="flex-1 min-w-0">
                   <p className="font-semibold text-gray-900 text-sm truncate">{p.nome}</p>

@@ -11,6 +11,8 @@ import { SafeHtml } from '@/components/ui/SafeHtml';
 import { BotaoFavorito } from '@/components/ui/BotaoFavorito';
 import { PostCapa } from '@/components/ui/PostCapa';
 import { MascoteInterativa } from '@/components/ifizinha/MascoteInterativa';
+import { LogoDoProjeto } from '@/components/projetos/LogoDoProjeto';
+import { estiloDaCapa } from '@/lib/projeto-midia';
 import { prisma } from '@/lib/prisma';
 import type { Metadata } from 'next';
 
@@ -95,7 +97,7 @@ export default async function ProjetoPage({ params }: { params: Params }) {
           fundo sólido deixaria retângulo sobre o gradiente. */}
       <div
         className="relative overflow-x-clip pt-20 pb-10"
-        style={{ background: `linear-gradient(135deg, ${projeto.corPrimaria} 0%, ${projeto.corPrimaria}cc 100%)` }}
+        style={estiloDaCapa(projeto.corPrimaria, projeto.bannerUrl)}
       >
         <div className="pointer-events-none absolute bottom-0 right-0 hidden w-[180px] xl:block">
           <div className="-mr-6 -mb-10">
@@ -118,12 +120,7 @@ export default async function ProjetoPage({ params }: { params: Params }) {
 
           <div className="flex items-start gap-5">
             <div className="w-16 h-16 md:w-20 md:h-20 bg-white/20 rounded-2xl flex items-center justify-center text-white font-black text-3xl border border-white/30 flex-shrink-0 overflow-hidden">
-              {projeto.logoUrl ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img src={projeto.logoUrl} alt={`Logo ${projeto.nome}`} className="w-full h-full object-cover" />
-              ) : (
-                projeto.nome.charAt(0)
-              )}
+              <LogoDoProjeto nome={projeto.nome} logoUrl={projeto.logoUrl} />
             </div>
             <div>
               <div className="flex flex-wrap gap-2 mb-3">

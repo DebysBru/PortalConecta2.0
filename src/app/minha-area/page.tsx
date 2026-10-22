@@ -8,6 +8,7 @@ import {
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { listarMeusFavoritos, removerFavorito, type FavoritoItem } from '@/actions/favoritos';
+import { LogoDoProjeto } from '@/components/projetos/LogoDoProjeto';
 import {
   listarMinhasNotificacoes, marcarNotificacaoLida, marcarTodasNotificacoesLidas,
   type NotificacaoItem,
@@ -237,10 +238,14 @@ function AbaFavoritos({
           className="bg-white rounded-2xl border border-gray-100 p-4 flex items-center gap-4"
         >
           <div
-            className="w-10 h-10 rounded-xl flex items-center justify-center text-white font-bold flex-shrink-0"
+            className="w-10 h-10 rounded-xl flex items-center justify-center text-white font-bold flex-shrink-0 overflow-hidden"
             style={{ backgroundColor: item.cor ?? '#2F52D3' }}
           >
-            {item.titulo.charAt(0)}
+            {item.entidade === 'projeto' ? (
+              <LogoDoProjeto nome={item.titulo} logoUrl={item.imagemUrl} />
+            ) : (
+              item.titulo.charAt(0)
+            )}
           </div>
 
           <div className="min-w-0 flex-1">
