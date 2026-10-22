@@ -161,10 +161,12 @@ export async function getPublicMetrics(options?: { skipCache?: boolean }): Promi
       if (refreshed) metrics = await readPublicMetricsView();
     }
   } catch (error) {
+    // Só a mensagem, não o stack inteiro: a home consulta métricas em toda
+    // visita e um `console.warn(error)` despejava dezenas de linhas no dev.
     console.warn(
       '[metrics] view public_metrics indisponível — usando contagem ao vivo. ' +
-        'Rode prisma/public-metrics-setup.sql para habilitar a view.',
-      error,
+        'Rode prisma/public-metrics-setup.sql para habilitar a view. ' +
+        (error instanceof Error ? error.message : String(error)),
     );
     metrics = await computePublicMetricsLive();
     // Não cacheia por muito tempo em modo degradado.
