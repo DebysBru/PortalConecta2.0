@@ -618,22 +618,49 @@ export async function updatePost(id: string, data: Partial<PostFormData>, userEm
     const userRecord = await prisma.user.findUnique({ where: { email: userEmail }, select: { role: true } });
     if (!userRecord) return { ok: false, error: MENSAGENS.usuarioNaoEncontrado };
 
+    // Estado atual: o conteúdo pode não vir nesta chamada (update parcial), e o
+    // orçamento precisa considerar o que JÁ está publicado + o que está entrando.
+    // `projetoId` também é lido aqui para validar a troca de projeto.
+    const atual = await prisma.post.findUnique({
+      where: { id },
+      select: { projetoId: true, conteudo: true, anexos: true },
+    });
+    if (!atual) return { ok: false, error: 'Não encontramos esta publicação. Ela pode ter sido removida por outra pessoa.' };
+
     if (userRecord.role === 'PROFESSOR') {
-      const post = await prisma.post.findUnique({ where: { id }, select: { projetoId: true } });
-      if (!post) return { ok: false, error: 'Não encontramos esta publicação. Ela pode ter sido removida por outra pessoa.' };
-      const isCoordinator = await isCoordenadorOuViceDoProjeto(post.projetoId, userEmail);
+      const isCoordinator = await isCoordenadorOuViceDoProjeto(atual.projetoId, userEmail);
       if (!isCoordinator) return { ok: false, error: MENSAGENS.semPermissaoCoordenador };
     } else if (userRecord.role !== 'ADMIN') {
       return { ok: false, error: MENSAGENS.semPermissao };
     }
 
-    // Estado atual: o conteúdo pode não vir nesta chamada (update parcial), e o
-    // orçamento precisa considerar o que JÁ está publicado + o que está entrando.
-    const atual = await prisma.post.findUnique({
-      where: { id },
-      select: { conteudo: true, anexos: true },
-    });
-    if (!atual) return { ok: false, error: 'Não encontramos esta publicação. Ela pode ter sido removida por outra pessoa.' };
+    // Mover post entre projetos é permitido — o formulário do admin já oferece
+    // o select. A checagem é feita nos DOIS lados: o professor precisa
+    // coordenar o projeto atual (acima) e também o projeto de destino. Sem
+    // isso, um coordenador poderia jogar uma publicação em projeto alheio.
+    const projetoDestino = data.projetoId?.trim();
+    if (data.projetoId !== undefined) {
+      if (!projetoDestino) {
+        return { ok: false, error: 'Escolha o projeto que vai receber esta publicação.' };
+      }
+
+      if (projetoDestino !== atual.projetoId) {
+        const destino = await prisma.projeto.findUnique({
+          where: { id: projetoDestino },
+          select: { id: true },
+        });
+        if (!destino) {
+          return { ok: false, error: 'O projeto de destino não existe mais. Atualize a página e escolha outro.' };
+        }
+
+        if (
+          userRecord.role === 'PROFESSOR' &&
+          !(await isCoordenadorOuViceDoProjeto(projetoDestino, userEmail))
+        ) {
+          return { ok: false, error: 'Você só pode mover a publicação para um projeto que coordena.' };
+        }
+      }
+    }
 
     const conteudoFinal = data.conteudo !== undefined ? sanitizeHtml(data.conteudo) : atual.conteudo;
     const anexosEntrada = data.anexos !== undefined ? data.anexos : atual.anexos;
@@ -643,9 +670,8 @@ export async function updatePost(id: string, data: Partial<PostFormData>, userEm
     if (!midias.ok) return { ok: false, error: midias.error };
 
     // Campos gravados EXPLICITAMENTE. Antes era `...data`, que espalhava no
-    // Prisma qualquer chave que o cliente mandasse — inclusive `projetoId` e
-    // `authorId`, o que permitia mover o post para um projeto que a pessoa não
-    // coordena. O que não está nesta lista simplesmente não é aceito.
+    // Prisma qualquer chave que o cliente mandasse — inclusive `authorId`.
+    // `projetoId` agora é aceito, mas passou pela validação de destino acima.
     //
     // O `slug` NÃO entra: ele é a URL pública do post (a que o botão "Ver no
     // portal" abre e a que já foi compartilhada com os estudantes) e é gerado uma
@@ -664,6 +690,7 @@ export async function updatePost(id: string, data: Partial<PostFormData>, userEm
         ...(data.linkExterno !== undefined ? { linkExterno: data.linkExterno ?? null } : {}),
         ...(data.icone !== undefined ? { icone: chaveDeIconeValida(data.icone) ? data.icone : null } : {}),
         ...(data.status !== undefined ? { status: data.status } : {}),
+        ...(projetoDestino ? { projetoId: projetoDestino } : {}),
         anexos: midias.anexos as unknown as Prisma.InputJsonValue,
       },
     });
