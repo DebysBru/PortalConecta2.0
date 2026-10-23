@@ -1,0 +1,23 @@
+# Dependências, artefatos e configurações locais não fazem parte do mapa.
+node_modules/
+.next/
+.git/
+.graphify-venv/
+graphify-out/
+.local-test/
+.agents/
+.codex/
+.claude/
+storage/
+portal-files/
+public/
+coverage/
+out/
+build/
+.env
+.env.*
+*.pem
+*.key
+*.tsbuildinfo
+package-lock.json
+skills-lock.json
