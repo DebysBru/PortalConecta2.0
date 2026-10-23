@@ -277,31 +277,45 @@ Eletrotécnica?"* — a resposta deve citar o PPC e mostrar o link do PDF do PPC
 
 ---
 
-## 7. Limite do Gemini (por que os vetores não entram de uma vez)
+## 7. Limite do Gemini (e o que mudou com o faturamento)
 
-Medido em 22/10/2026 com `GEMINI_API_KEY` do tier gratuito:
+### Medição no tier gratuito (22/10/2026)
 
 | Métrica | Limite | Efeito |
 |---|---|---|
 | `EmbedContentRequestsPerMinute…FreeTier` | 100/min | o job precisa se conter |
-| `EmbedContentRequestsPerDay…FreeTier` | **1.000/dia** | o corpus inteiro (31,4 mil trechos) levaria ~31 dias |
+| `EmbedContentRequestsPerDay…FreeTier` | **1.000/dia** | o corpus inteiro (31,6 mil trechos) levaria ~31 dias |
 
-Cada TRECHO conta como uma requisição. Por isso a importação foi feita em duas
-fases: texto primeiro (segundos) e vetores por um job retomável
-(`npm run rag:embedar`), que respeita 100/min e para quando estoura a cota
-diária — retomando de onde parou no dia seguinte (`embedding IS NULL`).
+Cada TRECHO conta como uma requisição. Por isso a importação é feita em duas
+fases: **texto primeiro** (segundos) e **vetores por um job retomável**
+(`npm run rag:embedar`), que só olha para `embedding IS NULL` — se parar no meio,
+continua de onde parou.
 
-Para indexar tudo de uma vez é preciso **ativar o faturamento** no projeto do
-Google AI Studio (Tier 1). O custo estimado do corpus inteiro é de **centavos**
-(~2,5 milhões de tokens × US$ 0,15/1M ≈ US$ 0,40). Com isso:
+### Com o faturamento ativo (Tier 1) — situação atual
+
+Medido depois de ativar o plano pago: **12 lotes de 100 trechos em paralelo, em
+1,8 s, zero 429** — ou seja, o teto de 1.000/dia deixa de existir. A carga dos
+30.663 trechos que faltavam rodou a **~39,5 trechos/s em 13 minutos**, sem falha:
 
 ```bash
-RAG_LOTE=100 RAG_RPM=800 nohup npm run rag:embedar > /root/rag-embeddings.log 2>&1 &
+RAG_LOTE=100 RAG_RPM=2400 RAG_PAUSA=300 nohup npm run rag:embedar > /root/rag-embeddings.log 2>&1 &
 ```
 
-Enquanto nem todos os trechos têm vetor, **o chat continua bom**: a busca é
-híbrida (textual + vetorial, fundidas por RRF), então o que falta de vetor é
-coberto pelo casamento de termos.
+**Estado final:** 32.016 de 32.016 trechos ativos com vetor (100%), índice HNSW
+de 201 MB, busca vetorial usando o índice (7 ms no top-5).
+
+**Custo:** o corpus tem ~22 milhões de caracteres (~5,5 milhões de tokens). Com
+`gemini-embedding-2` a US$ 0,20/1M tokens, a carga inteira fica em torno de
+**US$ 1,00** (o número exato sai no Cloud Console → Faturamento → Relatórios,
+filtrando "Generative Language API").
+
+> ⚠️ **Nunca troque `EMBEDDING_MODEL` com a base já vetorizada.** Vetores de
+> modelos diferentes não são comparáveis: o índice passaria a devolver resultados
+> errados. Trocar de modelo exige reindexar **tudo** (`--forcar`).
+
+Enquanto parte dos trechos não tem vetor, o chat continua bom: a busca é híbrida
+(textual + vetorial, fundidas por RRF), então o que falta de vetor é coberto pelo
+casamento de termos.
 
 ---
 
