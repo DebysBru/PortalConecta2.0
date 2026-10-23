@@ -56,7 +56,10 @@ const PERGUNTA_SOBRE_A_BASE =
 const TEMAS: Array<{ gatilhos: string[]; termos: string[] }> = [
   {
     gatilhos: ['tecnologia', 'informatica', 'computacao', 'programacao', 'software', 'redes'],
-    termos: ['informática', 'computação', 'software', 'programação', 'tecnologia', 'redes', 'sistema', 'digital', 'maker', 'robótica', 'prototipagem'],
+    // Termos GENÉRICOS ficam de fora de propósito ("sistema", "tecnologia"):
+    // casavam com texto agronômico ("sistema de cultivo") e traziam projeto de
+    // milho para uma pergunta sobre informática.
+    termos: ['informática', 'computação', 'software', 'programação', 'redes', 'digital', 'maker', 'robótica', 'prototipagem', 'automação'],
   },
   {
     gatilhos: ['agronomia', 'agricultura', 'agroecologia', 'rural'],
@@ -705,7 +708,10 @@ ${contexto}${resumoPortal}`;
       model: DEEPSEEK_MODEL,
       messages,
       temperature: 0.7,
-      max_tokens: 1500,
+      // 2.600 e não 1.500: quando a pergunta pede "todos os projetos do tema",
+      // a lista com 20 itens e suas descrições passava do teto e a resposta
+      // chegava cortada no meio da última frase.
+      max_tokens: 2600,
     }),
   });
 
