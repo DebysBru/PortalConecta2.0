@@ -1,3 +1,4 @@
+import { fetchAiJson } from '@/lib/ai-http';
 /**
  * Camada de LLM desacoplada de provider — hoje usa DeepSeek (chave já configurada).
  * Trocar para Claude API no futuro é mudar só este arquivo; nenhum call site muda.
@@ -23,7 +24,7 @@ export const DEEPSEEK_URL = 'https://api.deepseek.com/chat/completions';
 export const DEEPSEEK_MODEL = process.env.DEEPSEEK_MODEL || 'deepseek-flash';
 
 export interface LlmMessage {
-  role: 'system' | 'user';
+  role: 'system' | 'user' | 'assistant';
   content: string;
 }
 
@@ -31,6 +32,10 @@ export interface LlmCompletionOptions {
   temperature?: number;
   maxTokens?: number;
   jsonMode?: boolean;
+  timeoutMs?: number;
+  attempts?: number;
+  signal?: AbortSignal;
+  onResult?: (info: { usage: unknown; finishReason: string | null }) => void;
 }
 
 export function isLlmConfigured(): boolean {
@@ -51,43 +56,17 @@ export async function generateCompletion(
   }
 
   const { temperature = 0.3, maxTokens = 1500, jsonMode = false } = options;
-  let lastError: Error | null = null;
-
-  for (let attempt = 1; attempt <= 3; attempt++) {
-    try {
-      const response = await fetch(DEEPSEEK_URL, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${apiKey}`,
-        },
-        body: JSON.stringify({
-          model: DEEPSEEK_MODEL,
-          messages,
-          temperature,
-          max_tokens: maxTokens,
-          ...(jsonMode ? { response_format: { type: 'json_object' } } : {}),
-        }),
-      });
-
-      if (!response.ok) {
-        const body = await response.text().catch(() => '');
-        throw new Error(`LLM API error (${response.status}): ${body.slice(0, 300)}`);
-      }
-
-      const data = await response.json();
-      const content = data.choices?.[0]?.message?.content;
-      if (!content) throw new Error('LLM retornou resposta vazia');
-      return content;
-    } catch (err) {
-      lastError = err instanceof Error ? err : new Error(String(err));
-      if (attempt < 3) {
-        await new Promise((r) => setTimeout(r, Math.pow(2, attempt - 1) * 500));
-      }
-    }
-  }
-
-  throw lastError || new Error('Falha ao chamar LLM após retentativas');
+  const data = await fetchAiJson(DEEPSEEK_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
+    body: JSON.stringify({ model: DEEPSEEK_MODEL, messages, temperature, max_tokens: maxTokens,
+      ...(jsonMode ? { response_format: { type: 'json_object' } } : {}) }),
+  }, options);
+  const choice = data.choices?.[0];
+  options.onResult?.({ usage: data.usage ?? null, finishReason: choice?.finish_reason ?? null });
+  if (choice?.finish_reason === 'length') throw new Error('A resposta excedeu o limite; reduza o pedido.');
+  if (typeof choice?.message?.content !== 'string' || !choice.message.content.trim()) throw new Error('LLM retornou resposta vazia');
+  return choice.message.content;
 }
 
 /**

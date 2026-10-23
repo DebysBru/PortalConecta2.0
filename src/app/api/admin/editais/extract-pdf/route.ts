@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
 import { detectFileType, extractDocument, ALLOWED_EXTENSIONS } from '@/lib/document-extract';
 import { CategoriaEdital } from '@prisma/client';
-import { DEEPSEEK_MODEL } from '@/lib/llm';
+import { generateCompletion } from '@/lib/llm';
+import { exigirAdmin } from '@/lib/admin-auth';
+import { reservarAtendimento, AiLimitError } from '@/lib/ai-guard';
 import { MENSAGENS, mensagemAmigavel } from '@/lib/mensagens';
 
 const MAX_FILE_SIZE_BYTES = 20 * 1024 * 1024;
@@ -38,11 +39,7 @@ REGRAS:
 4. "categoria" deve ser exatamente um dos valores da lista, em maiúsculas
 5. Responda APENAS com o JSON, sem texto antes ou depois`;
 
-async function isAdmin(email: string | null): Promise<boolean> {
-  if (!email) return false;
-  const user = await prisma.user.findUnique({ where: { email }, select: { role: true } });
-  return user?.role === 'ADMIN';
-}
+
 
 function truncateWords(text: string, maxWords: number): string {
   const palavras = text.split(/\s+/);
@@ -75,27 +72,15 @@ function sanitizeTraducao(raw: unknown): TraducaoIFizinha {
 }
 
 export async function POST(request: NextRequest) {
+  const auth = await exigirAdmin(request);
+  if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status });
   let file: File | null;
-  let adminEmail: string | null;
   try {
     const formData = await request.formData();
     file = formData.get('file') as File | null;
-    adminEmail = formData.get('adminEmail') as string | null;
   } catch (e) {
     console.error('Falha ao ler o upload do PDF:', e);
     return NextResponse.json({ error: MENSAGENS.dadosInvalidosGenerico }, { status: 400 });
-  }
-
-  let admin: boolean;
-  try {
-    admin = await isAdmin(adminEmail);
-  } catch (e) {
-    console.error('isAdmin check failed:', e);
-    return NextResponse.json({ error: MENSAGENS.erroInesperado }, { status: 500 });
-  }
-
-  if (!admin) {
-    return NextResponse.json({ error: MENSAGENS.semPermissaoAdmin }, { status: 403 });
   }
 
   if (!file) {
@@ -147,48 +132,18 @@ export async function POST(request: NextRequest) {
 
   const conteudo = truncateWords(extracted.text, MAX_WORDS);
 
-  let response: Response;
+  let content: string;
+  let release: (() => Promise<unknown>) | undefined;
   try {
-    response = await fetch('https://api.deepseek.com/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${apiKey}`,
-      },
-      body: JSON.stringify({
-        model: DEEPSEEK_MODEL,
-        messages: [
-          { role: 'system', content: SYSTEM_PROMPT },
-          { role: 'user', content: `Texto extraído do edital:\n\n${conteudo}` },
-        ],
-        temperature: 0.3,
-        max_tokens: 2000,
-        response_format: { type: 'json_object' },
-      }),
-    });
-  } catch (e) {
-    console.error('DeepSeek fetch failed:', e);
-    return NextResponse.json({ error: MENSAGENS.iaSemConexao }, { status: 502 });
-  }
-
-  let data: { choices?: { message?: { content?: string } }[]; error?: { message?: string } };
-  try {
-    data = await response.json();
-  } catch {
-    const body = await response.text().catch(() => '');
-    console.error('DeepSeek returned non-JSON response:', response.status, body.slice(0, 300));
-    return NextResponse.json({ error: MENSAGENS.iaRespostaInvalida }, { status: 502 });
-  }
-
-  if (!response.ok) {
-    console.error('DeepSeek error:', JSON.stringify(data));
-    return NextResponse.json({ error: MENSAGENS.iaErro }, { status: 500 });
-  }
-
-  const content = data.choices?.[0]?.message?.content;
-  if (!content) {
-    return NextResponse.json({ error: MENSAGENS.iaErro }, { status: 500 });
-  }
+    release = await reservarAtendimento(request, 'extracao-edital', auth.email);
+    content = await generateCompletion([
+      { role: 'system', content: SYSTEM_PROMPT },
+      { role: 'user', content: `Texto extraído do edital:\n\n${conteudo}` },
+    ], { temperature: 0.2, maxTokens: 2000, jsonMode: true, signal: request.signal });
+  } catch (error) {
+    if (error instanceof AiLimitError) return NextResponse.json({ error: error.message }, { status: 429, headers: { 'Retry-After': String(error.retryAfterSeconds) } });
+    return NextResponse.json({ error: MENSAGENS.iaErro }, { status: 503 });
+  } finally { await release?.(); }
 
   let parsed: Record<string, unknown>;
   try {

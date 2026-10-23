@@ -3,9 +3,11 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Loader2, Send, Sparkles } from 'lucide-react';
 import Markdown from 'react-markdown';
+import { useAuth } from '@/contexts/AuthContext';
+import type { FonteResposta } from '@/lib/fontes-resposta';
 import { MascoteIFizinha } from '@/components/ifizinha/MascoteIFizinha';
 
-type Mensagem = { role: 'user' | 'assistant'; content: string };
+type Mensagem = { role: 'user' | 'assistant'; content: string; fontes?: FonteResposta[]; fontesTipo?: string };
 
 const SAUDACAO =
   'Oi! Eu sou a IFizinha! Posso te ajudar com informações sobre editais, projetos, eventos e muito mais. O que você quer saber?';
@@ -29,7 +31,9 @@ const SUGESTOES = [
  * tiver trocado o texto no painel continua com o texto dele no ar.
  */
 export function PergunteIFizinha({ config = {} }: { config?: Record<string, any> }) {
+  const { user } = useAuth();
   const [mensagens, setMensagens] = useState<Mensagem[]>([{ role: 'assistant', content: SAUDACAO }]);
+  const [state, setState] = useState<string | undefined>();
   const [entrada, setEntrada] = useState('');
   const [carregando, setCarregando] = useState(false);
   const fimDaLista = useRef<HTMLDivElement>(null);
@@ -43,7 +47,7 @@ export function PergunteIFizinha({ config = {} }: { config?: Record<string, any>
 
   const enviar = async (texto?: string) => {
     const pergunta = (texto ?? entrada).trim();
-    if (!pergunta || carregando) return;
+    if (!user || !pergunta || carregando) return;
 
     const historico: Mensagem[] = [...mensagens, { role: 'user', content: pergunta }];
     setMensagens(historico);
@@ -51,18 +55,20 @@ export function PergunteIFizinha({ config = {} }: { config?: Record<string, any>
     setCarregando(true);
 
     try {
+      const token = await user?.getIdToken();
       const resposta = await fetch('/api/chat', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: pergunta, history: mensagens.slice(-6) }),
+        headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+        body: JSON.stringify({ message: pergunta, state, history: mensagens.slice(-6).map(({ role, content }) => ({ role, content })) }),
       });
       const dados = await resposta.json();
+      if (dados.reply) setState(dados.state);
       setMensagens([
         ...historico,
         {
-          role: 'assistant',
+          role: 'assistant', fontes: dados.fontes, fontesTipo: dados.fontesTipo,
           content:
-            dados.reply ||
+            dados.reply || dados.error ||
             'Não consegui responder agora. Tente reformular a pergunta ou envie de novo em alguns instantes.',
         },
       ]);
@@ -101,6 +107,8 @@ export function PergunteIFizinha({ config = {} }: { config?: Record<string, any>
 
           {/* Chat */}
           <div className="rounded-3xl border border-white bg-white/90 p-5 shadow-xl backdrop-blur md:p-6">
+            <p className="mb-3 text-xs text-gray-600">Em fase de testes: até 20 perguntas por hora por conta, com intervalo mínimo de 5 segundos.</p>
+            {!user && <p className="mb-3 text-sm text-gray-700"><a href="/admin/login" className="font-semibold text-azul-eletrico underline">Entre na sua conta</a> para perguntar à IFizinha.</p>}
             <div
               ref={caixaDeMensagens}
               className="max-h-64 space-y-4 overflow-y-auto pr-1"
@@ -121,6 +129,10 @@ export function PergunteIFizinha({ config = {} }: { config?: Record<string, any>
                     }
                   >
                     {msg.role === 'assistant' ? <Markdown>{msg.content}</Markdown> : msg.content}
+                    {msg.fontes && msg.fontes.length > 0 && <div className="mt-3 border-t pt-2 text-xs">
+                      <p>{msg.fontesTipo === 'recuperadas' ? 'Fontes recuperadas para consulta' : 'Fontes citadas'}</p>
+                      {msg.fontes.map(f => f.url && <a key={f.numero} className="block underline" href={f.url} target="_blank" rel="noopener noreferrer">[{f.numero}] {f.titulo}</a>)}
+                    </div>}
                   </div>
                 </div>
               ))}
@@ -141,7 +153,7 @@ export function PergunteIFizinha({ config = {} }: { config?: Record<string, any>
                   key={sugestao}
                   type="button"
                   onClick={() => enviar(sugestao)}
-                  disabled={carregando}
+                  disabled={!user || carregando}
                   className="rounded-full border border-gray-200 bg-white px-3.5 py-1.5 text-xs font-medium text-gray-600 transition-all hover:border-azul-eletrico/40 hover:text-azul-eletrico disabled:opacity-50"
                 >
                   {sugestao}
@@ -163,13 +175,14 @@ export function PergunteIFizinha({ config = {} }: { config?: Record<string, any>
               <input
                 id="pergunta-ifizinha"
                 value={entrada}
+                disabled={!user || carregando}
                 onChange={(e) => setEntrada(e.target.value)}
                 placeholder="Digite sua pergunta aqui…"
                 className="flex-1 rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm text-gray-700 placeholder-gray-400 focus:border-azul-eletrico/40 focus:outline-none focus:ring-2 focus:ring-azul-eletrico/20"
               />
               <button
                 type="submit"
-                disabled={carregando || !entrada.trim()}
+                disabled={!user || carregando || !entrada.trim()}
                 aria-label="Enviar pergunta"
                 className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-xl bg-azul-eletrico text-white transition-all hover:bg-azul-600 disabled:opacity-50"
               >

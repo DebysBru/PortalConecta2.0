@@ -1,7 +1,7 @@
 'use server';
 
 import { prisma } from '@/lib/prisma';
-import { DEEPSEEK_MODEL } from '@/lib/llm';
+import { generateCompletion } from '@/lib/llm';
 import { MENSAGENS, mensagemAmigavel } from '@/lib/mensagens';
 import { getVerifiedServerSession } from '@/lib/session';
 
@@ -66,35 +66,22 @@ TAGS DISPONÍVEIS: ${TAGS_DISPONIVEIS.join(', ')}
 
 Responda APENAS com as tags separadas por vírgula (máximo 5 tags). Exemplo: Tecnologia, Robótica, Educação`;
 
-  const response = await fetch('https://api.deepseek.com/chat/completions', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${apiKey}`,
-    },
-    body: JSON.stringify({
-      model: DEEPSEEK_MODEL,
-      messages: [
-        { role: 'system', content: 'Você é um classificador de projetos acadêmicos. Responda apenas com tags separadas por vírgula.' },
-        { role: 'user', content: prompt },
-      ],
-      temperature: 0.3,
-      max_tokens: 100,
-    }),
-  });
-
-  if (!response.ok) {
-    return { ok: false, error: 'A IA não conseguiu sugerir tags agora. Tente novamente ou escolha as tags manualmente.' };
-  }
-
-  const data = await response.json();
-  const content = data.choices?.[0]?.message?.content || '';
+  let content: string;
+  const session = await getVerifiedServerSession();
+  const auth = await requireAdminEmail(session?.email);
+  if (!auth.ok) return auth;
+  try {
+    content = await generateCompletion([
+      { role: 'system', content: 'Você é um classificador de projetos acadêmicos. Responda apenas com tags separadas por vírgula.' },
+      { role: 'user', content: prompt.slice(0, 16000) },
+    ], { temperature: 0.3, maxTokens: 100 });
+  } catch { return { ok: false, error: 'A IA não conseguiu sugerir tags agora. Escolha manualmente ou tente novamente.' }; }
 
   // Extrair tags da resposta
   const tags = content
     .split(',')
     .map((t: string) => t.trim())
-    .filter((t: string) => t.length > 0 && t.length < 50);
+    .filter((t: string) => TAGS_DISPONIVEIS.includes(t));
 
   return { ok: true, data: tags.slice(0, 5) };
 }

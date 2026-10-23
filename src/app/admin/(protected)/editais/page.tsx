@@ -40,14 +40,6 @@ export default function AdminEditaisPage() {
 
   const isMaster = userRole === 'ADMIN' || isMasterAdmin;
 
-  if (!isMaster) {
-    return (
-      <div className="flex flex-col items-center justify-center py-24 gap-3">
-        <AlertCircle className="w-8 h-8 text-red-400" />
-        <p className="text-gray-500">Acesso restrito a administradores.</p>
-      </div>
-    );
-  }
 
   const load = () => listEditais().then(setEditais).catch(console.error);
   useEffect(() => { load(); }, []);
@@ -129,9 +121,9 @@ export default function AdminEditaisPage() {
     try {
       const formData = new FormData();
       formData.append('file', file);
-      formData.append('adminEmail', user.email);
 
-      const res = await fetch('/api/admin/editais/extract-pdf', { method: 'POST', body: formData });
+      const idToken = await user.getIdToken();
+      const res = await fetch('/api/admin/editais/extract-pdf', { method: 'POST', body: formData, headers: { Authorization: `Bearer ${idToken}` } });
       const result = await res.json();
 
       if (!res.ok || !result.ok) {
@@ -164,6 +156,15 @@ export default function AdminEditaisPage() {
       if (pdfInputRef.current) pdfInputRef.current.value = '';
     }
   };
+
+  if (!isMaster) {
+    return (
+      <div className="flex flex-col items-center justify-center py-24 gap-3">
+        <AlertCircle className="w-8 h-8 text-red-400" />
+        <p className="text-gray-500">Acesso restrito a administradores.</p>
+      </div>
+    );
+  }
 
   return (
     <div className="max-w-5xl mx-auto">
@@ -393,9 +394,10 @@ export default function AdminEditaisPage() {
                           setGeneratingAI(true);
                           setError('');
                           try {
+                            const idToken = await user?.getIdToken();
                             const res = await fetch('/api/ai/ifizinha', {
                               method: 'POST',
-                              headers: { 'Content-Type': 'application/json' },
+                              headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${idToken}` },
                               body: JSON.stringify({
                                 titulo: form.titulo,
                                 resumo: form.resumo,

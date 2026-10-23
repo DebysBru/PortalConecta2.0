@@ -1,3 +1,4 @@
+import { embeddingSignature, validateEmbedding } from '@/lib/embeddings';
 /**
  * Supabase Vector Client — Operações Vetoriais em Postgres + pgvector
  *
@@ -52,7 +53,7 @@ export interface ChunkSearchResult {
 }
 
 export interface SearchOptions {
-  queryEmbedding: number[];
+  queryEmbedding?: number[];
   /** Pergunta em texto — usada pela busca textual de fallback. */
   queryText?: string;
   matchCount?: number;
@@ -99,7 +100,8 @@ export async function saveChunksWithEmbeddings(
 
   for (const chunk of chunks) {
     const chunkId = chunk.id || `chk_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
-    const metadataJson = JSON.stringify(chunk.metadata || {});
+    validateEmbedding(chunk.embedding);
+    const metadataJson = JSON.stringify({ ...chunk.metadata, embedding_signature: embeddingSignature() });
     const vectorString = `[${chunk.embedding.join(',')}]`;
     const ativo = chunk.ativo !== undefined ? chunk.ativo : true;
     const versao = chunk.documentoVersao || 1;
@@ -138,32 +140,7 @@ export async function saveChunksWithEmbeddings(
 
       insertedCount++;
     } catch (err) {
-      log.warn('Tentativa com vector falhou, usando fallback sem coluna vector', {
-        chunkIndex: chunk.chunkIndex,
-        documentoId: chunk.documentoId,
-        erro: err instanceof Error ? err.message : String(err),
-      });
-      // Fallback: se a coluna vector não existir (ambiente não migrado), grava/atualiza
-      // via Prisma padrão. upsert (não create) porque o chunk pode já existir — reindexar
-      // um chunk existente com create() quebraria por violação de chave primária.
-      const fallbackData = {
-        documentoId: chunk.documentoId,
-        documentoVersao: versao,
-        chunkIndex: chunk.chunkIndex,
-        texto: chunk.texto,
-        secao: chunk.secao || null,
-        categoria: chunk.categoria || null,
-        paginaInicial: chunk.paginaInicial || null,
-        paginaFinal: chunk.paginaFinal || null,
-        metadata: chunk.metadata as any,
-        ativo,
-      };
-      await cliente.chunkKb.upsert({
-        where: { id: chunkId },
-        create: { id: chunkId, ...fallbackData },
-        update: fallbackData,
-      });
-      insertedCount++;
+      throw new Error(`Não foi possível persistir o vetor do chunk ${chunk.chunkIndex}`, { cause: err });
     }
   }
 
@@ -572,7 +549,7 @@ async function buscarSemNormalizacao(
     log.error('Nenhuma estratégia de busca textual disponível', {
       erro: err instanceof Error ? err.message : String(err),
     });
-    return [];
+    throw new Error('Recuperação textual indisponível', { cause: err });
   }
 }
 
@@ -603,17 +580,10 @@ export async function searchSimilarChunks(options: SearchOptions): Promise<Chunk
     minSimilarity = 0.2,
   } = options;
 
-  const vetoriais = await buscarPorVetor(
-    queryEmbedding,
-    matchCount * 2,
-    filterCategoria,
-    filterTipo,
-    minSimilarity
-  );
-
-  const textuais = queryText
-    ? await buscarTextualmente(prisma, queryText, matchCount * 2, filterCategoria, filterTipo)
-    : [];
+  const [vetoriais, textuais] = await Promise.all([
+    queryEmbedding ? buscarPorVetor(queryEmbedding, matchCount * 2, filterCategoria, filterTipo, minSimilarity) : Promise.resolve([]),
+    queryText ? buscarTextualmente(prisma, queryText, matchCount * 2, filterCategoria, filterTipo) : Promise.resolve([]),
+  ]);
 
   if (vetoriais.length === 0 && textuais.length === 0) return [];
   if (textuais.length === 0) return vetoriais.slice(0, matchCount).map(enriquecerComUrl);
@@ -634,37 +604,12 @@ async function buscarPorVetor(
 ): Promise<ChunkSearchResult[]> {
   const vectorString = `[${queryEmbedding.join(',')}]`;
 
-  // 1. Função RPC match_chunks_kb (criada por prisma/pgvector-setup.sql)
+  // Consulta direta: a RPC histórica não filtra a procedência do embedding.
   try {
-    const results = await prisma.$queryRawUnsafe<ChunkSearchResult[]>(
-      `
-      SELECT * FROM match_chunks_kb(
-        $1::vector,
-        $2::int,
-        $3::text,
-        $4::text,
-        $5::float
-      )
-      `,
-      vectorString,
-      limite,
-      filterCategoria,
-      filterTipo,
-      minSimilarity
-    );
-
-    if (Array.isArray(results) && results.length > 0) return results;
-  } catch (err) {
-    log.warn('RPC match_chunks_kb indisponível, tentando query direta pgvector', {
-      erro: err instanceof Error ? err.message : String(err),
-    });
-  }
-
-  // 2. Busca direta com o operador <=>
-  try {
-    let whereClause = `WHERE c.ativo = true AND d.ativo = true AND c.embedding IS NOT NULL`;
-    const params: unknown[] = [vectorString, limite];
-    let paramIndex = 3;
+    validateEmbedding(queryEmbedding);
+    let whereClause = `WHERE c.ativo = true AND d.ativo = true AND c.embedding IS NOT NULL AND c.metadata->>'embedding_signature' = $3`;
+    const params: unknown[] = [vectorString, limite, embeddingSignature()];
+    let paramIndex = 4;
 
     if (filterCategoria) {
       whereClause += ` AND (c.categoria = $${paramIndex} OR (c.metadata->>'categoria') = $${paramIndex})`;

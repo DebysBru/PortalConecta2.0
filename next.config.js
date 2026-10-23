@@ -1,5 +1,7 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  // Permite validar um build isolado sem sobrescrever o servidor local em uso.
+  distDir: process.env.NEXT_BUILD_DIR || '.next',
   experimental: {
     serverComponentsExternalPackages: ['pdf-parse'],
     // A importação do SUAP manda a captura inteira como argumento de Server

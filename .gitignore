@@ -57,3 +57,4 @@ build-*.log
 # Graphify: ambiente Python e grafos locais regeneráveis
 /.graphify-venv/
 /graphify-out/
+/.next-rag-check/

@@ -1,5 +1,7 @@
-import { NextResponse } from 'next/server';
-import { DEEPSEEK_MODEL } from '@/lib/llm';
+import { NextRequest, NextResponse } from 'next/server';
+import { generateCompletion, parseJsonResponse } from '@/lib/llm';
+import { exigirAdmin } from '@/lib/admin-auth';
+import { reservarAtendimento, AiLimitError } from '@/lib/ai-guard';
 import { MENSAGENS } from '@/lib/mensagens';
 
 const SYSTEM_PROMPT = `Você é a IFizinha, assistente virtual do Portal Conecta do IFPR Campus Ivaiporã.
@@ -25,63 +27,26 @@ FORMATO DE SAÍDA (JSON estrito):
   "observacoes": "Observações adicionais (pode ser vazio)"
 }`;
 
-export async function POST(request: Request) {
-  const body = await request.json();
-  const { titulo, resumo, categoria, dataEncerramento } = body;
-
-  if (!titulo || !resumo) {
-    return NextResponse.json({ error: MENSAGENS.camposIaObrigatorios('título e resumo do edital') }, { status: 400 });
-  }
-
-  const apiKey = process.env.DEEPSEEK_API_KEY;
-  if (!apiKey) {
-    return NextResponse.json({ error: MENSAGENS.iaNaoConfigurada }, { status: 500 });
-  }
-
-  const userMessage = `Traduza este edital para linguagem simples:
-
-TÍTULO: ${titulo}
-CATEGORIA: ${categoria}
-RESUMO: ${resumo}
-${dataEncerramento ? `DATA DE ENCERRAMENTO: ${dataEncerramento}` : ''}
-
-Gere a tradução completa nos campos do JSON.`;
-
-  const response = await fetch('https://api.deepseek.com/chat/completions', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${apiKey}`,
-    },
-    body: JSON.stringify({
-      model: DEEPSEEK_MODEL,
-      messages: [
-        { role: 'system', content: SYSTEM_PROMPT },
-        { role: 'user', content: userMessage },
-      ],
-      temperature: 0.7,
-      max_tokens: 2000,
-    }),
-  });
-
-  const data = await response.json();
-
-  if (!response.ok) {
-    console.error('DeepSeek error:', JSON.stringify(data));
-    return NextResponse.json({ error: MENSAGENS.iaErro }, { status: 500 });
-  }
-
-  const content = data.choices?.[0]?.message?.content;
-  if (!content) {
-    return NextResponse.json({ error: MENSAGENS.iaErro }, { status: 500 });
-  }
-
-  const jsonMatch = content.match(/\{[\s\S]*\}/);
-  if (!jsonMatch) {
-    console.error('No JSON in response:', content.slice(0, 300));
-    return NextResponse.json({ error: MENSAGENS.iaRespostaInvalida }, { status: 500 });
-  }
-
-  const traducao = JSON.parse(jsonMatch[0]);
-  return NextResponse.json({ traducao });
+export async function POST(request: NextRequest) {
+  const auth = await exigirAdmin(request);
+  if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status });
+  let release: (() => Promise<unknown>) | undefined;
+  try {
+    const body = await request.json();
+    if (!body || typeof body.titulo !== 'string' || typeof body.resumo !== 'string' || !body.titulo.trim() || !body.resumo.trim() || body.titulo.length > 500 || body.resumo.length > 20000) {
+      return NextResponse.json({ error: 'Informe título e resumo válidos (até 500 e 20000 caracteres).' }, { status: 400 });
+    }
+    release = await reservarAtendimento(request, 'traducao', auth.email);
+    const raw = await generateCompletion([
+      { role: 'system', content: SYSTEM_PROMPT },
+      { role: 'user', content: JSON.stringify({ titulo: body.titulo, resumo: body.resumo, categoria: String(body.categoria ?? '').slice(0, 100), dataEncerramento: String(body.dataEncerramento ?? '').slice(0, 40) }) },
+    ], { jsonMode: true, temperature: 0.2, maxTokens: 2000, signal: request.signal });
+    const traducao = parseJsonResponse<Record<string, unknown>>(raw);
+    const fields = ['oquee', 'quempode', 'beneficios', 'documentos', 'comoinscrever', 'prazo', 'observacoes'];
+    if (!fields.every((field) => typeof traducao[field] === 'string' && (traducao[field] as string).length <= 8000)) throw new Error('Resposta estruturada inválida');
+    return NextResponse.json({ traducao: Object.fromEntries(fields.map((field) => [field, traducao[field]])) });
+  } catch (error) {
+    if (error instanceof AiLimitError) return NextResponse.json({ error: error.message }, { status: 429, headers: { 'Retry-After': String(error.retryAfterSeconds) } });
+    return NextResponse.json({ error: error instanceof SyntaxError ? 'Dados inválidos.' : MENSAGENS.iaErro }, { status: error instanceof SyntaxError ? 400 : 503 });
+  } finally { await release?.(); }
 }

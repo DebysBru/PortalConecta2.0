@@ -4,6 +4,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import Image from 'next/image';
 import { MessageCircle, X, Send, Sparkles, Loader2, Link2, ExternalLink } from 'lucide-react';
 import Markdown from 'react-markdown';
+import { useAuth } from '@/contexts/AuthContext';
 import { EVENTO_ABRIR_CHAT } from '@/lib/ifizinha-chat';
 import { rotuloDoLink, type FonteResposta } from '@/lib/fontes-resposta';
 
@@ -12,9 +13,11 @@ type Message = {
   content: string;
   /** Fontes citadas na resposta — exibidas como links para conferência. */
   fontes?: FonteResposta[];
+  fontesTipo?: 'citadas' | 'recuperadas';
 };
 
 export function ChatWidget() {
+  const { user } = useAuth();
   const [isOpen, setIsOpen] = useState(false);
   const [messages, setMessages] = useState<Message[]>([
     {
@@ -23,6 +26,7 @@ export function ChatWidget() {
         'Oi! Eu sou a IFizinha! ✨ Posso te ajudar com informações sobre editais, cursos, bolsas, projetos e a vida acadêmica no IFPR Campus Ivaiporã. Sempre que eu responder com base em um documento do campus, deixo o link da fonte logo abaixo — assim você confere tudo no site oficial. O que você quer saber?',
     },
   ]);
+  const [state, setState] = useState<string | undefined>();
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -44,7 +48,7 @@ export function ChatWidget() {
   }, []);
 
   const handleSend = async () => {
-    if (!input.trim() || isLoading) return;
+    if (!user || !input.trim() || isLoading) return;
 
     const userMessage = input.trim();
     setInput('');
@@ -52,11 +56,12 @@ export function ChatWidget() {
     setIsLoading(true);
 
     try {
+      const token = await user?.getIdToken();
       const response = await fetch('/api/chat', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
         body: JSON.stringify({
-          message: userMessage,
+          message: userMessage, state,
           // Só role/content vai para o servidor — mandar o objeto inteiro
           // levaria a lista de fontes de cada mensagem sem uso nenhum.
           history: messages.slice(-6).map(({ role, content }) => ({ role, content })),
@@ -66,9 +71,10 @@ export function ChatWidget() {
       const data = await response.json();
 
       if (data.reply) {
+        setState(data.state);
         setMessages((prev) => [
           ...prev,
-          { role: 'assistant', content: data.reply, fontes: Array.isArray(data.fontes) ? data.fontes : [] },
+          { role: 'assistant', content: data.reply, fontes: Array.isArray(data.fontes) ? data.fontes : [], fontesTipo: data.fontesTipo },
         ]);
       } else {
         setMessages((prev) => [
@@ -76,7 +82,7 @@ export function ChatWidget() {
           {
             role: 'assistant',
             content:
-              'Não consegui responder agora. Tente reformular a pergunta ou envie novamente em alguns instantes.',
+              data.error || 'Não consegui responder agora. Tente novamente em instantes.',
           },
         ]);
       }
@@ -152,6 +158,7 @@ export function ChatWidget() {
           </div>
 
           {/* Messages */}
+          <p className="px-4 pt-3 text-xs text-gray-600">Em fase de testes: até 20 perguntas por hora por conta, com intervalo mínimo de 5 segundos.</p>
           <div className="flex-1 overflow-y-auto p-4 space-y-4">
             {messages.map((msg, i) => (
               <div
@@ -204,7 +211,7 @@ export function ChatWidget() {
                     <div className="mt-3 border-t border-gray-300/70 pt-2">
                       <p className="mb-1.5 flex items-center gap-1 text-[11px] font-semibold uppercase tracking-wide text-gray-500">
                         <Link2 className="h-3 w-3" />
-                        Fontes
+                        {msg.fontesTipo === 'recuperadas' ? 'Fontes recuperadas para consulta' : 'Fontes citadas'}
                       </p>
                       <ul className="space-y-1">
                         {msg.fontes.map((fonte) => (
@@ -262,6 +269,7 @@ export function ChatWidget() {
 
           {/* Input */}
           <div className="p-3 border-t border-gray-100">
+            {!user && <p className="mb-2 text-sm text-gray-700"><a href="/admin/login" className="font-semibold text-azul-eletrico underline">Entre na sua conta</a> para perguntar à IFizinha.</p>}
             <div className="flex items-center gap-2">
               <input
                 type="text"
@@ -270,11 +278,12 @@ export function ChatWidget() {
                 onKeyPress={handleKeyPress}
                 placeholder="Pergunte sobre editais, cursos, bolsas..."
                 className="flex-1 px-4 py-2.5 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-azul-eletrico focus:border-transparent"
-                disabled={isLoading}
+                disabled={!user || isLoading}
               />
               <button
                 onClick={handleSend}
-                disabled={!input.trim() || isLoading}
+                disabled={!user || !input.trim() || isLoading}
+                aria-label="Enviar pergunta"
                 className="w-10 h-10 rounded-xl bg-azul-eletrico text-white flex items-center justify-center hover:bg-azul-eletrico/90 transition-colors disabled:opacity-50"
               >
                 <Send className="w-4 h-4" />

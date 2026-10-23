@@ -28,6 +28,7 @@ export interface DocumentoCuradoria {
   categoria: string;
   tags: string[];
   chunks: ChunkCuradoria[];
+  cobertura?: { analisados: number; total: number; parcial: boolean };
 }
 
 const CATEGORIAS_VALIDAS = ['Ensino', 'Pesquisa', 'Extensão', 'Inovação', 'Institucional'];
@@ -80,18 +81,20 @@ export async function curarDocumento(
   }
 
   let corpo = '';
+  let analisados = 0;
   for (const c of chunks) {
     const marcador = tabelaPorChunk.get(c.chunkIndex) ? ' [PARECE TABELA]' : '';
     const secaoInfo = c.secao ? ` (seção detectada: ${c.secao})` : '';
-    corpo += `[Chunk ${c.chunkIndex}]${secaoInfo}${marcador}\n${c.texto}\n\n`;
-    if (corpo.length > MAX_INPUT_CHARS) break;
+    const block = `[Chunk ${c.chunkIndex}]${secaoInfo}${marcador}\n${c.texto}\n\n`;
+    if (corpo.length + block.length > MAX_INPUT_CHARS) break;
+    corpo += block; analisados++;
   }
   corpo = corpo.slice(0, MAX_INPUT_CHARS);
 
   const systemPrompt = `Você processa documentos institucionais do IFPR Campus Ivaiporã para alimentar uma base de conhecimento (RAG).
 Analise os trechos (chunks) abaixo e retorne APENAS um JSON válido, sem texto fora do JSON, com esta estrutura exata:
 {
-  "resumo": "resumo do documento inteiro em 2-3 frases, sem inventar informação",
+  "resumo": "resumo apenas dos trechos fornecidos em 2-3 frases; não afirme cobrir o documento inteiro, sem inventar informação",
   "categoria": "Ensino" | "Pesquisa" | "Extensão" | "Inovação" | "Institucional",
   "tags": ["tag1", "tag2", ...] (5 a 10 palavras-chave em minúsculas, sem acento, úteis para busca),
   "chunks": [
@@ -118,10 +121,12 @@ Regras: não invente dados. "tabela_reformatada" só para trechos marcados [PARE
       chunks?: Array<{ index: number; secao?: string | null; tabela_reformatada?: string }>;
     }>(raw);
 
+    if (typeof parsed.resumo !== 'string' || !Array.isArray(parsed.tags) || !parsed.tags.every(t => typeof t === 'string') || !Array.isArray(parsed.chunks) || !parsed.chunks.every(c => Number.isInteger(c.index) && (c.secao == null || typeof c.secao === 'string') && (c.tabela_reformatada == null || typeof c.tabela_reformatada === 'string'))) throw new Error('Metadados de IA inválidos');
     const chunksPorIndex = new Map((parsed.chunks ?? []).map((c) => [c.index, c]));
 
     return {
-      resumo: parsed.resumo ?? '',
+      cobertura: { analisados, total: chunks.length, parcial: analisados < chunks.length },
+      resumo: parsed.resumo.slice(0, 4000),
       categoria: CATEGORIAS_VALIDAS.includes(parsed.categoria ?? '') ? parsed.categoria! : 'Institucional',
       tags: Array.isArray(parsed.tags) ? parsed.tags.slice(0, 10) : [],
       chunks: chunks.map((c) => {
@@ -129,7 +134,7 @@ Regras: não invente dados. "tabela_reformatada" só para trechos marcados [PARE
         return {
           chunkIndex: c.chunkIndex,
           secao: sugestao?.secao ?? c.secao ?? undefined,
-          tabelaReformatada: sugestao?.tabela_reformatada,
+          tabelaReformatada: tabelaPorChunk.get(c.chunkIndex) ? sugestao?.tabela_reformatada?.slice(0, 8000) : undefined,
           qualidade: qualidadePorChunk.get(c.chunkIndex) ?? 'ok',
         };
       }),

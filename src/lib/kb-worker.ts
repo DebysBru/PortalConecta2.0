@@ -67,6 +67,7 @@ export async function curarDocumentoKb(documentoId: string): Promise<void> {
         metadata: {
           ...docMetadata,
           resumo: curadoria.resumo,
+          ...(curadoria.cobertura ? { cobertura_curadoria: curadoria.cobertura } : {}),
           categoria: curadoria.categoria,
           tags: curadoria.tags,
         },

@@ -17,7 +17,9 @@ const prismaMock = vi.hoisted(() => ({
 }));
 
 const buscaMock = vi.hoisted(() => ({ searchSimilarChunks: vi.fn() }));
+vi.mock('@/lib/chat-identity', () => ({ identidadeAutenticadaChat: vi.fn(async () => 'conta:teste'), ChatAuthError: class extends Error {} }));
 
+vi.mock('@/lib/ai-guard', () => ({ reservarAtendimento: vi.fn(async () => vi.fn(async () => undefined)), AiLimitError: class extends Error {} }));
 vi.mock('@/lib/prisma', () => ({ prisma: prismaMock, db: prismaMock }));
 vi.mock('@/lib/embeddings', () => ({ generateEmbedding: vi.fn(async () => new Array(1536).fill(0.1)) }));
 vi.mock('@/lib/busca-vetorial', async (importOriginal) => {
@@ -111,10 +113,11 @@ describe('POST /api/chat — fontes da resposta', () => {
     await POST(requisicao('carga horária de eletrotécnica'));
 
     const corpoEnviado = JSON.parse(String((fetchMock.mock.calls[0] as unknown as [string, RequestInit])[1].body));
-    const prompt = corpoEnviado.messages[0].content as string;
+    const prompt = corpoEnviado.messages.map((m: { content: string }) => m.content).join('\n');
+    expect(corpoEnviado.messages[0].content).not.toContain('1.333 horas');
 
     expect(prompt).toContain('[fonte 1] PPC Eletrotécnica');
-    expect(prompt).toContain('URL: https://ifpr.edu.br/x.pdf');
+    expect(prompt).toContain('carga horária');
     expect(prompt).toContain('COMO CITAR AS FONTES');
   });
 

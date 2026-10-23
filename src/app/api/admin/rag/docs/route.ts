@@ -1,3 +1,6 @@
+import { alterarVisibilidadeRag } from '@/lib/rag-publicacao';
+import { cache } from '@/lib/cache';
+import { removerOriginalRag } from '@/lib/rag-storage';
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { exigirAdmin } from '@/lib/admin-auth';
@@ -35,7 +38,7 @@ export async function PUT(request: NextRequest) {
   const auth = await exigirAdmin(request);
   if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status });
 
-  let body: { id?: string; titulo?: string; ativo?: boolean };
+  let body: { id?: string; titulo?: string; ativo?: boolean; substituirId?: string };
   try {
     body = await request.json();
   } catch {
@@ -43,7 +46,7 @@ export async function PUT(request: NextRequest) {
   }
 
   const { id, titulo, ativo } = body;
-  if (!id) {
+  if (typeof id !== 'string' || !id || (titulo !== undefined && (typeof titulo !== 'string' || !titulo.trim() || titulo.length > 500)) || (ativo !== undefined && typeof ativo !== 'boolean')) {
     return NextResponse.json({ error: 'Informe qual documento você quer alterar.' }, { status: 400 });
   }
 
@@ -56,15 +59,16 @@ export async function PUT(request: NextRequest) {
     where: { id },
     data: {
       ...(titulo !== undefined && { titulo }),
-      ...(ativo !== undefined && { ativo }),
+
     },
   });
 
   if (ativo !== undefined) {
-    await prisma.chunkKb.updateMany({ where: { documentoId: id }, data: { ativo } });
+    try { await alterarVisibilidadeRag(id, ativo, typeof body.substituirId === 'string' ? body.substituirId : undefined); } catch { return NextResponse.json({ error: 'Não foi possível ativar esta versão. Confira a versão atual e a indexação.' }, { status: 409 }); }
   }
 
-  return NextResponse.json({ ok: true, data: updated });
+  cache.invalidate('chat:');
+  return NextResponse.json({ ok: true, data: { ...updated, ativo: ativo ?? updated.ativo } });
 }
 
 export async function DELETE(request: NextRequest) {
@@ -83,6 +87,9 @@ export async function DELETE(request: NextRequest) {
 
   // Chunks são deletados em cascade
   await prisma.documentoKb.delete({ where: { id } });
+  const key = (doc.metadata as Record<string, unknown>).originalKey;
+  if (typeof key === 'string') await removerOriginalRag(key);
+  cache.invalidate('chat:');
 
   return NextResponse.json({ ok: true });
 }

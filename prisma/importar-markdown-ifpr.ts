@@ -25,7 +25,7 @@
  *    substituídos (e não empilhados).
  *
  * 3. **Sem `GEMINI_API_KEY` a importação NÃO inventa embedding.** O
- *    `generateBatchEmbeddings` cai num vetor determinístico de hash quando não
+ *    `generateBatchEmbeddings` recusa indexação sem chave quando não
  *    há chave — 1536 dimensões de ruído, que passam na validação e fazem a
  *    busca vetorial devolver qualquer coisa. Aqui a importação simplesmente
  *    grava os chunks sem vetor e avisa; a busca textual (prisma/
@@ -62,7 +62,8 @@ import { load as carregarYaml } from 'js-yaml';
 import fg from 'fast-glob';
 
 import { chunkDocument } from '@/lib/chunking';
-import { generateBatchEmbeddings, validateEmbedding } from '@/lib/embeddings';
+import { publicarVersaoRag } from '@/lib/rag-publicacao';
+import { generateBatchEmbeddings, validateEmbedding, textoParaEmbedding, embeddingSignature } from '@/lib/embeddings';
 import { saveChunksWithEmbeddings } from '@/lib/busca-vetorial';
 
 // ==============================================================================
@@ -347,9 +348,7 @@ async function gravarChunks(
 
   if (opcoes.semEmbeddings || !chaveGemini) return { total: linhas.length, comEmbedding: 0 };
 
-  const textos = linhas.map((linha) =>
-    linha.secao ? `${linha.secao}: ${linha.texto}` : linha.texto
-  );
+  const textos = linhas.map(textoParaEmbedding);
 
   const vetores: number[][] = [];
   for (let i = 0; i < textos.length; i += 64) {
@@ -414,7 +413,7 @@ async function importarDocumento(
   const chunks = chunkDocument(doc.texto);
 
   const existente = await prisma.documentoKb.findFirst({
-    where: { refId },
+    where: { refId, ativo: true },
     orderBy: { versao: 'desc' },
     select: { id: true, versao: true, hashArquivo: true, totalChunks: true },
   });
@@ -442,30 +441,13 @@ async function importarDocumento(
     refId,
     hashArquivo: hash,
     versao,
-    ativo: true,
+    ativo: false,
     totalChunks: chunks.length,
-    metadata,
+    metadata: { ...metadata, ...(existente ? { anteriorId: existente.id } : {}), permitirTextual: opcoes.semEmbeddings },
   };
 
-  let documentoId: string;
-
-  if (existente) {
-    // Versiona no lugar: os chunks antigos são apagados antes de recriar, para
-    // que a busca nunca devolva dois textos do mesmo documento ao mesmo tempo.
-    await prisma.chunkKb.deleteMany({ where: { documentoId: existente.id } });
-    const atualizado = await prisma.documentoKb.update({
-      where: { id: existente.id },
-      data: { ...dadosDocumento, status: 'chunking', erro: null },
-      select: { id: true },
-    });
-    documentoId = atualizado.id;
-  } else {
-    const criado = await prisma.documentoKb.create({
-      data: { ...dadosDocumento, status: 'chunking' },
-      select: { id: true },
-    });
-    documentoId = criado.id;
-  }
+  const criado = await prisma.documentoKb.create({ data: { ...dadosDocumento, status: 'chunking' }, select: { id: true } });
+  const documentoId = criado.id;
 
   const resultado = await gravarChunks(
     prisma,
@@ -481,16 +463,22 @@ async function importarDocumento(
   await prisma.documentoKb.update({
     where: { id: documentoId },
     data: {
-      status: 'indexed',
+      status: resultado.comEmbedding === resultado.total && resultado.total > 0 ? 'indexed' : 'textual',
+      modeloEmbedding: resultado.comEmbedding ? process.env.EMBEDDING_MODEL || 'gemini-embedding-2' : 'none',
       processadoEm: new Date(),
       embeddingDimensions: 1536,
       metadata: {
         ...metadata,
+        ...(existente ? { anteriorId: existente.id } : {}),
+        permitirTextual: opcoes.semEmbeddings,
+        ...(resultado.comEmbedding ? { embedding_signature: embeddingSignature(), semantic: true } : {}),
         chunks: resultado.total,
         embedding: resultado.comEmbedding > 0 ? 'gerado' : 'pendente',
       },
     },
   });
+
+  await publicarVersaoRag(documentoId, prisma);
 
   return {
     resultado: existente ? 'atualizado' : 'importado',
@@ -590,7 +578,7 @@ async function gerarDocumentoIndice(
   const refId = 'ifpr-md:indice';
 
   const existente = await prisma.documentoKb.findFirst({
-    where: { refId },
+    where: { refId, ativo: true },
     orderBy: { versao: 'desc' },
     select: { id: true, versao: true, hashArquivo: true },
   });
@@ -613,39 +601,12 @@ async function gerarDocumentoIndice(
     gerado_em: new Date().toISOString(),
   };
 
-  let documentoId: string;
-  if (existente) {
-    await prisma.chunkKb.deleteMany({ where: { documentoId: existente.id } });
-    const atualizado = await prisma.documentoKb.update({
-      where: { id: existente.id },
-      data: {
-        titulo: 'Índice de conteúdos que a IFizinha conhece',
-        hashArquivo: hash,
-        versao,
-        ativo: true,
-        totalChunks: chunks.length,
-        status: 'chunking',
-        metadata,
-      },
-      select: { id: true },
-    });
-    documentoId = atualizado.id;
-  } else {
-    const criado = await prisma.documentoKb.create({
-      data: {
-        titulo: 'Índice de conteúdos que a IFizinha conhece',
-        tipo: 'indice_kb',
-        refId,
-        hashArquivo: hash,
-        versao,
-        status: 'chunking',
-        totalChunks: chunks.length,
-        metadata,
-      },
-      select: { id: true },
-    });
-    documentoId = criado.id;
-  }
+  const criado = await prisma.documentoKb.create({ data: {
+    titulo: 'Índice de conteúdos que a IFizinha conhece', tipo: 'indice_kb', refId, hashArquivo: hash, versao,
+    ativo: false, status: 'chunking', totalChunks: chunks.length,
+    metadata: { ...metadata, ...(existente ? { anteriorId: existente.id } : {}), permitirTextual: opcoes.semEmbeddings },
+  }, select: { id: true } });
+  const documentoId = criado.id;
 
   const resultado = await gravarChunks(
     prisma,
@@ -660,9 +621,10 @@ async function gerarDocumentoIndice(
 
   await prisma.documentoKb.update({
     where: { id: documentoId },
-    data: { status: 'indexed', processadoEm: new Date() },
+    data: { status: resultado.comEmbedding === resultado.total && resultado.total > 0 ? 'indexed' : 'textual', modeloEmbedding: resultado.comEmbedding ? process.env.EMBEDDING_MODEL || 'gemini-embedding-2' : 'none', processadoEm: new Date() },
   });
 
+  await publicarVersaoRag(documentoId, prisma);
   return { documentos: documentos.length, chunks: resultado.total };
 }
 

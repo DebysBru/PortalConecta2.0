@@ -16,11 +16,10 @@
  * comportamento certo (não vaza rascunho), só documentando a causa.
  */
 
+import { ingerirDocumentoRag } from '@/lib/rag-publicacao';
+import { cache } from '@/lib/cache';
 import { createHash } from 'crypto';
 import { prisma } from '@/lib/prisma';
-import { chunkDocument } from '@/lib/chunking';
-import { curarDocumentoKb } from '@/lib/kb-worker';
-import { indexarDocumentoKb } from '@/lib/indexador';
 import { getStatusLabel } from '@/lib/utils';
 import { Prisma } from '@prisma/client';
 import { createLogger } from '@/lib/logger';
@@ -87,7 +86,7 @@ function gerarTextoSintetico(projeto: ProjetoComRelacoes): string {
 
 async function desativarDocumento(documentoId: string): Promise<void> {
   await prisma.documentoKb.update({ where: { id: documentoId }, data: { ativo: false } });
-  await prisma.chunkKb.updateMany({ where: { documentoId }, data: { ativo: false } });
+  cache.invalidate('chat:');
 }
 
 /**
@@ -105,7 +104,7 @@ export async function sincronizarProjetoSintetico(projetoId: string): Promise<vo
     if (!projeto) return;
 
     const existente = await prisma.documentoKb.findFirst({
-      where: { tipo: 'projeto_sintetico', refId: projetoId },
+      where: { tipo: 'projeto_sintetico', refId: projetoId, ativo: true },
     });
 
     const devEstarNaBase = projeto.review_status === 'PUBLICADO' && !projeto.deleted_at;
@@ -121,62 +120,14 @@ export async function sincronizarProjetoSintetico(projetoId: string): Promise<vo
     const texto = gerarTextoSintetico(projeto);
     const hash = createHash('sha256').update(texto).digest('hex');
 
-    if (existente && existente.hashArquivo === hash && existente.ativo && existente.status === 'indexed') {
+    if (existente && existente.hashArquivo === hash && existente.ativo && ['indexed', 'textual'].includes(existente.status)) {
       log.debug('Documento sintético sem mudanças, sincronização ignorada', { projetoId, documentoId: existente.id });
       return; // nada relevante mudou desde a última sincronização
     }
 
-    const docId = existente
-      ? (
-          await prisma.documentoKb.update({
-            where: { id: existente.id },
-            data: {
-              titulo: projeto.nome,
-              hashArquivo: hash,
-              ativo: true,
-              status: 'extracting',
-              erro: null,
-              metadata: { source: 'projeto_sintetico', projetoId, projetoSlug: projeto.slug },
-            },
-          })
-        ).id
-      : (
-          await prisma.documentoKb.create({
-            data: {
-              titulo: projeto.nome,
-              tipo: 'projeto_sintetico',
-              refId: projetoId,
-              hashArquivo: hash,
-              status: 'extracting',
-              metadata: { source: 'projeto_sintetico', projetoId, projetoSlug: projeto.slug },
-            },
-          })
-        ).id;
-
-    // Rechunk completo — mais simples e correto do que tentar casar chunk a
-    // chunk com a versão anterior quando o texto sintético muda de tamanho.
-    await prisma.chunkKb.deleteMany({ where: { documentoId: docId } });
-
-    const chunks = chunkDocument(texto);
-    await prisma.chunkKb.createMany({
-      data: chunks.map((c, i) => ({
-        documentoId: docId,
-        chunkIndex: i,
-        texto: c.texto,
-        secao: c.secao,
-        metadata: { chunk_total: chunks.length },
-      })),
-    });
-
-    await prisma.documentoKb.update({
-      where: { id: docId },
-      data: { status: 'chunking', totalChunks: chunks.length },
-    });
-
-    await curarDocumentoKb(docId);
-    await indexarDocumentoKb(docId);
-
-    log.info('Projeto sintético sincronizado', { projetoId, documentoId: docId, totalChunks: chunks.length });
+    const result = await ingerirDocumentoRag({ titulo: projeto.nome, conteudo: texto, tipo: 'projeto_sintetico',
+      refId: projetoId, anteriorId: existente?.id, metadata: { source: 'projeto_sintetico', projetoId, projetoSlug: projeto.slug } });
+    log.info('Projeto sintético sincronizado', { projetoId, documentoId: result.id, totalChunks: result.chunks });
   } catch (err) {
     log.error('Falha ao sincronizar projeto sintético', {
       projetoId,

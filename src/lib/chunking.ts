@@ -66,6 +66,9 @@ function splitIntoSections(text: string): Array<{ titulo: string | null; conteud
         secoes.push({ titulo: tituloAtual, conteudo: linhasConteudo.join('\n\n') });
         linhasConteudo.length = 0;
       }
+      else if (tituloAtual) {
+        linhasConteudo.push(tituloAtual);
+      }
       tituloAtual = linha.replace(/^#{1,6}\s*/, '').trim();
       continue;
     }
@@ -134,10 +137,11 @@ export function chunkDocument(text: string, config: Partial<ChunkingConfig> = {}
         flush();
         if (overlapWords > 0 && chunks.length > 0) {
           const prevWords = chunks[chunks.length - 1].texto.split(/\s+/);
-          const tail = prevWords.slice(-overlapWords).join(' ');
+          const allowedOverlap = Math.max(0, Math.min(overlapWords, maxWords - paraWords));
+          const tail = allowedOverlap ? prevWords.slice(-allowedOverlap).join(' ') : '';
           if (tail) {
             current.push(tail);
-            currentWords += Math.min(overlapWords, prevWords.length);
+            currentWords += Math.min(allowedOverlap, prevWords.length);
           }
         }
       }

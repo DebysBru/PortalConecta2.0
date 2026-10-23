@@ -18,7 +18,7 @@
  *   - gasta o mínimo de requisições (31 mil trechos ≈ 500 lotes);
  *   - respeita o limite por minuto (a pausa é ajustável);
  *   - é RETOMÁVEL: se parar no meio (queda, 429, reboot), a próxima execução
- *     continua de onde parou, porque só olha para `embedding IS NULL`;
+ *     continua de onde parou, incluindo vetores ausentes ou de procedência incompatível;
  *   - pode rodar em segundo plano por horas sem atrapalhar o site.
  *
  * Enquanto não termina, o chat continua funcionando: a busca textual
@@ -36,7 +36,7 @@
 import './_env';
 
 import { PrismaClient } from '@prisma/client';
-import { generateBatchEmbeddings, validateEmbedding } from '@/lib/embeddings';
+import { generateBatchEmbeddings, validateEmbedding, textoParaEmbedding, embeddingSignature } from '@/lib/embeddings';
 import { saveChunksWithEmbeddings } from '@/lib/busca-vetorial';
 
 interface ChunkPendente {
@@ -91,12 +91,13 @@ async function main(): Promise<void> {
   const inicio = Date.now();
   let processados = 0;
   let falhas = 0;
+  let falhasConsecutivas = 0;
 
   try {
     const [pendentes] = await prisma.$queryRawUnsafe<Array<{ total: number }>>(
       `SELECT count(*)::int AS total FROM "chunks_kb" c
        JOIN "documentos_kb" d ON d.id = c."documento_id"
-       WHERE c."ativo" = true AND d."ativo" = true AND c."embedding" IS NULL`
+       WHERE c."ativo" = true AND d."ativo" = true AND (c."embedding" IS NULL OR coalesce(c.metadata->>'embedding_signature', '') <> $1)`, embeddingSignature()
     );
     const totalPendente = pendentes?.total ?? 0;
 
@@ -120,10 +121,10 @@ async function main(): Promise<void> {
                 c."metadata"
          FROM "chunks_kb" c
          JOIN "documentos_kb" d ON d.id = c."documento_id"
-         WHERE c."ativo" = true AND d."ativo" = true AND c."embedding" IS NULL
+         WHERE c."ativo" = true AND d."ativo" = true AND (c."embedding" IS NULL OR coalesce(c.metadata->>'embedding_signature', '') <> $1)
          ORDER BY c."documento_id", c."chunk_index"
-         LIMIT $1`,
-        tamanho
+         LIMIT $2`,
+        embeddingSignature(), tamanho
       );
 
       if (chunks.length === 0) break;
@@ -131,9 +132,7 @@ async function main(): Promise<void> {
       try {
         // Mesma composição usada pelo indexador: a seção entra junto porque
         // "Carga horária: ..." é mais informativo para a busca que o texto solto.
-        const textos = chunks.map((chunk) =>
-          chunk.secao ? `${chunk.secao}: ${chunk.texto}` : chunk.texto
-        );
+        const textos = chunks.map(textoParaEmbedding);
 
         const tokensDoLote = textos.reduce((soma, texto) => soma + Math.ceil(texto.length / 4), 0);
         const inicioDoLote = Date.now();
@@ -159,7 +158,19 @@ async function main(): Promise<void> {
           prisma
         );
 
+        // Só atualizar procedência do documento quando todos os seus trechos ativos forem compatíveis.
+        for (const documentoId of [...new Set(chunks.map(c => c.documento_id))]) {
+          const [remaining] = await prisma.$queryRawUnsafe<Array<{ total: number }>>(
+            `SELECT count(*)::int AS total FROM chunks_kb WHERE documento_id = $1 AND ativo = true
+             AND (embedding IS NULL OR coalesce(metadata->>'embedding_signature', '') <> $2)`, documentoId, embeddingSignature());
+          if (remaining.total === 0) {
+            const doc = await prisma.documentoKb.findUnique({ where: { id: documentoId } });
+            if (doc) await prisma.documentoKb.update({ where: { id: documentoId }, data: { status: 'indexed', modeloEmbedding: process.env.EMBEDDING_MODEL || 'gemini-embedding-2', embeddingDimensions: 1536, processadoEm: new Date(), metadata: { ...(doc.metadata as Record<string, string>), embedding_signature: embeddingSignature(), semantic: true } } });
+          }
+        }
+
         processados += chunks.length;
+        falhasConsecutivas = 0;
 
         const decorrido = (Date.now() - inicio) / 1000;
         const porSegundo = processados / Math.max(decorrido, 1);
@@ -182,6 +193,8 @@ async function main(): Promise<void> {
         falhas += chunks.length;
         const mensagem = erro instanceof Error ? erro.message : String(erro);
         console.error(`Falha no lote de ${chunks.length} trechos: ${mensagem.slice(0, 200)}`);
+        falhasConsecutivas += 1;
+        if (falhasConsecutivas >= 3) throw new Error('Reindexação interrompida após três lotes consecutivos com falha; os trechos continuam pendentes para retomada.', { cause: erro });
 
         // Deixa a cota do provedor respirar antes de tentar o próximo lote.
         // O lote que falhou continua pendente e será retomado na próxima rodada.
@@ -199,7 +212,7 @@ async function main(): Promise<void> {
     const [resta] = await prisma.$queryRawUnsafe<Array<{ total: number }>>(
       `SELECT count(*)::int AS total FROM "chunks_kb" c
        JOIN "documentos_kb" d ON d.id = c."documento_id"
-       WHERE c."ativo" = true AND d."ativo" = true AND c."embedding" IS NULL`
+       WHERE c."ativo" = true AND d."ativo" = true AND (c."embedding" IS NULL OR coalesce(c.metadata->>'embedding_signature', '') <> $1)`, embeddingSignature()
     );
 
     console.log(`Ainda pendentes:          ${(resta?.total ?? 0).toLocaleString('pt-BR')}`);

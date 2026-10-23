@@ -1,0 +1,106 @@
+{
+  "date": "2026-10-22",
+  "timezone": "America/Sao_Paulo",
+  "deployment": "local; VPS não modificada",
+  "unitTests": {
+    "files": 52,
+    "passed": 692
+  },
+  "typecheck": "passed: application and scripts",
+  "build": "passed: next build isolated; existing Prisma client",
+  "concurrency": {
+    "simultaneous": 6,
+    "limit": 2,
+    "allowed": 2,
+    "denied": 4
+  },
+  "applicationSmoke": {
+    "environment": "http://127.0.0.1:3002",
+    "marker": "IFIZINHA-TEST-0de7a000-dabf-4aa5-897e-6402316871ce",
+    "results": [
+      {
+        "scenario": "Upload sem token é recusado",
+        "status": "PASS"
+      },
+      {
+        "scenario": "Upload com token inválido é recusado",
+        "status": "PASS"
+      },
+      {
+        "scenario": "Conta não administrativa real é recusada",
+        "status": "PASS"
+      },
+      {
+        "scenario": "Upload administrativo real",
+        "status": "PASS",
+        "detail": {
+          "http": 200,
+          "state": "textual"
+        }
+      },
+      {
+        "scenario": "Original privado é servido pelo gate público",
+        "status": "PASS"
+      },
+      {
+        "scenario": "Página da fonte contém o conteúdo",
+        "status": "PASS"
+      },
+      {
+        "scenario": "Publicação de V2",
+        "status": "PASS",
+        "detail": {
+          "http": 200,
+          "state": "textual"
+        }
+      },
+      {
+        "scenario": "Original de V1 não é público após substituição",
+        "status": "PASS"
+      },
+      {
+        "scenario": "Página de V1 oculta após substituição",
+        "status": "PASS"
+      },
+      {
+        "scenario": "Banco confirma V2 ativa",
+        "status": "PASS"
+      },
+      {
+        "scenario": "Geração e continuidade com os dois provedores reais (3 repetições)",
+        "status": "PENDENTE",
+        "detail": "Requer chaves e infraestrutura pgvector"
+      },
+      {
+        "scenario": "Ocultação autenticada",
+        "status": "PASS"
+      },
+      {
+        "scenario": "Fonte oculta não permanece acessível",
+        "status": "PASS"
+      },
+      {
+        "scenario": "Versão já publicada pode ser reativada",
+        "status": "PASS"
+      },
+      {
+        "scenario": "Fonte reativada volta a abrir",
+        "status": "PASS"
+      },
+      {
+        "scenario": "Chat real responde ou informa ausência de configuração corretamente",
+        "status": "PASS",
+        "detail": {
+          "http": 503
+        }
+      }
+    ],
+    "cleanedFixtures": 2
+  },
+  "retrieval": {
+    "queries": 30,
+    "errors": 0,
+    "generation": "not executed",
+    "humanReview": "pending"
+  }
+}
