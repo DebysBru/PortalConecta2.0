@@ -3,9 +3,10 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import {
   ChevronRight, Users, Mail, Instagram, Globe, ArrowLeft,
-  BookOpen, Calendar, ArrowRight, HelpCircle,
+  BookOpen, Calendar, ArrowRight, HelpCircle, GraduationCap, Landmark,
 } from 'lucide-react';
 import { getStatusLabel, getStatusColor, formatDate } from '@/lib/utils';
+import { equipeDoProjeto, financiamentoDoProjeto } from '@/lib/projetos-equipe';
 import { stripHtml } from '@/lib/rich-text';
 import { SafeHtml } from '@/components/ui/SafeHtml';
 import { BotaoFavorito } from '@/components/ui/BotaoFavorito';
@@ -68,6 +69,11 @@ export default async function ProjetoPage({ params }: { params: Params }) {
   });
 
   if (!projeto) notFound();
+
+  // Equipe de estudantes e financiamento: os dois campos que a coordenação
+  // cadastra e que aparecem junto ao resumo. Ver src/lib/projetos-equipe.ts.
+  const equipe = equipeDoProjeto(projeto);
+  const financiamento = financiamentoDoProjeto(projeto);
 
   // Projetos relacionados = MESMO COORDENADOR do projeto aberto.
   //
@@ -182,7 +188,90 @@ export default async function ProjetoPage({ params }: { params: Params }) {
               ) : (
                 <p className="text-gray-500 italic">Nenhuma descrição informada para este projeto.</p>
               )}
+
+              {/* Financiamento — de onde vem o recurso do projeto. Fica no
+                  mesmo cartão do resumo (a sugestão era justamente "junto ao
+                  resumo"), como selos curtos. */}
+              {financiamento.length > 0 && (
+                <div className="mt-5 pt-4 border-t border-gray-100">
+                  <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2 flex items-center gap-1.5">
+                    <Landmark className="w-3.5 h-3.5" />
+                    Financiamento
+                  </p>
+                  <div className="flex flex-wrap gap-2">
+                    {financiamento.map((fonte) => (
+                      <span
+                        key={fonte}
+                        className="inline-flex px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-800 border border-emerald-100"
+                      >
+                        {fonte}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
+
+            {/* Estudantes do projeto — bolsistas e voluntários que já atuam.
+                Mostrar a equipe formada motiva quem está pensando em se
+                inscrever (só nomes cadastrados pela coordenação; o portal não
+                publica inscrito automaticamente). */}
+            {equipe.total > 0 && (
+              <div className="bg-white rounded-2xl border border-gray-100 p-6">
+                <div className="flex items-center justify-between gap-3 mb-1">
+                  <h2 className="font-bold text-gray-900 text-lg flex items-center gap-2">
+                    <GraduationCap className="w-5 h-5" style={{ color: projeto.corPrimaria }} />
+                    Estudantes do Projeto
+                  </h2>
+                  <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-gray-100 text-gray-600 shrink-0">
+                    {equipe.total} estudante{equipe.total > 1 ? 's' : ''}
+                  </span>
+                </div>
+                <p className="text-sm text-gray-500 mb-4">
+                  Quem já está atuando neste projeto — a equipe está aberta a novos estudantes.
+                </p>
+
+                <div className="space-y-4">
+                  {equipe.bolsistas.length > 0 && (
+                    <div>
+                      <p className="text-xs font-semibold uppercase tracking-wider text-blue-700 mb-2">
+                        Bolsistas
+                      </p>
+                      <ul className="flex flex-wrap gap-2">
+                        {equipe.bolsistas.map((nome) => (
+                          <li
+                            key={nome}
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium bg-blue-50 text-blue-800 border border-blue-100"
+                          >
+                            <span className="w-1.5 h-1.5 rounded-full bg-blue-500" aria-hidden />
+                            {nome}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+
+                  {equipe.voluntarios.length > 0 && (
+                    <div>
+                      <p className="text-xs font-semibold uppercase tracking-wider text-purple-700 mb-2">
+                        Voluntários
+                      </p>
+                      <ul className="flex flex-wrap gap-2">
+                        {equipe.voluntarios.map((nome) => (
+                          <li
+                            key={nome}
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium bg-purple-50 text-purple-800 border border-purple-100"
+                          >
+                            <span className="w-1.5 h-1.5 rounded-full bg-purple-500" aria-hidden />
+                            {nome}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
 
             {/* Vagas abertas — vagas reais (model Vaga), cadastradas pelo professor */}
             {projeto.vagas.length > 0 && (

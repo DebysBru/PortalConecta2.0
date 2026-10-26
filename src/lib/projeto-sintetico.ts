@@ -21,6 +21,7 @@ import { cache } from '@/lib/cache';
 import { createHash } from 'crypto';
 import { prisma } from '@/lib/prisma';
 import { getStatusLabel } from '@/lib/utils';
+import { equipeDoProjeto, financiamentoDoProjeto } from '@/lib/projetos-equipe';
 import { Prisma } from '@prisma/client';
 import { createLogger } from '@/lib/logger';
 
@@ -46,6 +47,15 @@ function gerarTextoSintetico(projeto: ProjetoComRelacoes): string {
   if (projeto.viceCoordenadorNome) {
     linhas.push(`Vice-coordenador: ${projeto.viceCoordenadorNome}${projeto.viceCoordenadorEmail ? ` (${projeto.viceCoordenadorEmail})` : ''}`);
   }
+
+  // Equipe e financiamento vêm dos campos que a página pública mostra junto
+  // ao resumo. Entram no documento para a IFizinha conseguir responder "quem
+  // são os bolsistas deste projeto?" e "quem financia o projeto?".
+  const equipe = equipeDoProjeto(projeto);
+  if (equipe.bolsistas.length > 0) linhas.push(`Estudantes bolsistas: ${equipe.bolsistas.join(', ')}`);
+  if (equipe.voluntarios.length > 0) linhas.push(`Estudantes voluntários: ${equipe.voluntarios.join(', ')}`);
+  const financiamento = financiamentoDoProjeto(projeto);
+  if (financiamento.length > 0) linhas.push(`Financiamento: ${financiamento.join(', ')}`);
 
   if (projeto.resumoCurto) linhas.push(`\nResumo: ${projeto.resumoCurto}`);
   if (projeto.descricao) linhas.push(`\nDescrição: ${projeto.descricao}`);

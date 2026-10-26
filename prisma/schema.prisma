@@ -223,7 +223,21 @@ model Projeto {
   dataInicio             DateTime?
   dataConclusao          DateTime?
   servidores             String?              @db.Text
+  // Campo legado (texto livre, sem papel de cada aluno). A equipe que a página
+  // pública mostra é `estudantesBolsistas`/`estudantesVoluntarios` — ver
+  // src/lib/projetos-equipe.ts. Mantido porque é o que o SUAP/sincronização e
+  // o cadastro antigo gravaram; nunca é exibido publicamente.
   alunos                 String?              @db.Text
+  // Equipe de estudantes exibida na página pública, ao lado do resumo do
+  // projeto: ver a equipe já formada motiva quem pensa em se inscrever.
+  // Separado por papel porque o cartão público distingue bolsista de
+  // voluntário (e só entra nome de quem a coordenação cadastrou aqui).
+  estudantesBolsistas    String[]             @default([])
+  estudantesVoluntarios  String[]             @default([])
+  // Fontes de financiamento do projeto ("IFPR", "CNPq", "Fundação Araucária",
+  // "Emenda Parlamentar"...). Lista de rótulos curtos, exibida como selos
+  // junto ao resumo e incluída no projeto sintético da IFizinha.
+  financiamento          String[]             @default([])
   observacao             String?              @db.Text
   status                 StatusProjeto        @default(ATIVO)
   inscricoes_abertas     Boolean              @default(false) // coordenador pode abrir/fechar

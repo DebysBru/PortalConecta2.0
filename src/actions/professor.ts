@@ -17,6 +17,7 @@ import { rotuloRespostaAluno } from '@/lib/inscricao-aluno';
 import { mensagemVagaLotada } from '@/lib/vagas';
 import { limparAnexosRemovidos, validarMidiasDoPost } from '@/lib/post-midias-server';
 import { chaveDeIconeValida, erroDeUrlDeCapa } from '@/lib/post-capa';
+import { normalizarEstudantes, normalizarFinanciamento } from '@/lib/projetos-equipe';
 import { chaveDoDiaBrasil, fimDoDiaBrasil, inicioDoDiaBrasil, parseDataDoFormulario, formatarDataBrasil } from '@/lib/datas';
 import {
   LIMITES, OPCOES, validarCampos, validarCorHexadecimal, validarEmail, validarJsonPequeno,
@@ -44,6 +45,11 @@ export type MyProjetoFormData = {
   email?: string;
   instagram?: string;
   site?: string;
+  /** Equipe de estudantes exibida na página pública (ver src/lib/projetos-equipe.ts). */
+  estudantesBolsistas?: string[];
+  estudantesVoluntarios?: string[];
+  /** Fontes de financiamento exibidas como selos junto ao resumo. */
+  financiamento?: string[];
   formularioExtra?: PerguntaExtra[];
 };
 
@@ -440,6 +446,9 @@ export async function updateMyProjeto(
         email: data.email || null,
         instagram: data.instagram || null,
         site: data.site || null,
+        estudantesBolsistas: data.estudantesBolsistas,
+        estudantesVoluntarios: data.estudantesVoluntarios,
+        financiamento: data.financiamento,
         formularioExtra: data.formularioExtra,
       },
       bloqueados,
@@ -459,6 +468,9 @@ export async function updateMyProjeto(
       email: string | null;
       formularioExtra: unknown;
       status: string | null;
+      estudantesBolsistas: string[] | null;
+      estudantesVoluntarios: string[] | null;
+      financiamento: string[] | null;
     }>({
       nome: () => validarSePresente(permitido.nome, (x) => validarTexto(x, 'Nome do projeto', LIMITES.titulo)),
       coordenador: () => validarSePresente(permitido.coordenador, (x) => validarTextoOpcional(x, 'Coordenador', LIMITES.linha)),
@@ -470,6 +482,15 @@ export async function updateMyProjeto(
       ),
       formularioExtra: () => validarJsonPequeno(permitido.formularioExtra, 'Formulário de inscrição'),
       status: () => validarSePresente(permitido.status, (x) => validarOpcao(x, 'Situação do projeto', OPCOES.statusProjeto)),
+      estudantesBolsistas: () => validarSePresente(permitido.estudantesBolsistas, (x) =>
+        normalizarEstudantes(x, 'Estudantes bolsistas'),
+      ),
+      estudantesVoluntarios: () => validarSePresente(permitido.estudantesVoluntarios, (x) =>
+        normalizarEstudantes(x, 'Estudantes voluntários'),
+      ),
+      financiamento: () => validarSePresente(permitido.financiamento, (x) =>
+        normalizarFinanciamento(x),
+      ),
     });
     if (!v.ok) return v;
 
@@ -515,6 +536,15 @@ export async function updateMyProjeto(
     if (permitido.site !== undefined) update.site = urls.valor.site;
     if (permitido.formularioExtra !== undefined) {
       update.formulario_extra = v.valor.formularioExtra as Prisma.InputJsonValue;
+    }
+    if (permitido.estudantesBolsistas !== undefined) {
+      update.estudantesBolsistas = v.valor.estudantesBolsistas ?? [];
+    }
+    if (permitido.estudantesVoluntarios !== undefined) {
+      update.estudantesVoluntarios = v.valor.estudantesVoluntarios ?? [];
+    }
+    if (permitido.financiamento !== undefined) {
+      update.financiamento = v.valor.financiamento ?? [];
     }
 
     if (Object.keys(update).length === 0) {
@@ -1049,7 +1079,11 @@ export async function createMeuEdital(
     if (!titulo || titulo.length < 2) return { ok: false, error: MENSAGENS.campoObrigatorio('Título do edital') };
     if (!resumo) return { ok: false, error: MENSAGENS.campoObrigatorio('Resumo') };
     if (!data.dataEncerramento) return { ok: false, error: MENSAGENS.campoObrigatorio('Data de encerramento') };
-    if (!data.linkOficial?.trim()) return { ok: false, error: MENSAGENS.campoObrigatorio('Link oficial') };
+    // `linkOficial` é OPCIONAL (mudado em 2026-10-26): a extração do PDF só o
+    // preenche quando o documento traz uma URL no texto, e muitos editais
+    // internos do campus não trazem nenhuma. Exigi-lo travava o salvamento
+    // depois de a IA já ter extraído tudo. As páginas públicas já renderizam o
+    // link condicionalmente (`edital.linkOficial && ...`).
 
     // Limites e URLs seguras: este edital vai para a página pública, e os campos
     // de link viram `href` (nada de `javascript:`) — ver src/lib/validacao.ts.
@@ -1065,7 +1099,6 @@ export async function createMeuEdital(
       arquivoPdfUrl: { valor: data.arquivoPdfUrl, rotulo: 'Arquivo do edital' },
     });
     if (!urls.ok) return urls;
-    if (!urls.valor.linkOficial) return { ok: false, error: MENSAGENS.campoObrigatorio('Link oficial') };
 
     let projetoId: string | null = data.projetoId?.trim() || null;
 

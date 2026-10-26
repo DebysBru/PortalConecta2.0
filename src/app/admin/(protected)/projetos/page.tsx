@@ -8,6 +8,7 @@ import { AbrirInscricoesModal } from '@/components/ui/AbrirInscricoesModal';
 import { FormularioExtraEditor } from '@/components/ui/FormularioExtraEditor';
 import { LogoDoProjeto } from '@/components/projetos/LogoDoProjeto';
 import { CamposDeApresentacaoDoProjeto } from '@/components/projetos/CamposDeApresentacaoDoProjeto';
+import { EquipeEFinanciamentoDoProjeto } from '@/components/projetos/EquipeEFinanciamentoDoProjeto';
 import { parsePerguntasExtra, type PerguntaExtra } from '@/lib/formulario-extra';
 import { getStatusLabel, getStatusColor } from '@/lib/utils';
 import { useAuth } from '@/contexts/AuthContext';
@@ -22,6 +23,7 @@ const TIPO_LIST = ['Pesquisa', 'Extensão'];
 const EMPTY_FORM: ProjetoFormData = {
   nome: '', coordenador: '', coordenadorEmail: '', viceCoordenadorNome: '', viceCoordenadorEmail: '', area: '', descricao: '', resumoCurto: '',
   dataInicio: '', servidores: '', alunos: '', observacao: '',
+  estudantesBolsistas: [], estudantesVoluntarios: [], financiamento: [],
   status: 'EM_EXECUCAO', logoUrl: '', bannerUrl: '', corPrimaria: '#2F52D3',
   email: '', instagram: '', site: '', destaque: false, adminEmails: '', formularioExtra: [],
 };
@@ -84,6 +86,9 @@ export default function AdminProjetosPage() {
       dataInicio: projeto.dataInicio ? new Date(projeto.dataInicio).toISOString().split('T')[0] : '',
       servidores: projeto.servidores ?? '',
       alunos: projeto.alunos ?? '',
+      estudantesBolsistas: projeto.estudantesBolsistas ?? [],
+      estudantesVoluntarios: projeto.estudantesVoluntarios ?? [],
+      financiamento: projeto.financiamento ?? [],
       observacao: projeto.observacao ?? '',
       status: projeto.status,
       logoUrl: projeto.logoUrl ?? '',
@@ -501,7 +506,10 @@ export default function AdminProjetosPage() {
                     />
                   </div>
 
-                  {/* Equipe do Projeto */}
+                  {/* Equipe do Projeto — servidores em texto livre. Os
+                      estudantes (bolsistas/voluntários) e o financiamento
+                      ficam logo abaixo, nos campos que a página pública
+                      exibe junto ao resumo. */}
                   <div className="col-span-2 space-y-4 mt-2">
                     <h3 className="text-sm font-bold text-gray-900 border-b pb-2">Equipe do Projeto</h3>
                     <div className="grid grid-cols-2 gap-4">
@@ -509,11 +517,15 @@ export default function AdminProjetosPage() {
                         <label className="label-field">Servidores</label>
                         <textarea className="input-field min-h-[60px]" value={form.servidores ?? ''} onChange={(e) => set('servidores', e.target.value)} placeholder="Nomes dos servidores envolvidos" />
                       </div>
-                      <div className="col-span-2">
-                        <label className="label-field">Alunos</label>
-                        <textarea className="input-field min-h-[60px]" value={form.alunos ?? ''} onChange={(e) => set('alunos', e.target.value)} placeholder="Nomes dos alunos envolvidos" />
-                      </div>
                     </div>
+                  </div>
+
+                  {/* Estudantes e financiamento — mesmo componente usado no painel do professor */}
+                  <div className="col-span-2 space-y-4 mt-2">
+                    <EquipeEFinanciamentoDoProjeto
+                      valores={form}
+                      onChange={(campo, valor) => set(campo, valor)}
+                    />
                   </div>
 
                   {/* Configurações Avançadas */}

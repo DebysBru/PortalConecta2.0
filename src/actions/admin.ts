@@ -12,6 +12,7 @@ import { sincronizarProjetoSintetico, removerProjetoSintetico } from '@/lib/proj
 import { sanitizeHtml } from '@/lib/rich-text';
 import { limparAnexosRemovidos, validarMidiasDoPost } from '@/lib/post-midias-server';
 import { chaveDeIconeValida, erroDeUrlDeCapa } from '@/lib/post-capa';
+import { normalizarEstudantes, normalizarFinanciamento } from '@/lib/projetos-equipe';
 import { getVerifiedServerSession } from '@/lib/session';
 import { parseDataDoFormulario } from '@/lib/datas';
 import type { Prisma } from '@prisma/client';
@@ -163,9 +164,12 @@ export async function createEdital(
     if (!data.dataEncerramento) {
       return { ok: false, error: MENSAGENS.campoObrigatorio('Data de encerramento') };
     }
-    if (!data.linkOficial?.trim()) {
-      return { ok: false, error: MENSAGENS.campoObrigatorio('Link oficial') };
-    }
+    // `linkOficial` NÃO é obrigatório (mudado em 2026-10-26): a extração do PDF
+    // só preenche esse campo quando o documento traz uma URL no texto — e muitos
+    // editais internos do campus não trazem nenhuma. Exigir o campo travava o
+    // fluxo "Preencher a partir do PDF" no momento de salvar, depois de a IA já
+    // ter feito todo o trabalho. As páginas públicas já renderizam o link
+    // condicionalmente (`edital.linkOficial && ...`), então ausência é segura.
 
     const author = await ensureUser(authorEmail);
     const slug = slugify(data.titulo);
@@ -177,7 +181,7 @@ export async function createEdital(
         resumo: data.resumo,
         dataEncerramento: parseDataDoFormulario(data.dataEncerramento),
         status: data.status,
-        linkOficial: data.linkOficial,
+        linkOficial: data.linkOficial?.trim() || null,
         arquivoPdfUrl: data.arquivoPdfUrl ?? null,
         destaque: data.destaque ?? false,
         traducaoIFizinha: data.traducaoIFizinha,
@@ -214,6 +218,10 @@ export async function updateEdital(
       where: { id },
       data: {
         ...data,
+        // `linkOficial` é opcional: o formulário manda '' quando fica em branco, e
+        // '' não é o mesmo que "sem link" (a coluna é anulável). Normaliza para
+        // null, sem tocar no campo quando ele nem veio neste update.
+        linkOficial: data.linkOficial !== undefined ? data.linkOficial.trim() || null : undefined,
         dataEncerramento: data.dataEncerramento ? parseDataDoFormulario(data.dataEncerramento) : undefined,
         slug: data.titulo ? slugify(data.titulo) : undefined,
       },
@@ -284,6 +292,11 @@ export type ProjetoFormData = {
   dataInicio?: string;
   servidores?: string;
   alunos?: string;
+  /** Equipe de estudantes exibida na página pública (ver src/lib/projetos-equipe.ts). */
+  estudantesBolsistas?: string[];
+  estudantesVoluntarios?: string[];
+  /** Fontes de financiamento exibidas como selos junto ao resumo. */
+  financiamento?: string[];
   observacao?: string;
   status: StatusProjeto;
   logoUrl?: string;
@@ -376,6 +389,15 @@ export async function createProjeto(data: ProjetoFormData, callerEmail: string):
       return { ok: false, error: MENSAGENS.campoObrigatorio('Área') };
     }
 
+    // Equipe e financiamento aparecem na página pública: o teto/limpeza é do
+    // servidor (o formulário pode ser chamado direto, sem passar pela tela).
+    const bolsistas = normalizarEstudantes(data.estudantesBolsistas, 'Estudantes bolsistas');
+    if (!bolsistas.ok) return bolsistas;
+    const voluntarios = normalizarEstudantes(data.estudantesVoluntarios, 'Estudantes voluntários');
+    if (!voluntarios.ok) return voluntarios;
+    const financiamento = normalizarFinanciamento(data.financiamento);
+    if (!financiamento.ok) return financiamento;
+
     const slug = slugify(nome);
     const { adminEmails, ...dbData } = data;
     const projeto = await prisma.projeto.create({
@@ -392,6 +414,9 @@ export async function createProjeto(data: ProjetoFormData, callerEmail: string):
         dataInicio: dbData.dataInicio ? new Date(dbData.dataInicio) : null,
         servidores: dbData.servidores ?? null,
         alunos: dbData.alunos ?? null,
+        estudantesBolsistas: bolsistas.valor,
+        estudantesVoluntarios: voluntarios.valor,
+        financiamento: financiamento.valor,
         observacao: dbData.observacao ?? null,
         status: dbData.status,
         logoUrl: dbData.logoUrl ?? null,
@@ -449,6 +474,21 @@ export async function updateProjeto(id: string, data: Partial<ProjetoFormData>, 
     if (data.dataInicio !== undefined) updateData.dataInicio = data.dataInicio ? parseDataDoFormulario(data.dataInicio) : null;
     if (data.servidores !== undefined) updateData.servidores = data.servidores;
     if (data.alunos !== undefined) updateData.alunos = data.alunos;
+    if (data.estudantesBolsistas !== undefined) {
+      const bolsistas = normalizarEstudantes(data.estudantesBolsistas, 'Estudantes bolsistas');
+      if (!bolsistas.ok) return bolsistas;
+      updateData.estudantesBolsistas = bolsistas.valor;
+    }
+    if (data.estudantesVoluntarios !== undefined) {
+      const voluntarios = normalizarEstudantes(data.estudantesVoluntarios, 'Estudantes voluntários');
+      if (!voluntarios.ok) return voluntarios;
+      updateData.estudantesVoluntarios = voluntarios.valor;
+    }
+    if (data.financiamento !== undefined) {
+      const financiamento = normalizarFinanciamento(data.financiamento);
+      if (!financiamento.ok) return financiamento;
+      updateData.financiamento = financiamento.valor;
+    }
     if (data.observacao !== undefined) updateData.observacao = data.observacao;
     if (data.status !== undefined) updateData.status = data.status;
     if (data.logoUrl !== undefined) updateData.logoUrl = data.logoUrl;

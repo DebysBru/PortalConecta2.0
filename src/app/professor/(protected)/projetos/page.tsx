@@ -20,6 +20,7 @@ import { useToast } from '@/components/ui/toast';
 import { useMensagemErro } from '@/lib/use-mensagem-erro';
 import { LogoDoProjeto } from '@/components/projetos/LogoDoProjeto';
 import { CamposDeApresentacaoDoProjeto } from '@/components/projetos/CamposDeApresentacaoDoProjeto';
+import { EquipeEFinanciamentoDoProjeto } from '@/components/projetos/EquipeEFinanciamentoDoProjeto';
 import { estiloDaCapa } from '@/lib/projeto-midia';
 import { textoSimples } from '@/lib/texto';
 
@@ -41,6 +42,7 @@ export default function ProfessorProjetosPage() {
     status: 'EM_EXECUCAO', corPrimaria: '#2F52D3',
     logoUrl: '', bannerUrl: '',
     email: '', instagram: '', site: '', formularioExtra: [],
+    estudantesBolsistas: [], estudantesVoluntarios: [], financiamento: [],
   });
   const [error, setError] = useMensagemErro();
   const [isPending, startTransition] = useTransition();
@@ -83,6 +85,9 @@ export default function ProfessorProjetosPage() {
       email: projeto.email ?? '',
       instagram: projeto.instagram ?? '',
       site: projeto.site ?? '',
+      estudantesBolsistas: projeto.estudantesBolsistas ?? [],
+      estudantesVoluntarios: projeto.estudantesVoluntarios ?? [],
+      financiamento: projeto.financiamento ?? [],
       formularioExtra: parsePerguntasExtra(projeto.formulario_extra),
     });
     setError('');
@@ -321,6 +326,15 @@ export default function ProfessorProjetosPage() {
                     }
                   />
                 )}
+
+                {/* Equipe de estudantes + financiamento: aparecem na página
+                    pública junto ao resumo (motivam quem pensa em se inscrever). */}
+                <div className="pt-2 space-y-4">
+                  <EquipeEFinanciamentoDoProjeto
+                    valores={form}
+                    onChange={(campo, valor) => setForm((f) => ({ ...f, [campo]: valor }))}
+                  />
+                </div>
 
                 <div className="pt-2">
                   <div className="border-b pb-2 mb-3">
