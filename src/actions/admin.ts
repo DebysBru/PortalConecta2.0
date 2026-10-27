@@ -14,6 +14,8 @@ import { limparAnexosRemovidos, validarMidiasDoPost } from '@/lib/post-midias-se
 import { chaveDeIconeValida, erroDeUrlDeCapa } from '@/lib/post-capa';
 import { normalizarEstudantes, normalizarFinanciamento } from '@/lib/projetos-equipe';
 import { getVerifiedServerSession } from '@/lib/session';
+import { lerVisao } from '@/lib/visao-server';
+import type { Visao } from '@/lib/visao';
 import { parseDataDoFormulario } from '@/lib/datas';
 import type { Prisma } from '@prisma/client';
 import type { PerguntaExtra } from '@/lib/formulario-extra';
@@ -81,7 +83,7 @@ export async function getUserRole(email: string): Promise<UserRole | null> {
 export async function ensureUser(
   email: string,
   name?: string,
-): Promise<{ id: string; role: UserRole; isMasterAdmin: boolean; isGestor: boolean }> {
+): Promise<{ id: string; role: UserRole; isMasterAdmin: boolean; isGestor: boolean; visao: Visao }> {
   const user = await prisma.user.upsert({
     where: { email },
     update: name ? { name } : {},
@@ -97,6 +99,8 @@ export async function ensureUser(
     // Flags de interface: o servidor revalida tudo em cada action.
     isMasterAdmin: isAdministradorGeral(email),
     isGestor: await usuarioTemAlgumProjetoComoGestor(email),
+    // "Ver como" do admin (src/lib/visao.ts) — só afeta a interface.
+    visao: lerVisao(role),
   };
 }
 

@@ -10,6 +10,7 @@ import {
   UserCircle, BarChart3, Trash2, Brain, ExternalLink,
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
+import { SeletorDeVisao } from '@/components/layout/SeletorDeVisao';
 
 type NavItem = {
   href: string;
@@ -119,6 +120,8 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
 
       {/* User info + ações */}
       <div className="p-4 border-t border-white/15">
+        <SeletorDeVisao tom="escuro" className="mb-3 w-full" />
+
         {/* Avatar + nome clicável → perfil */}
         <Link
           href="/admin/perfil"

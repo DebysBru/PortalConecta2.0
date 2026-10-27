@@ -9,6 +9,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getAdminAuth } from '@/lib/firebase-admin';
 import { SESSION_COOKIE_NAME, SESSION_MAX_AGE_MS } from '@/lib/session';
 import { MENSAGENS } from '@/lib/mensagens';
+import { VISAO_COOKIE_NAME } from '@/lib/visao';
 
 export async function POST(req: NextRequest) {
   try {
@@ -42,5 +43,7 @@ export async function POST(req: NextRequest) {
 export async function DELETE() {
   const response = NextResponse.json({ ok: true });
   response.cookies.delete(SESSION_COOKIE_NAME);
+  // A visão escolhida pelo admin não deve sobreviver ao logout.
+  response.cookies.delete(VISAO_COOKIE_NAME);
   return response;
 }
