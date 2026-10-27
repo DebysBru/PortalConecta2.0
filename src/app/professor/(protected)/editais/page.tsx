@@ -508,7 +508,7 @@ export default function ProfessorEditaisPage() {
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">
-                        Link oficial <span className="text-red-500">*</span>
+                        Link oficial (opcional)
                       </label>
                       <input
                         type="url"
@@ -516,7 +516,6 @@ export default function ProfessorEditaisPage() {
                         value={form.linkOficial}
                         onChange={(e) => setForm((f) => ({ ...f, linkOficial: e.target.value }))}
                         placeholder="https://..."
-                        required
                       />
                     </div>
                   </div>

@@ -1707,6 +1707,51 @@ preencher; a página pública não renderiza os cartões quando estão vazios.
 
 ---
 
+## 35. Link oficial do edital deixou de ser obrigatório
+
+**Problema:** o botão "Preencher a partir do PDF do edital" extrai os campos com IA, mas
+`linkOficial` só é preenchido quando o PDF traz uma URL no texto. A Chamada Complementar
+nº 01 do NEABI (4 páginas) não tem nenhum `http`, então a IA devolvia `linkOficial: ""`
+e o `createEdital` recusava o salvamento com "Preencha o campo obrigatório: Link
+oficial" — depois de a IA já ter feito todo o trabalho. Quem está no fluxo lê isso como
+"o upload falhou".
+
+**Decisão:** `linkOficial` passou a ser opcional em `createEdital` e em
+`createMeuEdital`; o valor em branco é gravado como `NULL` (a coluna já era anulável —
+nenhuma migração necessária). A URL continua validada quando existe — só `http`/`https`
+ou caminho interno (`validarUrl`) —, então segue sem risco de `javascript:` virar
+`href`. Nos dois formulários o campo virou "Link oficial (opcional)".
+
+**Impacto:** nenhum dado existente muda. As telas públicas já renderizavam o link
+condicionalmente (`{edital.linkOficial && ...}` no detalhe e no `EditaisExplorer`),
+então um edital sem link apenas não mostra o botão.
+
+---
+
+## 36. Orçamento de tokens da IA: o raciocínio consome `max_tokens`
+
+**Problema:** o `deepseek-flash` é um modelo de raciocínio — os `reasoning_tokens` são
+gerados ANTES da resposta e dividem o mesmo `max_tokens`. Medido numa extração real
+(`extract-pdf`, PDF de 4 páginas): 2.196 tokens de raciocínio contra 736 de JSON. Com
+`maxTokens: 2000` a resposta era truncada (`finish_reason: "length"`), que o
+`generateCompletion` convertia em erro genérico → HTTP 503 "A IA encontrou um problema",
+mensagem que sugere tentar de novo — e repetir falhava igual. O mesmo defeito silencioso
+existia em `curador` (2000), `rag-processor` (1000, caía em `processWithoutAI` sem
+avisar ninguém) e `actions/tags` (100, o conteúdo voltava vazio).
+
+**Decisão:** fonte única em `src/lib/llm.ts`: `tokensParaResposta(n)` = n + 4.000
+reservados para raciocínio, limitado ao teto de 8.000 do DeepSeek — o teto maior não
+custa mais caro, porque `max_tokens` é limite, não consumo. `finish_reason === "length"`
+passou a lançar `LlmRespostaTruncadaError` (tipado) em vez de `Error` genérico, e o
+`extract-pdf` responde 422 com `MENSAGENS.iaRespostaTruncada` ("documento longo demais")
+em vez do 503 enganoso.
+
+**Impacto:** a extração do edital do NEABI passou a devolver o JSON completo (7 de 7
+campos da tradução preenchidos). Nenhuma migração; nenhuma mudança de contrato para os
+demais chamadores além do teto maior.
+
+---
+
 ## Resumo de impactos
 
 | Decisão | Impacto | Fase | Notas |
@@ -1742,6 +1787,8 @@ preencher; a página pública não renderiza os cartões quando estão vazios.
 | **Mascote interativa nas páginas internas (Dec. 32)** | IFizinha nos cabeçalhos de Editais, Projetos e Agenda: hover (sobe 3%/6px), respiração de 6s que pausa no hover, balão de dica e sombras de profundidade nos cards | **no ar** (06/10) | Pose escolhida pela direção do gesto (§29) e pelo fundo medido; `prefers-reduced-motion` desliga tudo; exige `pointer-events-auto` (o wrapper é `pointer-events-none`) |
 | **Deploy automático pela GitHub Actions (Dec. 33)** | push na `main` publica sozinho: rsync do repositório, build na VPS, troca blue-green e rollback automático se o site não responder 200 | **no ar** (06/10) | `.env` copiado do build que está no ar, nunca do git; migração SQL continua manual, com guarda no workflow |
 | **Equipe de estudantes e financiamento (Dec. 34)** | Colunas `Projeto.estudantesBolsistas`, `estudantesVoluntarios` e `financiamento`; a página do projeto mostra os estudantes num cartão logo abaixo do resumo e as fontes financiadoras como selos dentro do "Sobre o Projeto"; entram também no documento sintético da IFizinha | pré-lançamento | Aplicar `prisma/equipe-financiamento-setup.sql` (`db push` segue proibido); nomes digitados pela coordenação, sem publicação automática de inscrito |
+| **Link oficial do edital é opcional (Dec. 35)** | `createEdital`/`createMeuEdital` deixam de exigir `linkOficial`; vazio grava `NULL` (coluna já anulável) e o fluxo "Preencher a partir do PDF" não trava mais no salvamento | pré-lançamento | Botão do link some sozinho na página pública quando não há URL; extração do PDF só preenche o campo se o documento tiver URL no texto |
+| **Orçamento de tokens da IA (Dec. 36)** | `tokensParaResposta()` em `src/lib/llm.ts` reserva 4.000 tokens de raciocínio (teto 8.000) e `finish_reason: "length"` vira `LlmRespostaTruncadaError` → 422 com mensagem própria | correção pendente de deploy | O `deepseek-flash` gasta ~2.200 tokens raciocinando: com teto 2.000/1.000/100 o JSON truncava ou voltava vazio em `extract-pdf`, `curador`, `rag-processor` e `tags` |
 
 ---
 

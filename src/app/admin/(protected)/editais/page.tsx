@@ -368,8 +368,8 @@ export default function AdminEditaisPage() {
                     <Field label="Data de Encerramento" required>
                       <input type="date" className="input-field" value={form.dataEncerramento} onChange={(e) => setForm((f) => ({ ...f, dataEncerramento: e.target.value }))} required />
                     </Field>
-                    <Field label="Link Oficial" required>
-                      <input type="url" className="input-field" value={form.linkOficial} onChange={(e) => setForm((f) => ({ ...f, linkOficial: e.target.value }))} required />
+                    <Field label="Link Oficial (opcional)">
+                      <input type="url" className="input-field" value={form.linkOficial} onChange={(e) => setForm((f) => ({ ...f, linkOficial: e.target.value }))} />
                     </Field>
                     <Field label="URL do PDF (opcional)">
                       <input type="url" className="input-field" value={form.arquivoPdfUrl ?? ''} onChange={(e) => setForm((f) => ({ ...f, arquivoPdfUrl: e.target.value }))} />

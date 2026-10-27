@@ -3,7 +3,7 @@
  * Organiza texto, extrai links, gera tags - economico em tokens
  */
 
-import { generateCompletion, isLlmConfigured } from '@/lib/llm';
+import { generateCompletion, isLlmConfigured, tokensParaResposta } from '@/lib/llm';
 
 
 interface ProcessedDocument {
@@ -68,7 +68,11 @@ Conteudo:
 ${conteudoLimitado}`;
 
   try {
-    const content = await generateCompletion([{ role: 'user', content: prompt }], { temperature: 0.3, maxTokens: 1000, jsonMode: true });
+    // O raciocínio do modelo consome parte de `max_tokens` (ver tokensParaResposta);
+    // com o teto antigo de 1000 a resposta truncava, o catch abaixo engolia o erro e
+    // o documento caía silenciosamente em `processWithoutAI` — parecia "IA ruim",
+    // mas era orçamento de tokens.
+    const content = await generateCompletion([{ role: 'user', content: prompt }], { temperature: 0.3, maxTokens: tokensParaResposta(1500), jsonMode: true });
     const parsed = JSON.parse(content);
     return {
       resumo: parsed.resumo || '',

@@ -5,7 +5,7 @@
  * chunks — isso já foi feito de forma determinística antes desta etapa.
  */
 
-import { generateCompletion, parseJsonResponse, isLlmConfigured } from '@/lib/llm';
+import { generateCompletion, parseJsonResponse, isLlmConfigured, tokensParaResposta } from '@/lib/llm';
 
 const MIN_QUALITY_WORDS = 15;
 const MAX_INPUT_CHARS = 16000;
@@ -111,7 +111,10 @@ Regras: não invente dados. "tabela_reformatada" só para trechos marcados [PARE
         { role: 'system', content: systemPrompt },
         { role: 'user', content: userPrompt },
       ],
-      { temperature: 0.2, maxTokens: 2000, jsonMode: true }
+      // `maxTokens` precisa cobrir o RACIOCÍNIO do modelo (ver tokensParaResposta):
+      // aqui a resposta é um JSON com resumo + tags + um item por trecho, então o
+      // orçamento pedido é do tamanho da resposta esperada, não o total.
+      { temperature: 0.2, maxTokens: tokensParaResposta(3000), jsonMode: true }
     );
 
     const parsed = parseJsonResponse<{

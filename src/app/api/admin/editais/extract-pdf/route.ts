@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { detectFileType, extractDocument, ALLOWED_EXTENSIONS } from '@/lib/document-extract';
 import { CategoriaEdital } from '@prisma/client';
-import { generateCompletion } from '@/lib/llm';
+import { generateCompletion, LlmRespostaTruncadaError, tokensParaResposta } from '@/lib/llm';
 import { exigirAdmin } from '@/lib/admin-auth';
 import { reservarAtendimento, AiLimitError } from '@/lib/ai-guard';
 import { MENSAGENS, mensagemAmigavel } from '@/lib/mensagens';
@@ -139,9 +139,18 @@ export async function POST(request: NextRequest) {
     content = await generateCompletion([
       { role: 'system', content: SYSTEM_PROMPT },
       { role: 'user', content: `Texto extraído do edital:\n\n${conteudo}` },
-    ], { temperature: 0.2, maxTokens: 2000, jsonMode: true, signal: request.signal });
+    ], { temperature: 0.2, maxTokens: tokensParaResposta(4000), jsonMode: true, signal: request.signal });
   } catch (error) {
     if (error instanceof AiLimitError) return NextResponse.json({ error: error.message }, { status: 429, headers: { 'Retry-After': String(error.retryAfterSeconds) } });
+    // ATENÇÃO: truncamento NÃO é "IA fora do ar". O JSON do edital é grande (título
+    // longo + resumo + 7 campos da tradução) e o raciocínio do modelo divide o
+    // orçamento de `max_tokens`; quando o teto era 2000, a resposta era cortada e o
+    // usuário via "a IA encontrou um problema" — que sugere tentar de novo, mas
+    // repetir igual falha igual. O orçamento agora vem de `tokensParaResposta`;
+    // se ainda assim truncar, a mensagem diz o que fazer.
+    if (error instanceof LlmRespostaTruncadaError) {
+      return NextResponse.json({ error: MENSAGENS.iaRespostaTruncada }, { status: 422 });
+    }
     return NextResponse.json({ error: MENSAGENS.iaErro }, { status: 503 });
   } finally { await release?.(); }
 

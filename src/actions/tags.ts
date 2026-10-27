@@ -1,7 +1,7 @@
 'use server';
 
 import { prisma } from '@/lib/prisma';
-import { generateCompletion } from '@/lib/llm';
+import { generateCompletion, tokensParaResposta } from '@/lib/llm';
 import { MENSAGENS, mensagemAmigavel } from '@/lib/mensagens';
 import { getVerifiedServerSession } from '@/lib/session';
 
@@ -74,7 +74,10 @@ Responda APENAS com as tags separadas por vírgula (máximo 5 tags). Exemplo: Te
     content = await generateCompletion([
       { role: 'system', content: 'Você é um classificador de projetos acadêmicos. Responda apenas com tags separadas por vírgula.' },
       { role: 'user', content: prompt.slice(0, 16000) },
-    ], { temperature: 0.3, maxTokens: 100 });
+    // A resposta são 5 tags curtas, mas o raciocínio do modelo divide o orçamento
+    // de `max_tokens` — com o teto antigo de 100 o conteúdo voltava vazio e a
+    // sugestão falhava sempre (ver tokensParaResposta em lib/llm).
+    ], { temperature: 0.3, maxTokens: tokensParaResposta(200) });
   } catch { return { ok: false, error: 'A IA não conseguiu sugerir tags agora. Escolha manualmente ou tente novamente.' }; }
 
   // Extrair tags da resposta

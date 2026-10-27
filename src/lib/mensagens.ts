@@ -134,6 +134,8 @@ export const MENSAGENS = {
     'Não conseguimos falar com o serviço de IA. Verifique a conexão e tente novamente.',
   iaErro:
     'A IA encontrou um problema ao processar seu pedido. Tente novamente em alguns instantes.',
+  iaRespostaTruncada:
+    'O documento é longo demais para a IA processar de uma vez. Tente enviar um arquivo menor, ou preencha os campos manualmente.',
   camposIaObrigatorios: (campos: string) =>
     `Para usar a IA, preencha antes: ${campos}.`,
 

@@ -38,6 +38,53 @@ export interface LlmCompletionOptions {
   onResult?: (info: { usage: unknown; finishReason: string | null }) => void;
 }
 
+/**
+ * Tokens reservados para o RACIOCÍNIO do modelo, além do tamanho da resposta.
+ *
+ * O `deepseek-flash` é um modelo de raciocínio: os `reasoning_tokens` são gerados
+ * ANTES da resposta e dividem o MESMO orçamento de `max_tokens`. Medido numa
+ * chamada real de extração de edital (PDF de 4 páginas): 2.196 tokens de
+ * raciocínio para apenas 736 de JSON — 2.932 no total.
+ *
+ * Ignorar isso causou um bug real: o `extract-pdf` pedia `maxTokens: 2000`, o
+ * modelo gastava ~1.700 só raciocinando, o JSON era cortado no meio e a tela
+ * dizia "a IA encontrou um problema". O teto maior NÃO custa mais caro —
+ * `max_tokens` é um limite, não um consumo; só se paga o que é gerado.
+ */
+const TOKENS_RACIOCINIO_RESERVADOS = 4000;
+
+/** Teto de saída aceito pelo DeepSeek — pedir mais que isso a API recusa. */
+const MAX_TOKENS_SAIDA = 8000;
+
+/**
+ * Orçamento de `max_tokens` para uma resposta de `tokensDeResposta` tokens.
+ *
+ * Use SEMPRE que o número representar o tamanho da RESPOSTA esperada — nunca
+ * passe o tamanho da resposta direto, porque o raciocínio divide o orçamento.
+ */
+export function tokensParaResposta(tokensDeResposta: number): number {
+  return Math.min(MAX_TOKENS_SAIDA, tokensDeResposta + TOKENS_RACIOCINIO_RESERVADOS);
+}
+
+/**
+ * Resposta truncada: o modelo atingiu `max_tokens` antes de terminar
+ * (`finish_reason: "length"`).
+ *
+ * É diferente de "IA fora do ar": repetir a mesma chamada do mesmo jeito vai
+ * falhar de novo. O chamador deve aumentar o orçamento (`tokensParaResposta`)
+ * ou reduzir o pedido, e a mensagem ao usuário precisa refletir isso.
+ */
+export class LlmRespostaTruncadaError extends Error {
+  readonly finishReason = 'length';
+  readonly usage: unknown;
+
+  constructor(usage: unknown = null) {
+    super('A resposta da IA foi truncada: o limite de tokens de saída foi atingido antes do fim.');
+    this.name = 'LlmRespostaTruncadaError';
+    this.usage = usage;
+  }
+}
+
 export function isLlmConfigured(): boolean {
   return !!process.env.DEEPSEEK_API_KEY;
 }
@@ -55,7 +102,7 @@ export async function generateCompletion(
     throw new Error('DEEPSEEK_API_KEY não configurada');
   }
 
-  const { temperature = 0.3, maxTokens = 1500, jsonMode = false } = options;
+  const { temperature = 0.3, maxTokens = tokensParaResposta(1500), jsonMode = false } = options;
   const data = await fetchAiJson(DEEPSEEK_URL, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
@@ -64,7 +111,7 @@ export async function generateCompletion(
   }, options);
   const choice = data.choices?.[0];
   options.onResult?.({ usage: data.usage ?? null, finishReason: choice?.finish_reason ?? null });
-  if (choice?.finish_reason === 'length') throw new Error('A resposta excedeu o limite; reduza o pedido.');
+  if (choice?.finish_reason === 'length') throw new LlmRespostaTruncadaError(data.usage ?? null);
   if (typeof choice?.message?.content !== 'string' || !choice.message.content.trim()) throw new Error('LLM retornou resposta vazia');
   return choice.message.content;
 }
