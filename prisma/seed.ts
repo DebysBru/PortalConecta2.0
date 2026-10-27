@@ -61,6 +61,10 @@ async function main() {
       descricao: 'Projeto de extensão que capacita estudantes em marketing digital e comunicação, promovendo o desenvolvimento de habilidades práticas e apoio a organizações sociais da região.',
       instagram: '@mktdigitalsolidario',
       destaque: true,
+      // Equipe e financiamento aparecem na página pública, junto ao resumo.
+      estudantesBolsistas: ['Ana Beatriz Moreira', 'Lucas Ferreira dos Santos'],
+      estudantesVoluntarios: ['Camila Ribeiro', 'Pedro Henrique Alves'],
+      financiamento: ['IFPR', 'Fundação Araucária'],
     },
     {
       nome: 'Mais Empatia',
@@ -70,6 +74,9 @@ async function main() {
       corPrimaria: '#E83D89',
       descricao: 'Projeto voltado ao desenvolvimento da empatia e habilidades socioemocionais na comunidade escolar, promovendo saúde mental e bem-estar entre estudantes.',
       destaque: true,
+      estudantesBolsistas: ['Juliana Martins da Silva'],
+      estudantesVoluntarios: ['Rafael Souza Lima', 'Isabela Cristina Dias'],
+      financiamento: ['IFPR'],
     },
     {
       nome: 'Ao Infinito e Além: Astronomia para Todos',
@@ -79,6 +86,9 @@ async function main() {
       corPrimaria: '#7B24C7',
       descricao: 'Democratizando o acesso à astronomia por meio de atividades práticas, observações noturnas e oficinas educativas para a comunidade do Vale do Ivaí.',
       destaque: true,
+      estudantesBolsistas: ['Gabriel Henrique Rocha', 'Mariana Alves Pereira'],
+      estudantesVoluntarios: ['Thiago Nunes Cardoso'],
+      financiamento: ['CNPq', 'IFPR', 'Emenda Parlamentar'],
     },
     {
       nome: 'NEA Vale do Ivaí',
@@ -297,6 +307,11 @@ async function main() {
         descricao: projetoData.descricao,
         instagram: (projetoData as { instagram?: string }).instagram,
         destaque: (projetoData as { destaque?: boolean }).destaque ?? false,
+        // Equipe/financiamento só existem em alguns projetos do seed (os demais
+        // ficam sem os cartões na página pública).
+        estudantesBolsistas: (projetoData as { estudantesBolsistas?: string[] }).estudantesBolsistas ?? [],
+        estudantesVoluntarios: (projetoData as { estudantesVoluntarios?: string[] }).estudantesVoluntarios ?? [],
+        financiamento: (projetoData as { financiamento?: string[] }).financiamento ?? [],
       },
     });
   }

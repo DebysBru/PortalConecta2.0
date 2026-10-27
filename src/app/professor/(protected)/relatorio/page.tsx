@@ -2,6 +2,7 @@
 
 import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import {
   Users, Download, Search, ChevronRight, FileSpreadsheet,
   Filter, Eye, CheckCircle, Clock, XCircle, AlertCircle,
@@ -35,7 +36,13 @@ const STATUS_COLORS: Record<string, string> = {
 };
 
 export default function ProfessorRelatorioPage() {
-  const { user } = useAuth();
+  const { user, userRole } = useAuth();
+  const router = useRouter();
+  const somenteGestor = userRole === 'ESTUDANTE';
+
+  useEffect(() => {
+    if (somenteGestor) router.replace('/professor/projetos');
+  }, [somenteGestor, router]);
   const { toast } = useToast();
   const [projetos, setProjetos] = useState<Projeto[]>([]);
   const [selectedProjeto, setSelectedProjeto] = useState<string>('');

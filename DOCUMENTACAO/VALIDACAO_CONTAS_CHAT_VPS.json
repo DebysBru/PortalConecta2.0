@@ -1,0 +1,46 @@
+{
+  "at": "2026-10-23T03:04:27.329Z",
+  "environment": "VPS clone localhost:3003, Firebase real",
+  "results": [
+    {
+      "scenario": "Visitante recusado sem chamada à IA",
+      "status": "PASS"
+    },
+    {
+      "scenario": "Token inválido recusado",
+      "status": "PASS"
+    },
+    {
+      "scenario": "Duas contas reais no mesmo IP podem perguntar simultaneamente",
+      "status": "PASS"
+    },
+    {
+      "scenario": "Mesma conta bloqueada por intervalo",
+      "status": "PASS"
+    },
+    {
+      "scenario": "Trocar IP não renova a cota da conta",
+      "status": "PASS"
+    },
+    {
+      "scenario": "Bloqueios não consomem perguntas",
+      "status": "PASS"
+    },
+    {
+      "scenario": "Após cinco segundos a conta pode perguntar",
+      "status": "PASS"
+    },
+    {
+      "scenario": "21ª pergunta bloqueada pela cota da conta",
+      "status": "PASS"
+    },
+    {
+      "scenario": "Cota esgotada de uma conta não bloqueia colega na mesma rede",
+      "status": "PASS"
+    },
+    {
+      "scenario": "Vaga liberada ao sair da janela móvel de uma hora",
+      "status": "PASS"
+    }
+  ]
+}

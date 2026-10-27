@@ -1,7 +1,7 @@
 // Cache em memória com TTL (Time To Live)
 type CacheEntry<T> = {
   data: T;
-  timestamp: number;
+  expiresAt: number;
 };
 
 class MemoryCache {
@@ -16,7 +16,7 @@ class MemoryCache {
     const entry = this.cache.get(key);
     if (!entry) return null;
     
-    if (Date.now() - entry.timestamp > this.defaultTTL) {
+    if (Date.now() >= entry.expiresAt) {
       this.cache.delete(key);
       return null;
     }
@@ -33,7 +33,7 @@ class MemoryCache {
     
     this.cache.set(key, {
       data,
-      timestamp: Date.now(),
+      expiresAt: Date.now() + (ttlMs ?? this.defaultTTL),
     });
   }
 

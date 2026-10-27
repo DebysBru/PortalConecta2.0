@@ -1,0 +1,1105 @@
+{
+  "generatedAt": "2026-10-23T01:49:13.372Z",
+  "generation": "não executada",
+  "results": [
+    {
+      "category": "exato",
+      "query": "Qual a carga horária do curso Técnico em Eletrotécnica?",
+      "elapsedMs": 1381,
+      "mode": "textual",
+      "contextBytes": 7775,
+      "omitted": 0,
+      "sources": [
+        {
+          "id": "cmvjx0eze025k12xmoa3kx755",
+          "title": "PTE-Eletrotecnica-Integrado.pdf",
+          "url": "https://ifpr.edu.br/ivaipora/wp-content/uploads/sites/15/2020/11/PTE-Eletrotecnica-Integrado.pdf"
+        },
+        {
+          "id": "cmvjx0hz002ec12xmeq0pm54q",
+          "title": "PTE-Eletrotecnica-Subsequente-Versao-2.pdf",
+          "url": "https://ifpr.edu.br/ivaipora/wp-content/uploads/sites/15/2021/04/PTE-Eletrotecnica-Subsequente-Versao-2.pdf"
+        },
+        {
+          "id": "cmvjx0k6002if12xmyfkcu5ao",
+          "title": "PPC-Eletrotecnica-integrado.pdf",
+          "url": "https://ifpr.edu.br/ivaipora/wp-content/uploads/sites/15/2017/03/PPC-Eletrotecnica-integrado.pdf"
+        }
+      ],
+      "structuredSummary": null,
+      "manualReview": "pendente"
+    },
+    {
+      "category": "exato",
+      "query": "O que diz o regulamento de monitoria?",
+      "elapsedMs": 312,
+      "mode": "textual",
+      "contextBytes": 8883,
+      "omitted": 0,
+      "sources": [
+        {
+          "id": "cmvjwzv5k00qz12xmtex7cpua",
+          "title": "Edital-Resultado-final-Monitoria-voluntaria.pdf",
+          "url": "https://ifpr.edu.br/ivaipora/wp-content/uploads/sites/15/2025/08/Edital-Resultado-final-Monitoria-voluntaria.pdf"
+        },
+        {
+          "id": "cmvjwzsvv00kx12xmh8ehk6e7",
+          "title": "EDITAL-N°29-DE-25-DE-ABRIL-DE-2022-Monitoria-2022.pdf",
+          "url": "https://ifpr.edu.br/ivaipora/wp-content/uploads/sites/15/2022/04/EDITAL-N°29-DE-25-DE-ABRIL-DE-2022-Monitoria-2022.pdf"
+        },
+        {
+          "id": "cmvjwzt3000li12xmfc5tnna9",
+          "title": "Edital-Interno-Monitoria-2017-16-de-Maio.pdf",
+          "url": "https://ifpr.edu.br/ivaipora/wp-content/uploads/sites/15/2017/05/Edital-Interno-Monitoria-2017-16-de-Maio.pdf"
+        },
+        {
+          "id": "cmvjwzr5e00gs12xmygaoej53",
+          "title": "SEI_IFPR-3200942-Edital-70.pdf",
+          "url": "https://ifpr.edu.br/ivaipora/wp-content/uploads/sites/15/2024/09/SEI_IFPR-3200942-Edital-70.pdf"
+        },
+        {
+          "id": "cmvjwzo4t009u12xm3hzcv5if",
+          "title": "SEI_IFPR-3213970-Edital.pdf",
+          "url": "https://ifpr.edu.br/ivaipora/wp-content/uploads/sites/15/2024/10/SEI_IFPR-3213970-Edital.pdf"
+        },
+        {
+          "id": "cmvjwzukc00pf12xmmea9o3vv",
+          "title": "SEI_3743354_Edital_125.pdf",
+          "url": "https://ifpr.edu.br/ivaipora/wp-content/uploads/sites/15/2025/08/SEI_3743354_Edital_125.pdf"
+        }
+      ],
+      "structuredSummary": null,
+      "manualReview": "pendente"
+    },
+    {
+      "category": "exato",
+      "query": "Quais são os projetos de robótica?",
+      "elapsedMs": 982,
+      "mode": "textual",
+      "contextBytes": 11314,
+      "omitted": 0,
+      "sources": [
+        {
+          "id": "cmvjx0gnv02an12xmylwotg7i",
+          "title": "FIC_Reoferta__Robotica.pdf",
+          "url": "https://ifpr.edu.br/ivaipora/wp-content/uploads/sites/15/2026/04/FIC_Reoferta__Robotica.pdf"
+        },
+        {
+          "id": "cmvjwzn3g007r12xm6xxe74t1",
+          "title": "Edital-001_2018-Olimpiada-de-Robotica-IFPR-Ivaipora.pdf",
+          "url": "https://ifpr.edu.br/ivaipora/wp-content/uploads/sites/15/2018/05/Edital-001_2018-Olimpiada-de-Robotica-IFPR-Ivaipora.pdf"
+        },
+        {
+          "id": "cmvjwzli9003s12xmm4l32fjf",
+          "title": "Robótica – Campus Ivaiporã",
+          "url": "https://ifpr.edu.br/ivaipora/nossos-cursos/fics/robotica/"
+        },
+        {
+          "id": "cmvjwzxtu00x112xm6uca466o",
+          "title": "Bacharelado em Sistemas de Informação – Campus Ivaiporã",
+          "url": "https://ifpr.edu.br/ivaipora/nossos-cursos/ensino-superior/bacharelado-em-sistemas-de-informacao/"
+        },
+        {
+          "id": "cmvjwzlak003112xmy5n0j5i4",
+          "title": "Matriz Curricular – Campus Ivaiporã",
+          "url": "https://ifpr.edu.br/ivaipora/nossos-cursos/cursos-tecnicos/tecnico-em-informatica/matriz-curricular/"
+        },
+        {
+          "id": "cmvjwzsch00k012xm7vdb0ji2",
+          "title": "SEI_3824403_Edital_interno.pdf",
+          "url": "https://ifpr.edu.br/ivaipora/wp-content/uploads/sites/15/2025/10/SEI_3824403_Edital_interno.pdf"
+        }
+      ],
+      "structuredSummary": [
+        "PROJETOS: 0 correspondem aos filtros. Mostrando 0 de 0. Este recorte inclui todos os resultados do filtro."
+      ],
+      "manualReview": "pendente"
+    },
+    {
+      "category": "exato",
+      "query": "Quais editais de bolsas estão abertos?",
+      "elapsedMs": 644,
+      "mode": "textual",
+      "contextBytes": 14271,
+      "omitted": 1,
+      "sources": [
+        {
+          "id": "cmvjx0bm101x112xm3dpz5oij",
+          "title": "Portaria_2026_1742-regimento-do-COPE-publicado.pdf",
+          "url": "https://ifpr.edu.br/ivaipora/wp-content/uploads/sites/15/2026/03/Portaria_2026_1742-regimento-do-COPE-publicado.pdf"
+        },
+        {
+          "id": "cmvjwzv6a00r112xmrbvb0zy0",
+          "title": "Edital-selecao-bolsista-PRADI.pdf",
+          "url": "https://ifpr.edu.br/ivaipora/wp-content/uploads/sites/15/2016/05/Edital-selecao-bolsista-PRADI.pdf"
+        },
+        {
+          "id": "cmvjwzmq8007212xmxqseqy2w",
+          "title": "Edital_selecao_bolsistas_PIBEX-2020-...pdf",
+          "url": "https://ifpr.edu.br/ivaipora/wp-content/uploads/sites/15/2020/07/Edital_selecao_bolsistas_PIBEX-2020-...pdf"
+        },
+        {
+          "id": "cmvjwzt6h00lo12xmfoov3opa",
+          "title": "Edital-de-Resultado-PIBEX-FA-2018-.pdf",
+          "url": "https://ifpr.edu.br/ivaipora/wp-content/uploads/sites/15/2018/08/Edital-de-Resultado-PIBEX-FA-2018-.pdf"
+        },
+        {
+          "id": "cmvjwztkx00mj12xmzlhuav5x",
+          "title": "EDITAL-N-01-EVENTOS-ESTUDANTIS-2019.pdf",
+          "url": "https://ifpr.edu.br/ivaipora/wp-content/uploads/sites/15/2019/02/EDITAL-N-01-EVENTOS-ESTUDANTIS-2019.pdf"
+        },
+        {
+          "title": "Edital Favorito Teste DSH",
+          "url": "/editais/edital-favorito-teste-dsh"
+        }
+      ],
+      "structuredSummary": [
+        "EDITAIS: 1 correspondem aos filtros. Mostrando 1 de 1. "
+      ],
+      "manualReview": "pendente"
+    },
+    {
+      "category": "exato",
+      "query": "Quais projetos de agroecologia existem?",
+      "elapsedMs": 1286,
+      "mode": "textual",
+      "contextBytes": 15571,
+      "omitted": 2,
+      "sources": [
+        {
+          "id": "cmvjx0jev02i712xmaa710aui",
+          "title": "PPC-Integrado-em-Agroecologia-26-04-final.pdf",
+          "url": "https://ifpr.edu.br/ivaipora/wp-content/uploads/sites/15/2017/03/PPC-Integrado-em-Agroecologia-26-04-final.pdf"
+        },
+        {
+          "id": "cmvjx0jq502i912xm157a1pha",
+          "title": "PPC-Concomitante-em-Agroecologia.pdf",
+          "url": "https://ifpr.edu.br/ivaipora/wp-content/uploads/sites/15/2017/07/PPC-Concomitante-em-Agroecologia.pdf"
+        },
+        {
+          "id": "cmvjx00pz013u12xmv03809l1",
+          "title": "O Câmpus – Campus Ivaiporã",
+          "url": "https://ifpr.edu.br/ivaipora/menu-institucional/o-campus/"
+        },
+        {
+          "id": "cmvjwzrb700h812xmdn7drlpc",
+          "title": "Edital-7-Chamada-interna-IFTECH-2019.pdf",
+          "url": "https://ifpr.edu.br/ivaipora/wp-content/uploads/sites/15/2019/06/Edital-7-Chamada-interna-IFTECH-2019.pdf"
+        }
+      ],
+      "structuredSummary": [
+        "PROJETOS: 0 correspondem aos filtros. Mostrando 0 de 0. Este recorte inclui todos os resultados do filtro."
+      ],
+      "manualReview": "pendente"
+    },
+    {
+      "category": "parafrase",
+      "query": "Posso conseguir ajuda para alimentação?",
+      "elapsedMs": 196,
+      "mode": "textual",
+      "contextBytes": 13935,
+      "omitted": 2,
+      "sources": [
+        {
+          "id": "cmvjx0fi3027a12xmd0j11j34",
+          "title": "SEI_IFPR-0897326-CODIC-10-DE-AGOSTO-DE-2020.pdf",
+          "url": "https://ifpr.edu.br/ivaipora/wp-content/uploads/sites/15/2020/11/SEI_IFPR-0897326-CODIC-10-DE-AGOSTO-DE-2020.pdf"
+        },
+        {
+          "id": "cmvjx00b8012t12xm764qk1za",
+          "title": "TERMO-DE-REFERENCIA-188-2025-PNAE.pdf",
+          "url": "https://ifpr.edu.br/ivaipora/wp-content/uploads/sites/15/2025/07/TERMO-DE-REFERENCIA-188-2025-PNAE.pdf"
+        },
+        {
+          "id": "cmvjx0fa1026h12xm1mwvcasv",
+          "title": "SEI_IFPR-0913310-CODIC-05-DE-OUTUBRO-DE-2020.pdf",
+          "url": "https://ifpr.edu.br/ivaipora/wp-content/uploads/sites/15/2020/11/SEI_IFPR-0913310-CODIC-05-DE-OUTUBRO-DE-2020.pdf"
+        },
+        {
+          "id": "cmvjx072t01l012xmn92a2k9m",
+          "title": "CONCORRENCIA-001.2018-IVAIPORA-V3.pdf",
+          "url": "https://ifpr.edu.br/ivaipora/wp-content/uploads/sites/15/2018/05/CONCORRENCIA-001.2018-IVAIPORA-V3.pdf"
+        }
+      ],
+      "structuredSummary": null,
+      "manualReview": "pendente"
+    },
+    {
+      "category": "parafrase",
+      "query": "Como estudar programação no campus?",
+      "elapsedMs": 1327,
+      "mode": "textual",
+      "contextBytes": 9922,
+      "omitted": 0,
+      "sources": [
+        {
+          "id": "cmvjx03fx01as12xmjfyiskwt",
+          "title": "PCC_FIC_Programacao_WEB.pdf",
+          "url": "https://ifpr.edu.br/ivaipora/wp-content/uploads/sites/15/2025/09/PCC_FIC_Programacao_WEB.pdf"
+        },
+        {
+          "id": "cmvjx0j6h02i512xm6bl8jpqv",
+          "title": "PPC_FIC_Fundamentos_de_Programacao.pdf",
+          "url": "https://ifpr.edu.br/ivaipora/wp-content/uploads/sites/15/2025/09/PPC_FIC_Fundamentos_de_Programacao.pdf"
+        },
+        {
+          "id": "cmvjx0byw01y612xmxvmy5pp9",
+          "title": "Programação – Campus Ivaiporã",
+          "url": "https://ifpr.edu.br/ivaipora/fecipeivp/programacao-3/"
+        },
+        {
+          "id": "cmvjwztkx00mj12xmzlhuav5x",
+          "title": "EDITAL-N-01-EVENTOS-ESTUDANTIS-2019.pdf",
+          "url": "https://ifpr.edu.br/ivaipora/wp-content/uploads/sites/15/2019/02/EDITAL-N-01-EVENTOS-ESTUDANTIS-2019.pdf"
+        },
+        {
+          "id": "cmvjwzl4m002h12xm0w9gwo5n",
+          "title": "Fundamentos da Programação – Campus Ivaiporã",
+          "url": "https://ifpr.edu.br/ivaipora/nossos-cursos/fics/fundamentos-da-programacao/"
+        },
+        {
+          "id": "cmvjwzle2003e12xmbh65ira1",
+          "title": "Programação WEB – Campus Ivaiporã",
+          "url": "https://ifpr.edu.br/ivaipora/nossos-cursos/fics/programacao-web/"
+        }
+      ],
+      "structuredSummary": null,
+      "manualReview": "pendente"
+    },
+    {
+      "category": "parafrase",
+      "query": "Quem pode participar de atividades de extensão?",
+      "elapsedMs": 376,
+      "mode": "textual",
+      "contextBytes": 15435,
+      "omitted": 1,
+      "sources": [
+        {
+          "id": "cmvjx07ed01lw12xm8gs1way6",
+          "title": "Bolsas 2026/2027 – Campus Ivaiporã",
+          "url": "https://ifpr.edu.br/ivaipora/copex/bolsas/bolsas-2026-2027/"
+        },
+        {
+          "id": "cmvjx04re01ed12xmk8ai0neu",
+          "title": "SEI_IFPR-1584276-Portaria-29.pdf",
+          "url": "https://ifpr.edu.br/ivaipora/wp-content/uploads/sites/15/2022/02/SEI_IFPR-1584276-Portaria-29.pdf"
+        },
+        {
+          "id": "cmvjx0d8x021912xmb4jzorcz",
+          "title": "Orientacoes-RDE.pdf",
+          "url": "https://ifpr.edu.br/ivaipora/wp-content/uploads/sites/15/2020/11/Orientacoes-RDE.pdf"
+        },
+        {
+          "id": "cmvjx014z015012xm58oxzet4",
+          "title": "PPP_Campus_Ivaipora_2014.pdf",
+          "url": "https://ifpr.edu.br/ivaipora/wp-content/uploads/sites/15/2025/05/PPP_Campus_Ivaipora_2014.pdf"
+        },
+        {
+          "id": "cmvjx07g901m012xm3tdawroz",
+          "title": "Orientacoes-covid-19-25-01-2022.pdf",
+          "url": "https://ifpr.edu.br/ivaipora/wp-content/uploads/sites/15/2022/01/Orientacoes-covid-19-25-01-2022.pdf"
+        },
+        {
+          "title": "Projeto Teste DSH",
+          "url": "/projetos/projeto-teste-dsh"
+        }
+      ],
+      "structuredSummary": [
+        "PROJETOS: 1 correspondem aos filtros. Mostrando 1 de 1. Este recorte inclui todos os resultados do filtro."
+      ],
+      "manualReview": "pendente"
+    },
+    {
+      "category": "parafrase",
+      "query": "Quero trabalhar como monitor, como funciona?",
+      "elapsedMs": 1754,
+      "mode": "textual",
+      "contextBytes": 12056,
+      "omitted": 0,
+      "sources": [
+        {
+          "id": "cmvjx036i01a212xmbwwqpktm",
+          "title": "Resultado-PBIS.pdf",
+          "url": "https://ifpr.edu.br/ivaipora/wp-content/uploads/sites/15/2012/04/Resultado-PBIS.pdf"
+        },
+        {
+          "id": "cmvjx0j2g02hx12xmshi1ewoq",
+          "title": "NORMAS-DE-SEGURANCA-E-FUNCIONAMENTO-DOS-LABORATORIOS-DE-FISICA-DO-IFPR-CAMPUS-IVAIPORA.pdf",
+          "url": "https://ifpr.edu.br/ivaipora/wp-content/uploads/sites/15/2017/10/NORMAS-DE-SEGURANCA-E-FUNCIONAMENTO-DOS-LABORATORIOS-DE-FISICA-DO-IFPR-CAMPUS-IVAIPORA.pdf"
+        },
+        {
+          "id": "cmvjwzxjx00wc12xmu4hlqtik",
+          "title": "Edital-de-selecao-de-monitoria-voluntaria-licenciatura-em-Fisica.pdf",
+          "url": "https://ifpr.edu.br/ivaipora/wp-content/uploads/sites/15/2017/03/Edital-de-selecao-de-monitoria-voluntaria-licenciatura-em-Fisica.pdf"
+        },
+        {
+          "id": "cmvjx075c01l412xmcv6l08cg",
+          "title": "Resultado_final___Monitoria_Voluntaria___Primeiro_Semestre_de_2026.pdf__3.pdf",
+          "url": "https://ifpr.edu.br/ivaipora/wp-content/uploads/sites/15/2026/04/Resultado_final___Monitoria_Voluntaria___Primeiro_Semestre_de_2026.pdf__3.pdf"
+        },
+        {
+          "id": "cmvjwzv5k00qz12xmtex7cpua",
+          "title": "Edital-Resultado-final-Monitoria-voluntaria.pdf",
+          "url": "https://ifpr.edu.br/ivaipora/wp-content/uploads/sites/15/2025/08/Edital-Resultado-final-Monitoria-voluntaria.pdf"
+        },
+        {
+          "id": "cmvjwzml0006n12xmj2hofa8d",
+          "title": "Edital-Monitoria-Voluntaria-2026.2.pdf",
+          "url": "https://ifpr.edu.br/ivaipora/wp-content/uploads/sites/15/2026/08/Edital-Monitoria-Voluntaria-2026.2.pdf"
+        }
+      ],
+      "structuredSummary": null,
+      "manualReview": "pendente"
+    },
+    {
+      "category": "parafrase",
+      "query": "Que apoio existe para continuar estudando?",
+      "elapsedMs": 2080,
+      "mode": "textual",
+      "contextBytes": 14454,
+      "omitted": 1,
+      "sources": [
+        {
+          "id": "cmvjwzqly00fk12xmepe9n9kr",
+          "title": "SEI_IFPR-3058132-Edital-Inscricoes-PMM.pdf",
+          "url": "https://ifpr.edu.br/ivaipora/wp-content/uploads/sites/15/2024/08/SEI_IFPR-3058132-Edital-Inscricoes-PMM.pdf"
+        },
+        {
+          "id": "cmvjx014z015012xm58oxzet4",
+          "title": "PPP_Campus_Ivaipora_2014.pdf",
+          "url": "https://ifpr.edu.br/ivaipora/wp-content/uploads/sites/15/2025/05/PPP_Campus_Ivaipora_2014.pdf"
+        },
+        {
+          "id": "cmvjx0j8y02i612xmkmjk6beq",
+          "title": "PPC-Fisica_APS.pdf",
+          "url": "https://ifpr.edu.br/ivaipora/wp-content/uploads/sites/15/2025/02/PPC-Fisica_APS.pdf"
+        },
+        {
+          "id": "cmvjx0jlx02i812xm6mkzwuz5",
+          "title": "PPC-Fisica-Ivaipora-2018.pdf",
+          "url": "https://ifpr.edu.br/ivaipora/wp-content/uploads/sites/15/2017/11/PPC-Fisica-Ivaipora-2018.pdf"
+        },
+        {
+          "id": "cmvjx0dts022t12xm5z6nqgnl",
+          "title": "TCC-Erika.pdf",
+          "url": "https://ifpr.edu.br/ivaipora/wp-content/uploads/sites/15/2024/09/TCC-Erika.pdf"
+        }
+      ],
+      "structuredSummary": null,
+      "manualReview": "pendente"
+    },
+    {
+      "category": "continuacao-base",
+      "query": "Fale sobre o curso Técnico em Eletrotécnica.",
+      "elapsedMs": 182,
+      "mode": "textual",
+      "contextBytes": 14594,
+      "omitted": 0,
+      "sources": [
+        {
+          "id": "cmvjwzxqt00wt12xmt30ygc8s",
+          "title": "Técnico em Eletrotécnica Integrado – Campus Ivaiporã",
+          "url": "https://ifpr.edu.br/ivaipora/nossos-cursos/cursos-tecnicos/eletrotecnica-integrado-ao-ensino-medio/"
+        },
+        {
+          "id": "cmvjx0b5801vh12xmyys28gnh",
+          "title": "SEI_IFPR-3135586-Comunicado.pdf",
+          "url": "https://ifpr.edu.br/ivaipora/wp-content/uploads/sites/15/2024/08/SEI_IFPR-3135586-Comunicado.pdf"
+        },
+        {
+          "id": "cmvjwzl1e002712xmcqy0cgtr",
+          "title": "Portaria-143-Colegiado-do-curso-Tecnico-em-Eletrotecnica-Subsequente-Integrado.pdf",
+          "url": "https://ifpr.edu.br/ivaipora/wp-content/uploads/sites/15/2018/12/Portaria-143-Colegiado-do-curso-Tecnico-em-Eletrotecnica-Subsequente-Integrado.pdf"
+        },
+        {
+          "id": "cmvjx0k6002if12xmyfkcu5ao",
+          "title": "PPC-Eletrotecnica-integrado.pdf",
+          "url": "https://ifpr.edu.br/ivaipora/wp-content/uploads/sites/15/2017/03/PPC-Eletrotecnica-integrado.pdf"
+        },
+        {
+          "id": "cmvjx0j4d02i312xmtfz3jas7",
+          "title": "PPC-Eletrotecnica-Subsequente.pdf",
+          "url": "https://ifpr.edu.br/ivaipora/wp-content/uploads/sites/15/2017/03/PPC-Eletrotecnica-Subsequente.pdf"
+        },
+        {
+          "id": "cmvjx0eze025k12xmoa3kx755",
+          "title": "PTE-Eletrotecnica-Integrado.pdf",
+          "url": "https://ifpr.edu.br/ivaipora/wp-content/uploads/sites/15/2020/11/PTE-Eletrotecnica-Integrado.pdf"
+        }
+      ],
+      "structuredSummary": null,
+      "manualReview": "pendente"
+    },
+    {
+      "category": "continuacao-base",
+      "query": "Fale sobre projetos de robótica.",
+      "elapsedMs": 1275,
+      "mode": "textual",
+      "contextBytes": 11314,
+      "omitted": 0,
+      "sources": [
+        {
+          "id": "cmvjx0gnv02an12xmylwotg7i",
+          "title": "FIC_Reoferta__Robotica.pdf",
+          "url": "https://ifpr.edu.br/ivaipora/wp-content/uploads/sites/15/2026/04/FIC_Reoferta__Robotica.pdf"
+        },
+        {
+          "id": "cmvjwzn3g007r12xm6xxe74t1",
+          "title": "Edital-001_2018-Olimpiada-de-Robotica-IFPR-Ivaipora.pdf",
+          "url": "https://ifpr.edu.br/ivaipora/wp-content/uploads/sites/15/2018/05/Edital-001_2018-Olimpiada-de-Robotica-IFPR-Ivaipora.pdf"
+        },
+        {
+          "id": "cmvjwzli9003s12xmm4l32fjf",
+          "title": "Robótica – Campus Ivaiporã",
+          "url": "https://ifpr.edu.br/ivaipora/nossos-cursos/fics/robotica/"
+        },
+        {
+          "id": "cmvjwzxtu00x112xm6uca466o",
+          "title": "Bacharelado em Sistemas de Informação – Campus Ivaiporã",
+          "url": "https://ifpr.edu.br/ivaipora/nossos-cursos/ensino-superior/bacharelado-em-sistemas-de-informacao/"
+        },
+        {
+          "id": "cmvjwzlak003112xmy5n0j5i4",
+          "title": "Matriz Curricular – Campus Ivaiporã",
+          "url": "https://ifpr.edu.br/ivaipora/nossos-cursos/cursos-tecnicos/tecnico-em-informatica/matriz-curricular/"
+        },
+        {
+          "id": "cmvjwzsch00k012xm7vdb0ji2",
+          "title": "SEI_3824403_Edital_interno.pdf",
+          "url": "https://ifpr.edu.br/ivaipora/wp-content/uploads/sites/15/2025/10/SEI_3824403_Edital_interno.pdf"
+        }
+      ],
+      "structuredSummary": [
+        "PROJETOS: 0 correspondem aos filtros. Mostrando 0 de 0. Este recorte inclui todos os resultados do filtro."
+      ],
+      "manualReview": "pendente"
+    },
+    {
+      "category": "continuacao-base",
+      "query": "Fale sobre o regulamento de monitoria.",
+      "elapsedMs": 451,
+      "mode": "textual",
+      "contextBytes": 12554,
+      "omitted": 0,
+      "sources": [
+        {
+          "id": "cmvjwzv5k00qz12xmtex7cpua",
+          "title": "Edital-Resultado-final-Monitoria-voluntaria.pdf",
+          "url": "https://ifpr.edu.br/ivaipora/wp-content/uploads/sites/15/2025/08/Edital-Resultado-final-Monitoria-voluntaria.pdf"
+        },
+        {
+          "id": "cmvjx03kx01b412xmvrwssidz",
+          "title": "ATA-REUNIAO-CODIC-17-DE-FEVEREIRO-DE-2020.pdf",
+          "url": "https://ifpr.edu.br/ivaipora/wp-content/uploads/sites/15/2020/12/ATA-REUNIAO-CODIC-17-DE-FEVEREIRO-DE-2020.pdf"
+        },
+        {
+          "id": "cmvjwzr5e00gs12xmygaoej53",
+          "title": "SEI_IFPR-3200942-Edital-70.pdf",
+          "url": "https://ifpr.edu.br/ivaipora/wp-content/uploads/sites/15/2024/09/SEI_IFPR-3200942-Edital-70.pdf"
+        },
+        {
+          "id": "cmvjwzo4t009u12xm3hzcv5if",
+          "title": "SEI_IFPR-3213970-Edital.pdf",
+          "url": "https://ifpr.edu.br/ivaipora/wp-content/uploads/sites/15/2024/10/SEI_IFPR-3213970-Edital.pdf"
+        },
+        {
+          "id": "cmvjwzt3000li12xmfc5tnna9",
+          "title": "Edital-Interno-Monitoria-2017-16-de-Maio.pdf",
+          "url": "https://ifpr.edu.br/ivaipora/wp-content/uploads/sites/15/2017/05/Edital-Interno-Monitoria-2017-16-de-Maio.pdf"
+        },
+        {
+          "id": "cmvjwzxjx00wc12xmu4hlqtik",
+          "title": "Edital-de-selecao-de-monitoria-voluntaria-licenciatura-em-Fisica.pdf",
+          "url": "https://ifpr.edu.br/ivaipora/wp-content/uploads/sites/15/2017/03/Edital-de-selecao-de-monitoria-voluntaria-licenciatura-em-Fisica.pdf"
+        }
+      ],
+      "structuredSummary": null,
+      "manualReview": "pendente"
+    },
+    {
+      "category": "continuacao-base",
+      "query": "Fale sobre auxílio estudantil.",
+      "elapsedMs": 526,
+      "mode": "textual",
+      "contextBytes": 14393,
+      "omitted": 1,
+      "sources": [
+        {
+          "id": "cmvjx0hz002ec12xmeq0pm54q",
+          "title": "PTE-Eletrotecnica-Subsequente-Versao-2.pdf",
+          "url": "https://ifpr.edu.br/ivaipora/wp-content/uploads/sites/15/2021/04/PTE-Eletrotecnica-Subsequente-Versao-2.pdf"
+        },
+        {
+          "id": "cmvjx07rr01mx12xmalkb0pym",
+          "title": "PTE_Agronomia_Ano_Letivo_2020_ad-referendum-11-11.pdf",
+          "url": "https://ifpr.edu.br/ivaipora/wp-content/uploads/sites/15/2020/11/PTE_Agronomia_Ano_Letivo_2020_ad-referendum-11-11.pdf"
+        },
+        {
+          "id": "cmvjwzzwq011t12xmc8mwh0ic",
+          "title": "PTE_Agronomia_Ano_Letivo_2020_atualizado_02_03_21.pdf",
+          "url": "https://ifpr.edu.br/ivaipora/wp-content/uploads/sites/15/2021/03/PTE_Agronomia_Ano_Letivo_2020_atualizado_02_03_21.pdf"
+        },
+        {
+          "id": "cmvjx06gc01j612xmfv0jbril",
+          "title": "Plano_de_Trabalho_Emergencial-Integrado-Agroecologia.docx.pdf",
+          "url": "https://ifpr.edu.br/ivaipora/wp-content/uploads/sites/15/2020/11/Plano_de_Trabalho_Emergencial-Integrado-Agroecologia.docx.pdf"
+        },
+        {
+          "id": "cmvjx00yz014i12xmmzf3dp3r",
+          "title": "Grêmio Estudantil – Campus Ivaiporã",
+          "url": "https://ifpr.edu.br/ivaipora/estudantes/gremio-estudantil/"
+        },
+        {
+          "id": "cmvjx09hr01rj12xm8bery58q",
+          "title": "Ata-de-votacao-para-eleicao-do-gremio-Estudantil-2016.pdf",
+          "url": "https://ifpr.edu.br/ivaipora/wp-content/uploads/sites/15/2016/08/Ata-de-votacao-para-eleicao-do-gremio-Estudantil-2016.pdf"
+        }
+      ],
+      "structuredSummary": [
+        "EDITAIS: 0 correspondem aos filtros. Mostrando 0 de 0. "
+      ],
+      "manualReview": "pendente"
+    },
+    {
+      "category": "continuacao-base",
+      "query": "Fale sobre projetos de extensão.",
+      "elapsedMs": 472,
+      "mode": "textual",
+      "contextBytes": 11624,
+      "omitted": 0,
+      "sources": [
+        {
+          "id": "cmvjx0j3o02i112xmd38lxj0m",
+          "title": "SEI_IFPR-1901192-Portaria-103-comissao-avaliadora-para-selecao-de-bolsistas-para-projetos-de-extensao-e-de-pesquisa-visando-atender-ao-Edital-n°61.pdf",
+          "url": "https://ifpr.edu.br/ivaipora/wp-content/uploads/sites/15/2022/09/SEI_IFPR-1901192-Portaria-103-comissao-avaliadora-para-selecao-de-bolsistas-para-projetos-de-extensao-e-de-pesquisa-visando-atender-ao-Edital-n°61.pdf"
+        },
+        {
+          "id": "cmvjwzxe100vv12xmvzhccf6y",
+          "title": "Edital-de-Selecao_Projeto-Mais-Empatia_PIDH_2026_retificado.pdf",
+          "url": "https://ifpr.edu.br/ivaipora/wp-content/uploads/sites/15/2026/08/Edital-de-Selecao_Projeto-Mais-Empatia_PIDH_2026_retificado.pdf"
+        },
+        {
+          "id": "cmvjwzmq8007212xmxqseqy2w",
+          "title": "Edital_selecao_bolsistas_PIBEX-2020-...pdf",
+          "url": "https://ifpr.edu.br/ivaipora/wp-content/uploads/sites/15/2020/07/Edital_selecao_bolsistas_PIBEX-2020-...pdf"
+        },
+        {
+          "id": "cmvjx03rx01bp12xm25w567oh",
+          "title": "Resultado-Final-Selecao-de-bolsista-para-o-projeto-Astronomia-para-todos.pdf",
+          "url": "https://ifpr.edu.br/ivaipora/wp-content/uploads/sites/15/2020/08/Resultado-Final-Selecao-de-bolsista-para-o-projeto-Astronomia-para-todos.pdf"
+        },
+        {
+          "id": "cmvjwzpje00cx12xmto63yvgy",
+          "title": "Edital-Interno-Selecao-Bolsista-Projeto-Meliponario.pdf",
+          "url": "https://ifpr.edu.br/ivaipora/wp-content/uploads/sites/15/2022/08/Edital-Interno-Selecao-Bolsista-Projeto-Meliponario.pdf"
+        },
+        {
+          "id": "cmvjx0jsl02ia12xmne9wt4ra",
+          "title": "PPC_2019_2022-Agronomia.pdf",
+          "url": "https://ifpr.edu.br/ivaipora/wp-content/uploads/sites/15/2024/08/PPC_2019_2022-Agronomia.pdf"
+        },
+        {
+          "title": "Projeto Teste DSH",
+          "url": "/projetos/projeto-teste-dsh"
+        }
+      ],
+      "structuredSummary": [
+        "PROJETOS: 1 correspondem aos filtros. Mostrando 1 de 1. Este recorte inclui todos os resultados do filtro."
+      ],
+      "manualReview": "pendente"
+    },
+    {
+      "category": "filtro",
+      "query": "Quantos projetos de pesquisa existem?",
+      "elapsedMs": 528,
+      "mode": "textual",
+      "contextBytes": 15276,
+      "omitted": 1,
+      "sources": [
+        {
+          "id": "cmvjx0jev02i712xmaa710aui",
+          "title": "PPC-Integrado-em-Agroecologia-26-04-final.pdf",
+          "url": "https://ifpr.edu.br/ivaipora/wp-content/uploads/sites/15/2017/03/PPC-Integrado-em-Agroecologia-26-04-final.pdf"
+        },
+        {
+          "id": "cmvjx0fi3027a12xmd0j11j34",
+          "title": "SEI_IFPR-0897326-CODIC-10-DE-AGOSTO-DE-2020.pdf",
+          "url": "https://ifpr.edu.br/ivaipora/wp-content/uploads/sites/15/2020/11/SEI_IFPR-0897326-CODIC-10-DE-AGOSTO-DE-2020.pdf"
+        },
+        {
+          "id": "cmvjx0bm101x112xm3dpz5oij",
+          "title": "Portaria_2026_1742-regimento-do-COPE-publicado.pdf",
+          "url": "https://ifpr.edu.br/ivaipora/wp-content/uploads/sites/15/2026/03/Portaria_2026_1742-regimento-do-COPE-publicado.pdf"
+        },
+        {
+          "id": "cmvjx036i01a212xmbwwqpktm",
+          "title": "Resultado-PBIS.pdf",
+          "url": "https://ifpr.edu.br/ivaipora/wp-content/uploads/sites/15/2012/04/Resultado-PBIS.pdf"
+        },
+        {
+          "id": "cmvjx00pz013u12xmv03809l1",
+          "title": "O Câmpus – Campus Ivaiporã",
+          "url": "https://ifpr.edu.br/ivaipora/menu-institucional/o-campus/"
+        },
+        {
+          "id": "cmvjx0jsl02ia12xmne9wt4ra",
+          "title": "PPC_2019_2022-Agronomia.pdf",
+          "url": "https://ifpr.edu.br/ivaipora/wp-content/uploads/sites/15/2024/08/PPC_2019_2022-Agronomia.pdf"
+        }
+      ],
+      "structuredSummary": [
+        "PROJETOS: 0 correspondem aos filtros. Mostrando 0 de 0. Este recorte inclui todos os resultados do filtro."
+      ],
+      "manualReview": "pendente"
+    },
+    {
+      "category": "filtro",
+      "query": "Quantos projetos de robótica existem?",
+      "elapsedMs": 1663,
+      "mode": "textual",
+      "contextBytes": 12682,
+      "omitted": 2,
+      "sources": [
+        {
+          "id": "cmvjx0fi3027a12xmd0j11j34",
+          "title": "SEI_IFPR-0897326-CODIC-10-DE-AGOSTO-DE-2020.pdf",
+          "url": "https://ifpr.edu.br/ivaipora/wp-content/uploads/sites/15/2020/11/SEI_IFPR-0897326-CODIC-10-DE-AGOSTO-DE-2020.pdf"
+        },
+        {
+          "id": "cmvjwzpkt00d112xmvsjlu5qb",
+          "title": "Edital-de-chamada-interno-da-X-IFTECH-2023-Nucleo-de-Inovacao-Tecnologica-Ivaipora.pdf",
+          "url": "https://ifpr.edu.br/ivaipora/wp-content/uploads/sites/15/2023/08/Edital-de-chamada-interno-da-X-IFTECH-2023-Nucleo-de-Inovacao-Tecnologica-Ivaipora.pdf"
+        },
+        {
+          "id": "cmvjx0bm101x112xm3dpz5oij",
+          "title": "Portaria_2026_1742-regimento-do-COPE-publicado.pdf",
+          "url": "https://ifpr.edu.br/ivaipora/wp-content/uploads/sites/15/2026/03/Portaria_2026_1742-regimento-do-COPE-publicado.pdf"
+        },
+        {
+          "id": "cmvjwzv8900r612xmgxcd74o3",
+          "title": "Ficha-de-inscricao-Edital-06_2018-IFTech-Anexo-I.docx",
+          "url": "https://ifpr.edu.br/ivaipora/wp-content/uploads/sites/15/2018/06/Ficha-de-inscricao-Edital-06_2018-IFTech-Anexo-I.docx"
+        }
+      ],
+      "structuredSummary": [
+        "PROJETOS: 0 correspondem aos filtros. Mostrando 0 de 0. Este recorte inclui todos os resultados do filtro."
+      ],
+      "manualReview": "pendente"
+    },
+    {
+      "category": "filtro",
+      "query": "Quais projetos estão com inscrições abertas?",
+      "elapsedMs": 2028,
+      "mode": "textual",
+      "contextBytes": 13682,
+      "omitted": 2,
+      "sources": [
+        {
+          "id": "cmvjwzpoh00da12xm65zg5570",
+          "title": "Edital 178/2019 – Geografia – Campus Ivaiporã",
+          "url": "https://ifpr.edu.br/ivaipora/servidores-2/concursos-e-selecoes/concursos-selecoes-2019/edital-178-2019-geografia/"
+        },
+        {
+          "id": "cmvjwzppu00de12xmmmj8sc7v",
+          "title": "Edital_Projeto_O-Bosque-como-espaco-de-integracao-social-e-formacao-do-sujeito-ecologico-13072021.pdf",
+          "url": "https://ifpr.edu.br/ivaipora/wp-content/uploads/sites/15/2021/07/Edital_Projeto_O-Bosque-como-espaco-de-integracao-social-e-formacao-do-sujeito-ecologico-13072021.pdf"
+        },
+        {
+          "id": "cmvjwzv2r00qr12xmwljbx566",
+          "title": "2021-Edital_Retificacao_Projeto_O-Bosque-como-espaco-de-integracao-social-e-formacao-do-sujeito-ecologico.pdf",
+          "url": "https://ifpr.edu.br/ivaipora/wp-content/uploads/sites/15/2021/07/2021-Edital_Retificacao_Projeto_O-Bosque-como-espaco-de-integracao-social-e-formacao-do-sujeito-ecologico.pdf"
+        },
+        {
+          "id": "cmvjwzn8t007z12xmvc9ty2zq",
+          "title": "Edital_NEA_2_2017.pdf",
+          "url": "https://ifpr.edu.br/ivaipora/wp-content/uploads/sites/15/2017/07/Edital_NEA_2_2017.pdf"
+        }
+      ],
+      "structuredSummary": [
+        "PROJETOS: 0 correspondem aos filtros. Mostrando 0 de 0. Este recorte inclui todos os resultados do filtro."
+      ],
+      "manualReview": "pendente"
+    },
+    {
+      "category": "filtro",
+      "query": "Quais editais estão encerrados?",
+      "elapsedMs": 585,
+      "mode": "textual",
+      "contextBytes": 14603,
+      "omitted": 1,
+      "sources": [
+        {
+          "id": "cmvjwzxc000vp12xml9dgvhvo",
+          "title": "Editais – Campus Ivaiporã",
+          "url": "https://ifpr.edu.br/ivaipora/documentos-institucionais/editais/"
+        },
+        {
+          "id": "cmvjx0bm101x112xm3dpz5oij",
+          "title": "Portaria_2026_1742-regimento-do-COPE-publicado.pdf",
+          "url": "https://ifpr.edu.br/ivaipora/wp-content/uploads/sites/15/2026/03/Portaria_2026_1742-regimento-do-COPE-publicado.pdf"
+        },
+        {
+          "id": "cmvjwzu9500oe12xm35hep38v",
+          "title": "Edital-para-selecao-de-bolsistas-PIBIC-2017.pdf",
+          "url": "https://ifpr.edu.br/ivaipora/wp-content/uploads/sites/15/2017/03/Edital-para-selecao-de-bolsistas-PIBIC-2017.pdf"
+        },
+        {
+          "id": "cmvjx0fi3027a12xmd0j11j34",
+          "title": "SEI_IFPR-0897326-CODIC-10-DE-AGOSTO-DE-2020.pdf",
+          "url": "https://ifpr.edu.br/ivaipora/wp-content/uploads/sites/15/2020/11/SEI_IFPR-0897326-CODIC-10-DE-AGOSTO-DE-2020.pdf"
+        },
+        {
+          "id": "cmvjx077801la12xm9sfopqe7",
+          "title": "SEGEPE – Seção de Gestão de Pessoas – Campus Ivaiporã",
+          "url": "https://ifpr.edu.br/ivaipora/segepe-secao-de-gestao-de-pessoas/"
+        }
+      ],
+      "structuredSummary": [
+        "EDITAIS: 0 correspondem aos filtros. Mostrando 0 de 0. "
+      ],
+      "manualReview": "pendente"
+    },
+    {
+      "category": "filtro",
+      "query": "Quais projetos de informática e pesquisa existem?",
+      "elapsedMs": 2284,
+      "mode": "textual",
+      "contextBytes": 15191,
+      "omitted": 1,
+      "sources": [
+        {
+          "id": "cmvjx00pz013u12xmv03809l1",
+          "title": "O Câmpus – Campus Ivaiporã",
+          "url": "https://ifpr.edu.br/ivaipora/menu-institucional/o-campus/"
+        },
+        {
+          "id": "cmvjx066c01ie12xmr3n5umga",
+          "title": "Anexo-I-Ficha-de-inscricao-IFTECH-2019.pdf",
+          "url": "https://ifpr.edu.br/ivaipora/wp-content/uploads/sites/15/2019/06/Anexo-I-Ficha-de-inscricao-IFTECH-2019.pdf"
+        },
+        {
+          "id": "cmvjx0fi3027a12xmd0j11j34",
+          "title": "SEI_IFPR-0897326-CODIC-10-DE-AGOSTO-DE-2020.pdf",
+          "url": "https://ifpr.edu.br/ivaipora/wp-content/uploads/sites/15/2020/11/SEI_IFPR-0897326-CODIC-10-DE-AGOSTO-DE-2020.pdf"
+        },
+        {
+          "id": "cmvjwzx4600v912xmmp7qurmp",
+          "title": "Edital-Interno-IFTech-2017.pdf",
+          "url": "https://ifpr.edu.br/ivaipora/wp-content/uploads/sites/15/2017/07/Edital-Interno-IFTech-2017.pdf"
+        },
+        {
+          "id": "cmvjwzrb700h812xmdn7drlpc",
+          "title": "Edital-7-Chamada-interna-IFTECH-2019.pdf",
+          "url": "https://ifpr.edu.br/ivaipora/wp-content/uploads/sites/15/2019/06/Edital-7-Chamada-interna-IFTECH-2019.pdf"
+        }
+      ],
+      "structuredSummary": [
+        "PROJETOS: 0 correspondem aos filtros. Mostrando 0 de 0. Este recorte inclui todos os resultados do filtro."
+      ],
+      "manualReview": "pendente"
+    },
+    {
+      "category": "ausencia",
+      "query": "O que diz o edital 99999/2099?",
+      "elapsedMs": 1923,
+      "mode": "textual",
+      "contextBytes": 55,
+      "omitted": 0,
+      "sources": [],
+      "structuredSummary": [
+        "EDITAIS: 0 correspondem aos filtros. Mostrando 0 de 0. "
+      ],
+      "manualReview": "pendente"
+    },
+    {
+      "category": "ausencia",
+      "query": "Existem projetos de teletransporte quântico interplanetário?",
+      "elapsedMs": 1348,
+      "mode": "textual",
+      "contextBytes": 106,
+      "omitted": 0,
+      "sources": [],
+      "structuredSummary": [
+        "PROJETOS: 0 correspondem aos filtros. Mostrando 0 de 0. Este recorte inclui todos os resultados do filtro."
+      ],
+      "manualReview": "pendente"
+    },
+    {
+      "category": "ausencia",
+      "query": "Qual o resultado do torneio de xadrez de Marte?",
+      "elapsedMs": 1210,
+      "mode": "textual",
+      "contextBytes": 12439,
+      "omitted": 1,
+      "sources": [
+        {
+          "id": "cmvjx0fm0027m12xmptw7d9jb",
+          "title": "TCC-Jean.pdf",
+          "url": "https://ifpr.edu.br/ivaipora/wp-content/uploads/sites/15/2024/09/TCC-Jean.pdf"
+        },
+        {
+          "id": "cmvjwzng2008f12xm4dwjus5m",
+          "title": "Edital-Resultado-Final-Bolsas-2016.pdf",
+          "url": "https://ifpr.edu.br/ivaipora/wp-content/uploads/sites/15/2016/03/Edital-Resultado-Final-Bolsas-2016.pdf"
+        },
+        {
+          "id": "cmvjwzv7d00r412xmfqhmni5h",
+          "title": "Resultados Provisórios – Editais 01 e 02 de 2017 – PRONATEC/IFPR – Campus Ivaiporã – Campus Ivaiporã",
+          "url": "https://ifpr.edu.br/ivaipora/resultados-provisorios-editais-01-e-02-de-2017-pronatecifpr-campus-ivaipora/"
+        },
+        {
+          "id": "cmvjwzqz600gf12xmsqceebu6",
+          "title": "Resultado da análise dos recursos e retificação dos editais que se referem ao Processo Seletivo de Alunos da EAD – Campus Ivaiporã",
+          "url": "https://ifpr.edu.br/ivaipora/resultado-da-analise-dos-recursos-e-retificacao-dos-editais-que-se-referem-ao-processo-seletivo-de-alunos-da-ead/"
+        },
+        {
+          "id": "cmvjwzpek00cp12xmqx7nw5gl",
+          "title": "SEI_IFPR-edital-resultado-parcial-EDITAL-N°74-DE-25-DE-AGOSTO-DE-2022.pdf",
+          "url": "https://ifpr.edu.br/ivaipora/wp-content/uploads/sites/15/2022/08/SEI_IFPR-edital-resultado-parcial-EDITAL-N°74-DE-25-DE-AGOSTO-DE-2022.pdf"
+        }
+      ],
+      "structuredSummary": null,
+      "manualReview": "pendente"
+    },
+    {
+      "category": "ausencia",
+      "query": "Quem ganhou o edital \"INEXISTENTE-IFIZINHA-2099\"?",
+      "elapsedMs": 2087,
+      "mode": "textual",
+      "contextBytes": 55,
+      "omitted": 0,
+      "sources": [],
+      "structuredSummary": [
+        "EDITAIS: 0 correspondem aos filtros. Mostrando 0 de 0. "
+      ],
+      "manualReview": "pendente"
+    },
+    {
+      "category": "ausencia",
+      "query": "Qual o prazo do projeto \"INEXISTENTE-IFIZINHA-2099\"?",
+      "elapsedMs": 1966,
+      "mode": "textual",
+      "contextBytes": 106,
+      "omitted": 0,
+      "sources": [],
+      "structuredSummary": [
+        "PROJETOS: 0 correspondem aos filtros. Mostrando 0 de 0. Este recorte inclui todos os resultados do filtro."
+      ],
+      "manualReview": "pendente"
+    },
+    {
+      "category": "vigencia",
+      "query": "Quais editais estão abertos hoje?",
+      "elapsedMs": 581,
+      "mode": "textual",
+      "contextBytes": 14930,
+      "omitted": 2,
+      "sources": [
+        {
+          "id": "cmvjwzxc000vp12xml9dgvhvo",
+          "title": "Editais – Campus Ivaiporã",
+          "url": "https://ifpr.edu.br/ivaipora/documentos-institucionais/editais/"
+        },
+        {
+          "id": "cmvjwzzit011812xms8vffaji",
+          "title": "SEI_IFPR-1171904-Ata-de-Reuniao-Codic-12-04-2021.pdf",
+          "url": "https://ifpr.edu.br/ivaipora/wp-content/uploads/sites/15/2021/09/SEI_IFPR-1171904-Ata-de-Reuniao-Codic-12-04-2021.pdf"
+        },
+        {
+          "id": "cmvjx0fa1026h12xm1mwvcasv",
+          "title": "SEI_IFPR-0913310-CODIC-05-DE-OUTUBRO-DE-2020.pdf",
+          "url": "https://ifpr.edu.br/ivaipora/wp-content/uploads/sites/15/2020/11/SEI_IFPR-0913310-CODIC-05-DE-OUTUBRO-DE-2020.pdf"
+        },
+        {
+          "id": "cmvjwzpoh00da12xm65zg5570",
+          "title": "Edital 178/2019 – Geografia – Campus Ivaiporã",
+          "url": "https://ifpr.edu.br/ivaipora/servidores-2/concursos-e-selecoes/concursos-selecoes-2019/edital-178-2019-geografia/"
+        },
+        {
+          "title": "Edital Favorito Teste DSH",
+          "url": "/editais/edital-favorito-teste-dsh"
+        }
+      ],
+      "structuredSummary": [
+        "EDITAIS: 1 correspondem aos filtros. Mostrando 1 de 1. "
+      ],
+      "manualReview": "pendente"
+    },
+    {
+      "category": "vigencia",
+      "query": "Quais projetos não estão encerrados?",
+      "elapsedMs": 1640,
+      "mode": "textual",
+      "contextBytes": 15376,
+      "omitted": 1,
+      "sources": [
+        {
+          "id": "cmvjx0bm101x112xm3dpz5oij",
+          "title": "Portaria_2026_1742-regimento-do-COPE-publicado.pdf",
+          "url": "https://ifpr.edu.br/ivaipora/wp-content/uploads/sites/15/2026/03/Portaria_2026_1742-regimento-do-COPE-publicado.pdf"
+        },
+        {
+          "id": "cmvjwzppu00de12xmmmj8sc7v",
+          "title": "Edital_Projeto_O-Bosque-como-espaco-de-integracao-social-e-formacao-do-sujeito-ecologico-13072021.pdf",
+          "url": "https://ifpr.edu.br/ivaipora/wp-content/uploads/sites/15/2021/07/Edital_Projeto_O-Bosque-como-espaco-de-integracao-social-e-formacao-do-sujeito-ecologico-13072021.pdf"
+        },
+        {
+          "id": "cmvjwzn8t007z12xmvc9ty2zq",
+          "title": "Edital_NEA_2_2017.pdf",
+          "url": "https://ifpr.edu.br/ivaipora/wp-content/uploads/sites/15/2017/07/Edital_NEA_2_2017.pdf"
+        },
+        {
+          "id": "cmvjx0jsl02ia12xmne9wt4ra",
+          "title": "PPC_2019_2022-Agronomia.pdf",
+          "url": "https://ifpr.edu.br/ivaipora/wp-content/uploads/sites/15/2024/08/PPC_2019_2022-Agronomia.pdf"
+        },
+        {
+          "id": "cmvjwzv6a00r112xmrbvb0zy0",
+          "title": "Edital-selecao-bolsista-PRADI.pdf",
+          "url": "https://ifpr.edu.br/ivaipora/wp-content/uploads/sites/15/2016/05/Edital-selecao-bolsista-PRADI.pdf"
+        },
+        {
+          "title": "Projeto Teste DSH",
+          "url": "/projetos/projeto-teste-dsh"
+        }
+      ],
+      "structuredSummary": [
+        "PROJETOS: 1 correspondem aos filtros. Mostrando 1 de 1. Este recorte inclui todos os resultados do filtro."
+      ],
+      "manualReview": "pendente"
+    },
+    {
+      "category": "vigencia",
+      "query": "Qual é o calendário acadêmico de 2026?",
+      "elapsedMs": 1089,
+      "mode": "textual",
+      "contextBytes": 11878,
+      "omitted": 0,
+      "sources": [
+        {
+          "id": "cmvjwzzdm011012xm7sxnxoxz",
+          "title": "Calendario-Academico-2026.pdf",
+          "url": "https://ifpr.edu.br/ivaipora/wp-content/uploads/sites/15/2026/01/Calendario-Academico-2026.pdf"
+        },
+        {
+          "id": "cmvjx0b8f01vs12xmdgbgccrm",
+          "title": "Calendário Acadêmico – Campus Ivaiporã",
+          "url": "https://ifpr.edu.br/ivaipora/estudantes/calendario-academico/"
+        },
+        {
+          "id": "cmvjwzleu003h12xmiii051vj",
+          "title": "Calendário Acadêmico – Campus Ivaiporã",
+          "url": "https://ifpr.edu.br/ivaipora/nossos-cursos/cursos-de-pos-graduacao/calendario-academico/"
+        },
+        {
+          "id": "cmvjx06nn01jr12xm76j92uzd",
+          "title": "Calendario-Academico-campus-Ivaipora-apos-greve-2024.pdf",
+          "url": "https://ifpr.edu.br/ivaipora/wp-content/uploads/sites/15/2024/08/Calendario-Academico-campus-Ivaipora-apos-greve-2024.pdf"
+        },
+        {
+          "id": "cmvjx0hsp02dw12xma5gwfysv",
+          "title": "Deliberacoes-CGPG-2025.pdf",
+          "url": "https://ifpr.edu.br/ivaipora/wp-content/uploads/sites/15/2026/02/Deliberacoes-CGPG-2025.pdf"
+        },
+        {
+          "id": "cmvjwzoy900bg12xmmb8y1p3j",
+          "title": "SEI_4032700_Edital_4-convocacao-4a-chamada.pdf",
+          "url": "https://ifpr.edu.br/ivaipora/wp-content/uploads/sites/15/2026/01/SEI_4032700_Edital_4-convocacao-4a-chamada.pdf"
+        }
+      ],
+      "structuredSummary": null,
+      "manualReview": "pendente"
+    },
+    {
+      "category": "vigencia",
+      "query": "Como conferir retificações de editais?",
+      "elapsedMs": 924,
+      "mode": "textual",
+      "contextBytes": 10868,
+      "omitted": 0,
+      "sources": [
+        {
+          "id": "cmvjwzubr00om12xmmo73kwxn",
+          "title": "Editais para Contratação de Bolsistas CNPq – Campus Ivaiporã",
+          "url": "https://ifpr.edu.br/ivaipora/editais-para-contratacao-de-bolsistas-cnpq/"
+        },
+        {
+          "id": "cmvjwzsrb00km12xmyh1iwngf",
+          "title": "SEI_IFPR-1717509-Edital-32.pdf",
+          "url": "https://ifpr.edu.br/ivaipora/wp-content/uploads/sites/15/2022/04/SEI_IFPR-1717509-Edital-32.pdf"
+        },
+        {
+          "id": "cmvjwztvy00ne12xm881cogfx",
+          "title": "SEI_IFPR-1729514-Edital-34-Resultado-1-Pos-Recurso.pdf",
+          "url": "https://ifpr.edu.br/ivaipora/wp-content/uploads/sites/15/2022/05/SEI_IFPR-1729514-Edital-34-Resultado-1-Pos-Recurso.pdf"
+        },
+        {
+          "id": "cmvjwzqz600gf12xmsqceebu6",
+          "title": "Resultado da análise dos recursos e retificação dos editais que se referem ao Processo Seletivo de Alunos da EAD – Campus Ivaiporã",
+          "url": "https://ifpr.edu.br/ivaipora/resultado-da-analise-dos-recursos-e-retificacao-dos-editais-que-se-referem-ao-processo-seletivo-de-alunos-da-ead/"
+        },
+        {
+          "id": "cmvjwzxc000vp12xml9dgvhvo",
+          "title": "Editais – Campus Ivaiporã",
+          "url": "https://ifpr.edu.br/ivaipora/documentos-institucionais/editais/"
+        },
+        {
+          "id": "cmvjwzsb600jw12xmgi36aot1",
+          "title": "SEI_IFPR-3953069-Edital-interno-Resultado-provisorio-de-inscritos.pdf",
+          "url": "https://ifpr.edu.br/ivaipora/wp-content/uploads/sites/15/2025/12/SEI_IFPR-3953069-Edital-interno-Resultado-provisorio-de-inscritos.pdf"
+        },
+        {
+          "title": "Edital Favorito Teste DSH",
+          "url": "/editais/edital-favorito-teste-dsh"
+        }
+      ],
+      "structuredSummary": [
+        "EDITAIS: 1 correspondem aos filtros. Mostrando 1 de 1. "
+      ],
+      "manualReview": "pendente"
+    },
+    {
+      "category": "vigencia",
+      "query": "Onde encontro prazos de inscrição para bolsas?",
+      "elapsedMs": 2088,
+      "mode": "textual",
+      "contextBytes": 14595,
+      "omitted": 1,
+      "sources": [
+        {
+          "id": "cmvjx07ed01lw12xm8gs1way6",
+          "title": "Bolsas 2026/2027 – Campus Ivaiporã",
+          "url": "https://ifpr.edu.br/ivaipora/copex/bolsas/bolsas-2026-2027/"
+        },
+        {
+          "id": "cmvjwzrn600hz12xmazhw5ftm",
+          "title": "Edital_selecao_bolsistas_PIBEX_Jr_2017-2.pdf",
+          "url": "https://ifpr.edu.br/ivaipora/wp-content/uploads/sites/15/2017/04/Edital_selecao_bolsistas_PIBEX_Jr_2017-2.pdf"
+        },
+        {
+          "id": "cmvjwzncm008712xm252lyk90",
+          "title": "Edital_resultado_bolsistas_PIBEX.pdf",
+          "url": "https://ifpr.edu.br/ivaipora/wp-content/uploads/sites/15/2019/07/Edital_resultado_bolsistas_PIBEX.pdf"
+        },
+        {
+          "id": "cmvjwzpek00cp12xmqx7nw5gl",
+          "title": "SEI_IFPR-edital-resultado-parcial-EDITAL-N°74-DE-25-DE-AGOSTO-DE-2022.pdf",
+          "url": "https://ifpr.edu.br/ivaipora/wp-content/uploads/sites/15/2022/08/SEI_IFPR-edital-resultado-parcial-EDITAL-N°74-DE-25-DE-AGOSTO-DE-2022.pdf"
+        },
+        {
+          "id": "cmvjwzxmt00wi12xm1uurxnsv",
+          "title": "Edital_selecao_bolsistas_PIBEX_superior_leite_2017_retificado.pdf",
+          "url": "https://ifpr.edu.br/ivaipora/wp-content/uploads/sites/15/2017/04/Edital_selecao_bolsistas_PIBEX_superior_leite_2017_retificado.pdf"
+        },
+        {
+          "title": "Edital Favorito Teste DSH",
+          "url": "/editais/edital-favorito-teste-dsh"
+        }
+      ],
+      "structuredSummary": [
+        "EDITAIS: 1 correspondem aos filtros. Mostrando 1 de 1. "
+      ],
+      "manualReview": "pendente"
+    }
+  ]
+}

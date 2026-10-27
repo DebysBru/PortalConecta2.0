@@ -4,11 +4,16 @@
  * layouts de /admin e /professor.
  *
  * Modelo:
- *  - Administrador Geral: único e-mail em ADMIN_EMAILS (ronan.lopes@ifpr.edu.br).
- *    Acesso total — todos os projetos, editais, posts, RAG, sync SUAP.
+ *  - Administrador Geral: o e-mail mestre em ADMIN_EMAILS
+ *    (ronan.lopes@ifpr.edu.br) e os usuários que ele promover (permissão
+ *    `admin_geral` em UserPermission). Acesso total — todos os projetos,
+ *    editais, posts, RAG, sync SUAP.
  *  - Professor: qualquer e-mail @ifpr.edu.br que seja coordenador, vice-coordenador,
  *    ou tenha sido explicitamente autorizado (admins/coordenadores) em pelo menos
  *    um projeto. Acesso restrito aos próprios projetos.
+ *  - Gestor da página: aluno bolsista/voluntário selecionado, nomeado pelo
+ *    coordenador (permissão `gestor_projeto:<id>`). Edita posts e a apresentação
+ *    daquele projeto, sem acesso a vagas, inscrições ou dados institucionais.
  *  - Qualquer outro e-mail (fora do domínio institucional, ou @ifpr.edu.br sem
  *    nenhum projeto vinculado): sem acesso ao painel — só à própria área de
  *    usuário (/meus-dados).
@@ -19,6 +24,28 @@ import type { Prisma, UserRole } from '@prisma/client';
 
 const ALLOWED_STAFF_DOMAIN = (process.env.ALLOWED_PROFESSOR_DOMAIN || 'ifpr.edu.br').toLowerCase();
 const MASTER_ADMIN_EMAIL = process.env.ADMIN_EMAILS?.split(',')[0]?.trim().toLowerCase();
+
+/**
+ * Permissões que vivem em `UserPermission` (sem mudar o enum de papel):
+ *  - `admin_geral`: o e-mail mestre pode promover outros usuários a
+ *    Administrador Geral. O papel `ADMIN` sozinho não basta para promover
+ *    ninguém — só o e-mail mestre (ADMIN_EMAILS) faz isso.
+ *  - `gestor_projeto:<id>`: aluno bolsista/voluntário selecionado que pode
+ *    editar os posts e a apresentação da página daquele projeto, sem acesso a
+ *    vagas, inscrições, dados sensíveis ou exclusão.
+ */
+export const PERMISSAO_ADMIN_GERAL = 'admin_geral';
+export const PERMISSAO_GESTOR_PREFIXO = 'gestor_projeto:';
+
+export function permissaoDeGestor(projetoId: string): string {
+  return `${PERMISSAO_GESTOR_PREFIXO}${projetoId}`;
+}
+
+export function projetoIdDaPermissaoDeGestor(permission: string): string | null {
+  return permission.startsWith(PERMISSAO_GESTOR_PREFIXO)
+    ? permission.slice(PERMISSAO_GESTOR_PREFIXO.length)
+    : null;
+}
 
 /**
  * O e-mail informado é o MESMO da sessão verificada no servidor?
@@ -49,6 +76,91 @@ export function isDominioInstitucional(email: string): boolean {
 
 export function isAdministradorGeral(email: string): boolean {
   return !!MASTER_ADMIN_EMAIL && email.toLowerCase() === MASTER_ADMIN_EMAIL;
+}
+
+/** Nome explícito para quem pode promover outros administradores. */
+export function isMasterAdminEmail(email: string): boolean {
+  return isAdministradorGeral(email);
+}
+
+/**
+ * O usuário tem o papel ADMIN **por ter sido promovido** pelo e-mail mestre?
+ *
+ * Diferente de `isAdministradorGeral`, esta é uma checagem de banco e só deve
+ * ser usada onde a promoção concedida importa (resolver o papel, por exemplo).
+ */
+export async function temPermissaoAdminGeral(email: string): Promise<boolean> {
+  if (!email) return false;
+  const user = await prisma.user.findUnique({
+    where: { email },
+    select: {
+      permissions: {
+        where: { permission: PERMISSAO_ADMIN_GERAL },
+        select: { id: true },
+        take: 1,
+      },
+    },
+  });
+  return !!user?.permissions.length;
+}
+
+/** Administrador Geral = e-mail mestre OU usuário promovido pelo mestre. */
+export async function ehAdministradorGeral(email: string): Promise<boolean> {
+  return isAdministradorGeral(email) || (await temPermissaoAdminGeral(email));
+}
+
+/**
+ * O e-mail é gestor da página daquele projeto?
+ *
+ * A identidade NÃO é conferida aqui de propósito: quem chama é uma action que
+ * já validou a sessão (ou `temAcessoAoProjeto(..., { incluirGestor: true })`).
+ */
+export async function ehGestorDoProjeto(projetoId: string, email: string): Promise<boolean> {
+  if (!projetoId || !email) return false;
+  const user = await prisma.user.findUnique({
+    where: { email },
+    select: {
+      permissions: {
+        where: { permission: permissaoDeGestor(projetoId) },
+        select: { id: true },
+        take: 1,
+      },
+    },
+  });
+  return !!user?.permissions.length;
+}
+
+/** Algum projeto em que o usuário é gestor de página (para liberar o painel limitado). */
+export async function usuarioTemAlgumProjetoComoGestor(email: string): Promise<boolean> {
+  if (!email) return false;
+  const user = await prisma.user.findUnique({
+    where: { email },
+    select: {
+      permissions: {
+        where: { permission: { startsWith: PERMISSAO_GESTOR_PREFIXO } },
+        select: { id: true },
+        take: 1,
+      },
+    },
+  });
+  return !!user?.permissions.length;
+}
+
+/** IDs dos projetos em que o usuário é gestor de página. */
+export async function projetosComoGestor(email: string): Promise<string[]> {
+  if (!email) return [];
+  const user = await prisma.user.findUnique({
+    where: { email },
+    select: {
+      permissions: {
+        where: { permission: { startsWith: PERMISSAO_GESTOR_PREFIXO } },
+        select: { permission: true },
+      },
+    },
+  });
+  return (user?.permissions ?? [])
+    .map((p) => projetoIdDaPermissaoDeGestor(p.permission))
+    .filter((id): id is string => !!id);
 }
 
 /** Fragmento de `where` do Prisma: projetos onde o e-mail é coordenador, vice-coordenador,
@@ -110,10 +222,25 @@ export async function isCoordenadorOuViceDoProjeto(projetoId: string, email: str
  * Actions do painel, onde o e-mail chega do cliente. Sem a conferência, bastava
  * mandar o e-mail de um coordenador para editar o projeto dele.
  */
-export async function temAcessoAoProjeto(projetoId: string, email: string): Promise<boolean> {
+export async function temAcessoAoProjeto(
+  projetoId: string,
+  email: string,
+  opcoes?: { incluirGestor?: boolean },
+): Promise<boolean> {
   if (!(await emailConfereComSessao(email))) return false;
   if (isAdministradorGeral(email)) return true;
-  return isCoordenadorOuViceDoProjeto(projetoId, email);
+
+  // Administrador promovido pelo e-mail mestre também enxerga todos os projetos.
+  const user = await prisma.user.findUnique({ where: { email }, select: { role: true } });
+  if (user?.role === 'ADMIN') return true;
+
+  if (await isCoordenadorOuViceDoProjeto(projetoId, email)) return true;
+
+  // Gestor da página: só entra quando o chamador pede explicitamente (posts e
+  // apresentação). NÃO vale para vagas, inscrições ou dados sensíveis.
+  if (opcoes?.incluirGestor) return ehGestorDoProjeto(projetoId, email);
+
+  return false;
 }
 
 /**
@@ -129,6 +256,15 @@ export async function projetosAcessiveis(email: string) {
       include: { _count: { select: { inscricoes: true } } },
     });
   }
+
+  const user = await prisma.user.findUnique({ where: { email }, select: { role: true } });
+  if (user?.role === 'ADMIN') {
+    return prisma.projeto.findMany({
+      orderBy: { updatedAt: 'desc' },
+      include: { _count: { select: { inscricoes: true } } },
+    });
+  }
+
   return prisma.projeto.findMany({
     where: whereUsuarioTemAcessoAoProjeto(email),
     orderBy: { updatedAt: 'desc' },
@@ -158,8 +294,26 @@ export async function resolveUserRole(email: string): Promise<UserRole | null> {
     return 'ADMIN';
   }
 
-  const user = await prisma.user.findUnique({ where: { email }, select: { role: true } });
+  const user = await prisma.user.findUnique({
+    where: { email },
+    select: {
+      role: true,
+      permissions: {
+        where: { permission: PERMISSAO_ADMIN_GERAL },
+        select: { id: true },
+        take: 1,
+      },
+    },
+  });
   if (!user) return null;
+
+  // Promovido pelo e-mail mestre: continua ADMIN mesmo sem projeto/domínio.
+  if ((user.permissions ?? []).length > 0) {
+    if (user.role !== 'ADMIN') {
+      await prisma.user.update({ where: { email }, data: { role: 'ADMIN' } });
+    }
+    return 'ADMIN';
+  }
 
   if (!isDominioInstitucional(email)) {
     if (user.role !== 'ESTUDANTE') {

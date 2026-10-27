@@ -2,6 +2,7 @@
 
 import React, { useEffect, useRef, useState, useTransition } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import {
   Plus, Pencil, Trash2, X, FileText, AlertCircle, Loader2,
   Eye, EyeOff, FileUp, ExternalLink, FolderOpen, Upload,
@@ -60,7 +61,13 @@ function emptyForm(projetoId = ''): EditalFormData {
 }
 
 export default function ProfessorEditaisPage() {
-  const { user } = useAuth();
+  const { user, userRole } = useAuth();
+  const router = useRouter();
+  const somenteGestor = userRole === 'ESTUDANTE';
+
+  useEffect(() => {
+    if (somenteGestor) router.replace('/professor/projetos');
+  }, [somenteGestor, router]);
   const { toast } = useToast();
   const [editais, setEditais] = useState<Edital[]>([]);
   const [projetos, setProjetos] = useState<ProjetoOpcao[]>([]);
@@ -501,7 +508,7 @@ export default function ProfessorEditaisPage() {
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">
-                        Link oficial <span className="text-red-500">*</span>
+                        Link oficial (opcional)
                       </label>
                       <input
                         type="url"
@@ -509,7 +516,6 @@ export default function ProfessorEditaisPage() {
                         value={form.linkOficial}
                         onChange={(e) => setForm((f) => ({ ...f, linkOficial: e.target.value }))}
                         placeholder="https://..."
-                        required
                       />
                     </div>
                   </div>

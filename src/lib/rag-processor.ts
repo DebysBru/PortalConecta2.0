@@ -3,10 +3,8 @@
  * Organiza texto, extrai links, gera tags - economico em tokens
  */
 
-import { DEEPSEEK_MODEL } from '@/lib/llm';
+import { generateCompletion, isLlmConfigured, tokensParaResposta } from '@/lib/llm';
 
-const DEEPSEEK_API_KEY = process.env.DEEPSEEK_API_KEY;
-const DEEPSEEK_URL = 'https://api.deepseek.com/chat/completions';
 
 interface ProcessedDocument {
   resumo: string;
@@ -27,7 +25,7 @@ export async function processDocumentWithAI(
   titulo: string,
   conteudoRaw: string
 ): Promise<ProcessedDocument> {
-  if (!DEEPSEEK_API_KEY) {
+  if (!isLlmConfigured()) {
     // Fallback: processamento sem IA
     return processWithoutAI(titulo, conteudoRaw);
   }
@@ -70,33 +68,11 @@ Conteudo:
 ${conteudoLimitado}`;
 
   try {
-    const response = await fetch(DEEPSEEK_URL, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${DEEPSEEK_API_KEY}`,
-      },
-      body: JSON.stringify({
-        model: DEEPSEEK_MODEL,
-        messages: [{ role: 'user', content: prompt }],
-        temperature: 0.3,
-        max_tokens: 1000,
-        response_format: { type: 'json_object' },
-      }),
-    });
-
-    if (!response.ok) {
-      console.error('DeepSeek API error:', response.status);
-      return processWithoutAI(titulo, conteudoRaw);
-    }
-
-    const data = await response.json();
-    const content = data.choices?.[0]?.message?.content;
-
-    if (!content) {
-      return processWithoutAI(titulo, conteudoRaw);
-    }
-
+    // O raciocínio do modelo consome parte de `max_tokens` (ver tokensParaResposta);
+    // com o teto antigo de 1000 a resposta truncava, o catch abaixo engolia o erro e
+    // o documento caía silenciosamente em `processWithoutAI` — parecia "IA ruim",
+    // mas era orçamento de tokens.
+    const content = await generateCompletion([{ role: 'user', content: prompt }], { temperature: 0.3, maxTokens: tokensParaResposta(1500), jsonMode: true });
     const parsed = JSON.parse(content);
     return {
       resumo: parsed.resumo || '',

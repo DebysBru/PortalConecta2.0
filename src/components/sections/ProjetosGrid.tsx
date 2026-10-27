@@ -4,6 +4,9 @@ import { ArrowRight, Users, Sparkles } from 'lucide-react';
 import { prisma } from '@/lib/prisma';
 import { withCache } from '@/lib/cache';
 import { MascoteIFizinha } from '@/components/ifizinha/MascoteIFizinha';
+import { LogoDoProjeto } from '@/components/projetos/LogoDoProjeto';
+import { estiloDaCapa } from '@/lib/projeto-midia';
+import { textoSimples } from '@/lib/texto';
 
 type Projeto = {
   slug: string;
@@ -12,6 +15,8 @@ type Projeto = {
   area: string;
   descricao: string | null;
   corPrimaria: string;
+  logoUrl: string | null;
+  bannerUrl: string | null;
   destaque: boolean;
 };
 
@@ -27,9 +32,7 @@ function DestaqueCard({ projeto }: { projeto: Projeto }) {
         {/* Gradient header */}
         <div
           className="h-[7.5rem] relative flex flex-col justify-between p-4 overflow-hidden"
-          style={{
-            background: `linear-gradient(135deg, ${projeto.corPrimaria} 0%, ${projeto.corPrimaria}bb 100%)`,
-          }}
+          style={estiloDaCapa(projeto.corPrimaria, projeto.bannerUrl)}
         >
           <div className="absolute -top-8 -right-8 w-28 h-28 bg-white/10 rounded-full" />
           <div className="absolute -bottom-4 -left-4 w-16 h-16 bg-white/5 rounded-full" />
@@ -42,9 +45,9 @@ function DestaqueCard({ projeto }: { projeto: Projeto }) {
           </div>
 
           <div
-            className="relative w-14 h-14 bg-white/20 rounded-2xl flex items-center justify-center text-white font-black text-xl border border-white/30"
+            className="relative w-14 h-14 bg-white/20 rounded-2xl flex items-center justify-center text-white font-black text-xl border border-white/30 overflow-hidden"
           >
-            {projeto.nome.charAt(0)}
+            <LogoDoProjeto nome={projeto.nome} logoUrl={projeto.logoUrl} />
           </div>
         </div>
 
@@ -58,7 +61,7 @@ function DestaqueCard({ projeto }: { projeto: Projeto }) {
             <span className="truncate">{projeto.coordenador}</span>
           </p>
           <p className="text-sm text-gray-500 leading-relaxed flex-1 line-clamp-2 mb-4">
-            {projeto.descricao}
+            {textoSimples(projeto.descricao)}
           </p>
           <div className="flex items-center justify-between mt-auto">
             <span
@@ -82,13 +85,13 @@ function CompactCard({ projeto }: { projeto: Projeto }) {
   return (
     <Link href={`/projetos/${projeto.slug}`} className="group block">
       <div className="bg-white rounded-2xl border border-gray-100 hover:border-gray-200 hover:shadow-md transition-all duration-200 hover:-translate-y-0.5 overflow-hidden">
-        <div className="h-1.5 w-full" style={{ backgroundColor: projeto.corPrimaria }} />
+        <div className={projeto.bannerUrl ? 'h-14 w-full' : 'h-1.5 w-full'} style={projeto.bannerUrl ? estiloDaCapa(projeto.corPrimaria, projeto.bannerUrl) : { backgroundColor: projeto.corPrimaria }} />
         <div className="p-4 flex items-center gap-4">
           <div
-            className="w-12 h-12 rounded-xl flex items-center justify-center text-white font-bold text-lg flex-shrink-0 shadow-sm"
+            className="w-12 h-12 rounded-xl flex items-center justify-center text-white font-bold text-lg flex-shrink-0 shadow-sm overflow-hidden"
             style={{ backgroundColor: projeto.corPrimaria }}
           >
-            {projeto.nome.charAt(0)}
+            <LogoDoProjeto nome={projeto.nome} logoUrl={projeto.logoUrl} />
           </div>
 
           <div className="flex-1 min-w-0">
@@ -96,7 +99,7 @@ function CompactCard({ projeto }: { projeto: Projeto }) {
               {projeto.nome}
             </h3>
             <p className="text-xs text-gray-400 mt-0.5 truncate">{projeto.coordenador}</p>
-            <p className="text-xs text-gray-500 mt-1.5 line-clamp-1">{projeto.descricao}</p>
+            <p className="text-xs text-gray-500 mt-1.5 line-clamp-1">{textoSimples(projeto.descricao)}</p>
           </div>
 
           <div className="flex flex-col items-end gap-2 flex-shrink-0">
@@ -138,6 +141,8 @@ export async function ProjetosGrid() {
       area: true,
       descricao: true,
       corPrimaria: true,
+      logoUrl: true,
+      bannerUrl: true,
       destaque: true,
     },
   }), 5 * 60 * 1000);

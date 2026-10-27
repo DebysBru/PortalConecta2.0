@@ -5,9 +5,11 @@ import Link from 'next/link';
 import {
   Heart, Bell, BellRing, Target, Check, Trash2, ExternalLink,
   AlertCircle, Loader2, Mail, MonitorSmartphone, CheckCheck,
+  FolderOpen, FileText, Calendar,
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { listarMeusFavoritos, removerFavorito, type FavoritoItem } from '@/actions/favoritos';
+import { LogoDoProjeto } from '@/components/projetos/LogoDoProjeto';
 import {
   listarMinhasNotificacoes, marcarNotificacaoLida, marcarTodasNotificacoesLidas,
   type NotificacaoItem,
@@ -17,7 +19,7 @@ import {
 } from '@/actions/alertas';
 import {
   CATEGORIAS_ALERTA, CANAIS_ALERTA, ROTULO_CATEGORIA, ROTULO_ENTIDADE,
-  formatarTempoRelativo, contarNaoLidas, type CanalAlerta,
+  formatarTempoRelativo, contarNaoLidas, type CanalAlerta, type EntidadeFavoritavel,
 } from '@/lib/minha-area';
 import { useMensagemErro } from '@/lib/use-mensagem-erro';
 
@@ -210,6 +212,15 @@ export default function MinhaAreaPage() {
 
 // ─── Favoritos ────────────────────────────────────────────────────────────────
 
+type FiltroFavorito = 'todos' | EntidadeFavoritavel;
+
+const FILTROS_FAVORITO: { id: FiltroFavorito; label: string; icon: React.ElementType }[] = [
+  { id: 'todos', label: 'Todos', icon: Heart },
+  { id: 'projeto', label: 'Projetos', icon: FolderOpen },
+  { id: 'edital', label: 'Editais', icon: FileText },
+  { id: 'evento', label: 'Agenda', icon: Calendar },
+];
+
 function AbaFavoritos({
   favoritos,
   onRemover,
@@ -217,62 +228,136 @@ function AbaFavoritos({
   favoritos: FavoritoItem[];
   onRemover: (item: FavoritoItem) => Promise<void>;
 }) {
-  if (favoritos.length === 0) {
-    return (
-      <Vazio
-        icon={Heart}
-        titulo="Nenhum favorito ainda"
-        texto="Use o coração nas páginas de projetos e editais para salvar aqui."
-        href="/projetos"
-        hrefLabel="Ver projetos"
-      />
-    );
-  }
+  const [filtro, setFiltro] = useState<FiltroFavorito>('todos');
+
+  const contagem: Record<FiltroFavorito, number> = {
+    todos: favoritos.length,
+    projeto: favoritos.filter((f) => f.entidade === 'projeto').length,
+    edital: favoritos.filter((f) => f.entidade === 'edital').length,
+    evento: favoritos.filter((f) => f.entidade === 'evento').length,
+  };
+
+  const filtrados = filtro === 'todos'
+    ? favoritos
+    : favoritos.filter((f) => f.entidade === filtro);
+
+  const vazio = filtro === 'todos'
+    ? {
+        titulo: 'Nenhum favorito ainda',
+        texto: 'Use o coração nas páginas de projetos e editais, e o sino da Agenda para acompanhar eventos.',
+        href: '/projetos',
+        hrefLabel: 'Ver projetos',
+      }
+    : filtro === 'projeto'
+    ? {
+        titulo: 'Nenhum projeto favorito',
+        texto: 'Abra a página de um projeto e clique em Favoritar para acompanhá-lo aqui.',
+        href: '/projetos',
+        hrefLabel: 'Ver projetos',
+      }
+    : filtro === 'edital'
+    ? {
+        titulo: 'Nenhum edital favorito',
+        texto: 'Abra um edital e clique em Favoritar para não perder os prazos.',
+        href: '/editais',
+        hrefLabel: 'Ver editais',
+      }
+    : {
+        titulo: 'Nenhum evento na Agenda',
+        texto: 'Na Agenda, clique no sino de um evento para acompanhá-lo e vê-lo aqui.',
+        href: '/agenda',
+        hrefLabel: 'Ver agenda',
+      };
 
   return (
-    <div className="space-y-3">
-      {favoritos.map((item) => (
-        <div
-          key={item.chave}
-          className="bg-white rounded-2xl border border-gray-100 p-4 flex items-center gap-4"
-        >
-          <div
-            className="w-10 h-10 rounded-xl flex items-center justify-center text-white font-bold flex-shrink-0"
-            style={{ backgroundColor: item.cor ?? '#2F52D3' }}
-          >
-            {item.titulo.charAt(0)}
-          </div>
-
-          <div className="min-w-0 flex-1">
-            <p className="text-xs text-gray-400 font-medium">{ROTULO_ENTIDADE[item.entidade]}</p>
-            <Link
-              href={item.href}
-              className="font-semibold text-gray-900 text-sm hover:text-azul-eletrico transition-colors line-clamp-1"
+    <div className="space-y-4">
+      <div className="flex flex-wrap gap-2" role="group" aria-label="Filtrar favoritos">
+        {FILTROS_FAVORITO.map(({ id, label, icon: Icon }) => {
+          const ativo = filtro === id;
+          return (
+            <button
+              key={id}
+              type="button"
+              onClick={() => setFiltro(id)}
+              aria-pressed={ativo}
+              className={`inline-flex items-center gap-2 rounded-xl border px-3.5 py-2 text-sm font-semibold transition-colors ${
+                ativo
+                  ? 'border-azul-eletrico bg-azul-eletrico text-white'
+                  : 'border-gray-200 bg-white text-gray-600 hover:bg-gray-50'
+              }`}
             >
-              {item.titulo}
-            </Link>
-            {item.subtitulo && <p className="text-xs text-gray-500">{item.subtitulo}</p>}
-            {!item.disponivel && (
-              <p className="text-xs text-amber-600 mt-0.5">Indisponível — saiu do ar</p>
-            )}
-          </div>
+              <Icon className="w-4 h-4" />
+              {label}
+              <span
+                className={`rounded-full px-1.5 py-0.5 text-[11px] font-bold ${
+                  ativo ? 'bg-white/20 text-white' : 'bg-gray-100 text-gray-500'
+                }`}
+              >
+                {contagem[id]}
+              </span>
+            </button>
+          );
+        })}
+      </div>
 
-          <Link
-            href={item.href}
-            className="p-2 rounded-lg text-gray-400 hover:bg-gray-50 hover:text-azul-eletrico transition-colors"
-            title="Abrir"
-          >
-            <ExternalLink className="w-4 h-4" />
-          </Link>
-          <button
-            onClick={() => onRemover(item)}
-            className="p-2 rounded-lg text-gray-400 hover:bg-red-50 hover:text-red-600 transition-colors"
-            title="Remover dos favoritos"
-          >
-            <Trash2 className="w-4 h-4" />
-          </button>
+      {filtrados.length === 0 ? (
+        <Vazio
+          icon={FILTROS_FAVORITO.find((f) => f.id === filtro)?.icon ?? Heart}
+          titulo={vazio.titulo}
+          texto={vazio.texto}
+          href={vazio.href}
+          hrefLabel={vazio.hrefLabel}
+        />
+      ) : (
+        <div className="space-y-3">
+          {filtrados.map((item) => (
+            <div
+              key={item.chave}
+              className="bg-white rounded-2xl border border-gray-100 p-4 flex items-center gap-4"
+            >
+              <div
+                className="w-10 h-10 rounded-xl flex items-center justify-center text-white font-bold flex-shrink-0 overflow-hidden"
+                style={{ backgroundColor: item.cor ?? '#2F52D3' }}
+              >
+                {item.entidade === 'projeto' ? (
+                  <LogoDoProjeto nome={item.titulo} logoUrl={item.imagemUrl} />
+                ) : (
+                  item.titulo.charAt(0)
+                )}
+              </div>
+
+              <div className="min-w-0 flex-1">
+                <p className="text-xs text-gray-400 font-medium">{ROTULO_ENTIDADE[item.entidade]}</p>
+                <Link
+                  href={item.href}
+                  className="font-semibold text-gray-900 text-sm hover:text-azul-eletrico transition-colors line-clamp-1"
+                >
+                  {item.titulo}
+                </Link>
+                {item.subtitulo && <p className="text-xs text-gray-500">{item.subtitulo}</p>}
+                {!item.disponivel && (
+                  <p className="text-xs text-amber-600 mt-0.5">Indisponível — saiu do ar</p>
+                )}
+              </div>
+
+              <Link
+                href={item.href}
+                className="p-2 rounded-lg text-gray-400 hover:bg-gray-50 hover:text-azul-eletrico transition-colors"
+                title="Abrir"
+              >
+                <ExternalLink className="w-4 h-4" />
+              </Link>
+              <button
+                onClick={() => onRemover(item)}
+                className="p-2 rounded-lg text-gray-400 hover:bg-red-50 hover:text-red-600 transition-colors"
+                title="Remover dos favoritos"
+              >
+                <Trash2 className="w-4 h-4" />
+              </button>
+            </div>
+          ))}
         </div>
-      ))}
+      )}
     </div>
   );
 }

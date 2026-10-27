@@ -47,7 +47,14 @@ function NavLink({ item, onClick }: { item: NavItem; onClick?: () => void }) {
   );
 }
 
-export function ProfessorShell({ children }: { children: React.ReactNode }) {
+export function ProfessorShell({
+  children,
+  modoGestor = false,
+}: {
+  children: React.ReactNode;
+  /** Aluno gestor da página: vê só os projetos que gerencia. */
+  modoGestor?: boolean;
+}) {
   const { user, userRole, loading, signOut } = useAuth();
   const router = useRouter();
   const pathname = usePathname();
@@ -59,10 +66,10 @@ export function ProfessorShell({ children }: { children: React.ReactNode }) {
     if (!loading && !user && !isLoginPage) {
       router.replace('/professor/login');
     }
-    if (!loading && user && userRole !== 'PROFESSOR' && userRole !== 'ADMIN') {
+    if (!loading && user && !modoGestor && userRole !== 'PROFESSOR' && userRole !== 'ADMIN') {
       router.replace('/meus-dados');
     }
-  }, [loading, user, userRole, isLoginPage, router]);
+  }, [loading, user, userRole, isLoginPage, modoGestor, router]);
 
   if (isLoginPage) return <>{children}</>;
 
@@ -76,6 +83,10 @@ export function ProfessorShell({ children }: { children: React.ReactNode }) {
       </div>
     );
   }
+
+  const navItems = modoGestor
+    ? NAV_ITEMS.filter((item) => item.href === '/professor/projetos')
+    : NAV_ITEMS;
 
   const handleSignOut = async () => {
     await signOut();
@@ -91,13 +102,15 @@ export function ProfessorShell({ children }: { children: React.ReactNode }) {
           </div>
           <div>
             <p className="text-white font-black text-sm leading-none">Portal Conecta</p>
-            <p className="text-white/50 text-xs mt-0.5">Painel do Professor</p>
+            <p className="text-white/50 text-xs mt-0.5">
+              {modoGestor ? 'Painel do Gestor' : 'Painel do Professor'}
+            </p>
           </div>
         </Link>
       </div>
 
       <nav className="flex-1 p-3 space-y-0.5 overflow-y-auto">
-        {NAV_ITEMS.map((item) => (
+        {navItems.map((item) => (
           <NavLink key={item.href} item={item} onClick={onNavClick} />
         ))}
       </nav>
@@ -119,7 +132,7 @@ export function ProfessorShell({ children }: { children: React.ReactNode }) {
           )}
           <div className="min-w-0 flex-1">
             <p className="text-white text-xs font-semibold truncate">
-              {user.displayName ?? 'Professor'}
+              {user.displayName ?? (modoGestor ? 'Gestor da página' : 'Professor')}
             </p>
             <p className="text-white/50 text-xs truncate">{user.email}</p>
           </div>
@@ -180,7 +193,7 @@ export function ProfessorShell({ children }: { children: React.ReactNode }) {
             <div className="w-6 h-6 bg-dourado-500 rounded-md flex items-center justify-center text-xs font-black text-gray-900">
               ✨
             </div>
-            <p className="font-bold text-gray-900 text-sm">Painel Professor</p>
+            <p className="font-bold text-gray-900 text-sm">{modoGestor ? 'Painel Gestor' : 'Painel Professor'}</p>
           </div>
         </header>
 

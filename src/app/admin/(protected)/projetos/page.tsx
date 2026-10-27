@@ -6,6 +6,9 @@ import { listProjetos, createProjeto, updateProjeto, deleteProjeto, toggleProjet
 import { toggleInscricoes, abrirInscricoes } from '@/actions/professor';
 import { AbrirInscricoesModal } from '@/components/ui/AbrirInscricoesModal';
 import { FormularioExtraEditor } from '@/components/ui/FormularioExtraEditor';
+import { LogoDoProjeto } from '@/components/projetos/LogoDoProjeto';
+import { CamposDeApresentacaoDoProjeto } from '@/components/projetos/CamposDeApresentacaoDoProjeto';
+import { EquipeEFinanciamentoDoProjeto } from '@/components/projetos/EquipeEFinanciamentoDoProjeto';
 import { parsePerguntasExtra, type PerguntaExtra } from '@/lib/formulario-extra';
 import { getStatusLabel, getStatusColor } from '@/lib/utils';
 import { useAuth } from '@/contexts/AuthContext';
@@ -18,9 +21,10 @@ const STATUS_LIST = ['ATIVO','EM_EXECUCAO','ENCERRADO','SUSPENSO','INSCRICOES_AB
 const TIPO_LIST = ['Pesquisa', 'Extensão'];
 
 const EMPTY_FORM: ProjetoFormData = {
-  nome: '', coordenador: '', coordenadorEmail: '', viceCoordenadorNome: '', viceCoordenadorEmail: '', area: '', descricao: '',
+  nome: '', coordenador: '', coordenadorEmail: '', viceCoordenadorNome: '', viceCoordenadorEmail: '', area: '', descricao: '', resumoCurto: '',
   dataInicio: '', servidores: '', alunos: '', observacao: '',
-  status: 'EM_EXECUCAO', logoUrl: '', corPrimaria: '#2F52D3',
+  estudantesBolsistas: [], estudantesVoluntarios: [], financiamento: [],
+  status: 'EM_EXECUCAO', logoUrl: '', bannerUrl: '', corPrimaria: '#2F52D3',
   email: '', instagram: '', site: '', destaque: false, adminEmails: '', formularioExtra: [],
 };
 
@@ -78,12 +82,17 @@ export default function AdminProjetosPage() {
       viceCoordenadorEmail: projeto.viceCoordenadorEmail ?? '',
       area: projeto.area,
       descricao: projeto.descricao ?? '',
+      resumoCurto: projeto.resumoCurto ?? '',
       dataInicio: projeto.dataInicio ? new Date(projeto.dataInicio).toISOString().split('T')[0] : '',
       servidores: projeto.servidores ?? '',
       alunos: projeto.alunos ?? '',
+      estudantesBolsistas: projeto.estudantesBolsistas ?? [],
+      estudantesVoluntarios: projeto.estudantesVoluntarios ?? [],
+      financiamento: projeto.financiamento ?? [],
       observacao: projeto.observacao ?? '',
       status: projeto.status,
       logoUrl: projeto.logoUrl ?? '',
+      bannerUrl: projeto.bannerUrl ?? '',
       corPrimaria: projeto.corPrimaria,
       email: projeto.email ?? '',
       instagram: projeto.instagram ?? '',
@@ -271,8 +280,8 @@ export default function AdminProjetosPage() {
             <div className="md:hidden divide-y divide-gray-50">
               {filteredProjetos.map((p) => (
                 <div key={p.id} className="p-4 flex items-center gap-3">
-                  <div className="w-9 h-9 rounded-xl flex items-center justify-center text-white font-bold text-sm flex-shrink-0" style={{ backgroundColor: p.corPrimaria }}>
-                    {p.nome.charAt(0)}
+                  <div className="w-9 h-9 rounded-xl flex items-center justify-center text-white font-bold text-sm flex-shrink-0 overflow-hidden" style={{ backgroundColor: p.corPrimaria }}>
+                    <LogoDoProjeto nome={p.nome} logoUrl={p.logoUrl} />
                   </div>
                   <div className="flex-1 min-w-0">
                     <p className="font-semibold text-gray-900 text-sm truncate">{p.nome}</p>
@@ -350,8 +359,8 @@ export default function AdminProjetosPage() {
                     <tr key={p.id} className="border-b border-gray-50 hover:bg-gray-50/50 transition-colors">
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-3">
-                          <div className="w-7 h-7 rounded-lg flex items-center justify-center text-white text-xs font-bold flex-shrink-0" style={{ backgroundColor: p.corPrimaria }}>
-                            {p.nome.charAt(0)}
+                          <div className="w-7 h-7 rounded-lg flex items-center justify-center text-white text-xs font-bold flex-shrink-0 overflow-hidden" style={{ backgroundColor: p.corPrimaria }}>
+                            <LogoDoProjeto nome={p.nome} logoUrl={p.logoUrl} />
                           </div>
                           <div>
                             <p className="font-semibold text-gray-900 truncate max-w-[200px]">{p.nome}</p>
@@ -434,7 +443,7 @@ export default function AdminProjetosPage() {
       {panelOpen && (
         <>
           <div className="fixed inset-0 bg-black/40 z-40" onClick={() => setPanelOpen(false)} />
-          <div className="fixed top-0 right-0 h-full w-full max-w-lg bg-white z-50 shadow-2xl flex flex-col overflow-hidden">
+          <div className="fixed top-0 right-0 h-full w-full max-w-2xl bg-white z-50 shadow-2xl flex flex-col overflow-hidden">
             <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
               <h2 className="font-bold text-gray-900">{editing ? 'Editar Projeto' : 'Novo Projeto'}</h2>
               <button onClick={() => setPanelOpen(false)} className="p-1.5 rounded-lg hover:bg-gray-100 transition-colors">
@@ -483,14 +492,24 @@ export default function AdminProjetosPage() {
                         <label className="label-field">Data de Início</label>
                         <input type="date" className="input-field" value={form.dataInicio ?? ''} onChange={(e) => set('dataInicio', e.target.value)} />
                       </div>
-                      <div className="col-span-2">
-                        <label className="label-field">Descrição</label>
-                        <textarea className="input-field min-h-[80px] resize-none" value={form.descricao ?? ''} onChange={(e) => set('descricao', e.target.value)} />
-                      </div>
                     </div>
                   </div>
 
-                  {/* Equipe do Projeto */}
+                  {/* Apresentação — mesmo componente usado no painel do professor */}
+                  <div className="col-span-2 space-y-4 mt-2">
+                    <h3 className="text-sm font-bold text-gray-900 border-b pb-2">Apresentação do Projeto</h3>
+                    <CamposDeApresentacaoDoProjeto
+                      nome={form.nome}
+                      valores={form}
+                      subpasta={editing?.id}
+                      onChange={(campo, valor) => setForm((f) => ({ ...f, [campo]: valor }))}
+                    />
+                  </div>
+
+                  {/* Equipe do Projeto — servidores em texto livre. Os
+                      estudantes (bolsistas/voluntários) e o financiamento
+                      ficam logo abaixo, nos campos que a página pública
+                      exibe junto ao resumo. */}
                   <div className="col-span-2 space-y-4 mt-2">
                     <h3 className="text-sm font-bold text-gray-900 border-b pb-2">Equipe do Projeto</h3>
                     <div className="grid grid-cols-2 gap-4">
@@ -498,54 +517,15 @@ export default function AdminProjetosPage() {
                         <label className="label-field">Servidores</label>
                         <textarea className="input-field min-h-[60px]" value={form.servidores ?? ''} onChange={(e) => set('servidores', e.target.value)} placeholder="Nomes dos servidores envolvidos" />
                       </div>
-                      <div className="col-span-2">
-                        <label className="label-field">Alunos</label>
-                        <textarea className="input-field min-h-[60px]" value={form.alunos ?? ''} onChange={(e) => set('alunos', e.target.value)} placeholder="Nomes dos alunos envolvidos" />
-                      </div>
                     </div>
                   </div>
 
-                  {/* Identidade Visual */}
+                  {/* Estudantes e financiamento — mesmo componente usado no painel do professor */}
                   <div className="col-span-2 space-y-4 mt-2">
-                    <h3 className="text-sm font-bold text-gray-900 border-b pb-2">Identidade Visual</h3>
-                    <div className="grid grid-cols-2 gap-4">
-                      <div>
-                        <label className="label-field">Cor primária</label>
-                        <div className="flex items-center gap-2">
-                          <input type="color" value={form.corPrimaria ?? '#2F52D3'} onChange={(e) => set('corPrimaria', e.target.value)} className="w-10 h-10 rounded-lg border border-gray-200 cursor-pointer p-0.5 shrink-0" />
-                          <input className="input-field flex-1 uppercase font-mono text-sm" value={form.corPrimaria ?? ''} onChange={(e) => set('corPrimaria', e.target.value)} />
-                        </div>
-                      </div>
-                      <div>
-                        <label className="label-field">Logo URL</label>
-                        <input type="url" className="input-field" value={form.logoUrl ?? ''} onChange={(e) => set('logoUrl', e.target.value)} placeholder="https://..." />
-                      </div>
-                      {form.logoUrl && (
-                        <div className="col-span-2 flex justify-center p-4 bg-gray-50 rounded-xl border border-gray-100">
-                          {/* eslint-disable-next-line @next/next/no-img-element */}
-                          <img src={form.logoUrl} alt="Preview Logo" className="max-h-24 object-contain" onError={(e) => (e.currentTarget.style.display = 'none')} />
-                        </div>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Contato e Redes */}
-                  <div className="col-span-2 space-y-4 mt-2">
-                    <h3 className="text-sm font-bold text-gray-900 border-b pb-2">Contato e Redes</h3>
-                    <div className="grid grid-cols-2 gap-4">
-                      <div>
-                        <label className="label-field">E-mail</label>
-                        <input type="email" className="input-field" value={form.email ?? ''} onChange={(e) => set('email', e.target.value)} placeholder="contato@projeto.com" />
-                      </div>
-                      <div>
-                        <label className="label-field">Instagram</label>
-                        <input className="input-field" placeholder="@usuario" value={form.instagram ?? ''} onChange={(e) => set('instagram', e.target.value)} />
-                      </div>
-                      <div className="col-span-2">
-                        <label className="label-field">Site Oficial</label>
-                        <input type="url" className="input-field" value={form.site ?? ''} onChange={(e) => set('site', e.target.value)} placeholder="https://..." />
-                      </div>
-                    </div>
+                    <EquipeEFinanciamentoDoProjeto
+                      valores={form}
+                      onChange={(campo, valor) => set(campo, valor)}
+                    />
                   </div>
 
                   {/* Configurações Avançadas */}

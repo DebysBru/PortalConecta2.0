@@ -10,6 +10,7 @@ import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { RichTextEditor } from '@/components/ui/RichTextEditor';
 import { PostAnexosUploader } from '@/components/ui/PostAnexosUploader';
 import { SeletorDeCapaDoPost } from '@/components/ui/SeletorDeCapaDoPost';
+import { CampoUrlDaCapa } from '@/components/ui/CampoUrlDaCapa';
 import { enviarArquivo } from '@/lib/upload-midia';
 import { anexosDoJson } from '@/lib/post-midias';
 import { chaveDeIconeValida } from '@/lib/post-capa';
@@ -343,16 +344,10 @@ function AdminPostsContent() {
                         obterToken={async () => (user ? user.getIdToken() : null)}
                         subpasta={form.projetoId || undefined}
                       />
-                      <div className="mt-3">
-                        <label className="label-field text-xs">ou cole uma URL de imagem externa</label>
-                        <input
-                          type="url"
-                          className="input-field"
-                          value={form.imagemUrl ?? ''}
-                          onChange={(e) => set('imagemUrl', e.target.value)}
-                          placeholder="https://..."
-                        />
-                      </div>
+                      <CampoUrlDaCapa
+                        imagemUrl={form.imagemUrl ?? ''}
+                        onChange={(url) => set('imagemUrl', url)}
+                      />
                     </div>
                     <div className="col-span-2">
                       <label className="label-field">URL de um Vídeo (YouTube/Vimeo)</label>

@@ -57,6 +57,7 @@ const STATUS_LABEL: Record<string, { label: string; className: string }> = {
   chunking: { label: 'Aguardando indexação', className: 'bg-amber-100 text-amber-700' },
   embedding: { label: 'Gerando embeddings', className: 'bg-amber-100 text-amber-700' },
   indexing: { label: 'Indexando', className: 'bg-amber-100 text-amber-700' },
+  textual: { label: 'Busca textual disponível', className: 'bg-blue-100 text-blue-700' },
   indexed: { label: 'Indexado', className: 'bg-green-100 text-green-700' },
   failed: { label: 'Falhou', className: 'bg-red-100 text-red-700' },
 };
@@ -69,25 +70,18 @@ export default function AdminRagPage() {
   const [showUpload, setShowUpload] = useState(false);
   const [showDetail, setShowDetail] = useState(false);
   const [selectedDoc, setSelectedDoc] = useState<RagDocFull | null>(null);
-  const [form, setForm] = useState({ titulo: '', conteudo: '', tipo: 'documento_livre' });
-  const [uploadForm, setUploadForm] = useState({ titulo: '', tipo: 'documento_livre' });
+  const [form, setForm] = useState({ titulo: '', conteudo: '', tipo: 'documento_livre', anteriorId: '', permitirTextual: false });
+  const [uploadForm, setUploadForm] = useState({ titulo: '', tipo: 'documento_livre', anteriorId: '', permitirTextual: false });
   const [uploadFile, setUploadFile] = useState<File | null>(null);
   const [saving, setSaving] = useState(false);
   const [search, setSearch] = useState('');
+  const [limiteLista, setLimiteLista] = useState(80);
   const [error, setError] = useMensagemErro();
   const [editingTitulo, setEditingTitulo] = useState('');
   const [deleteDocId, setDeleteDocId] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  if (!isMasterAdmin) {
-    return (
-      <div className="flex flex-col items-center justify-center py-24 gap-3">
-        <AlertCircle className="w-8 h-8 text-red-400" />
-        <p className="text-gray-500">Acesso restrito a administradores.</p>
-      </div>
-    );
-  }
 
   useEffect(() => {
     loadDocs();
@@ -117,13 +111,16 @@ export default function AdminRagPage() {
       formData.append('file', uploadFile);
       formData.append('titulo', uploadForm.titulo);
       formData.append('tipo', uploadForm.tipo);
-      formData.append('adminEmail', user.email);
-
-      const response = await fetch('/api/admin/rag/upload', { method: 'POST', body: formData });
+      if (uploadForm.anteriorId) formData.append('anteriorId', uploadForm.anteriorId);
+      formData.append('permitirTextual', String(uploadForm.permitirTextual));
+      const idToken = await user.getIdToken();
+      const response = await fetch('/api/admin/rag/upload', {
+        method: 'POST', body: formData, headers: { Authorization: `Bearer ${idToken}` },
+      });
       const result = await response.json();
 
       if (result.ok) {
-        setUploadForm({ titulo: '', tipo: 'documento_livre' });
+        setUploadForm({ titulo: '', tipo: 'documento_livre', anteriorId: '', permitirTextual: false });
         setUploadFile(null);
         setShowUpload(false);
         await loadDocs();
@@ -150,7 +147,7 @@ export default function AdminRagPage() {
 
     const result = await createDocumentoKbFromText(form, user.email);
     if (result.ok) {
-      setForm({ titulo: '', conteudo: '', tipo: 'documento_livre' });
+      setForm({ titulo: '', conteudo: '', tipo: 'documento_livre', anteriorId: '', permitirTextual: false });
       setShowForm(false);
       await loadDocs();
     } else {
@@ -217,10 +214,24 @@ export default function AdminRagPage() {
     d.tipo.toLowerCase().includes(search.toLowerCase())
   );
 
+  // A base do campus tem ~3.270 documentos: renderizar todos de uma vez trava a
+  // aba. A lista mostra os primeiros e o botão "mostrar mais" revela o resto.
+  const visiveis = filtered.slice(0, limiteLista);
+  const restantes = filtered.length - visiveis.length;
+
   if (loading) {
     return (
       <div className="flex items-center justify-center py-20">
         <div className="text-gray-400 text-sm">Carregando documentos...</div>
+      </div>
+    );
+  }
+
+  if (!isMasterAdmin) {
+    return (
+      <div className="flex flex-col items-center justify-center py-24 gap-3">
+        <AlertCircle className="w-8 h-8 text-red-400" />
+        <p className="text-gray-500">Acesso restrito a administradores.</p>
       </div>
     );
   }
@@ -242,14 +253,14 @@ export default function AdminRagPage() {
         </div>
         <div className="flex gap-2">
           <button
-            onClick={() => { setForm({ titulo: '', conteudo: '', tipo: 'documento_livre' }); setShowForm(true); }}
+            onClick={() => { setForm({ titulo: '', conteudo: '', tipo: 'documento_livre', anteriorId: '', permitirTextual: false }); setShowForm(true); }}
             className="flex items-center gap-2 px-4 py-2 bg-azul-eletrico text-white rounded-xl font-medium text-sm hover:bg-azul-eletrico/90 transition-colors"
           >
             <Plus className="w-4 h-4" />
             Texto Direto
           </button>
           <button
-            onClick={() => { setUploadForm({ titulo: '', tipo: 'documento_livre' }); setUploadFile(null); setShowUpload(true); }}
+            onClick={() => { setUploadForm({ titulo: '', tipo: 'documento_livre', anteriorId: '', permitirTextual: false }); setUploadFile(null); setShowUpload(true); }}
             className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-xl font-medium text-sm hover:bg-green-700 transition-colors"
           >
             <FileUp className="w-4 h-4" />
@@ -280,6 +291,14 @@ export default function AdminRagPage() {
               </button>
             </div>
             <div className="p-6 space-y-4">
+              <p className="text-sm text-gray-600">Ao salvar, este conteúdo será publicado para consulta no chat público e na página de fontes.</p>
+              <label className="block text-sm">Substituir documento
+                <select aria-label="Substituir documento" className="block w-full border rounded p-2" value={form.anteriorId} onChange={e => setForm({ ...form, anteriorId: e.target.value })}>
+                  <option value="">Novo documento</option>
+                  {docs.filter(d => d.ativo && d.tipo !== 'projeto_sintetico').map(d => <option key={d.id} value={d.id}>{d.titulo} — v{d.versao}</option>)}
+                </select>
+              </label>
+              {form.anteriorId && <label className="block text-sm"><input type="checkbox" checked={form.permitirTextual} onChange={e => setForm({ ...form, permitirTextual: e.target.checked })} /> Permitir publicar apenas com busca por palavras se a busca por significado não estiver configurada.</label>}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Título</label>
                 <input
@@ -341,6 +360,14 @@ export default function AdminRagPage() {
               </button>
             </div>
             <div className="p-6 space-y-4">
+              <p className="text-sm text-gray-600">Ao salvar, este conteúdo será publicado para consulta no chat público e na página de fontes.</p>
+              <label className="block text-sm">Substituir documento
+                <select aria-label="Substituir documento" className="block w-full border rounded p-2" value={uploadForm.anteriorId} onChange={e => setUploadForm({ ...uploadForm, anteriorId: e.target.value })}>
+                  <option value="">Novo documento</option>
+                  {docs.filter(d => d.ativo && d.tipo !== 'projeto_sintetico').map(d => <option key={d.id} value={d.id}>{d.titulo} — v{d.versao}</option>)}
+                </select>
+              </label>
+              {uploadForm.anteriorId && <label className="block text-sm"><input type="checkbox" checked={uploadForm.permitirTextual} onChange={e => setUploadForm({ ...uploadForm, permitirTextual: e.target.checked })} /> Permitir publicar apenas com busca por palavras se a busca por significado não estiver configurada.</label>}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Título</label>
                 <input
@@ -560,7 +587,11 @@ export default function AdminRagPage() {
           type="search"
           placeholder="Buscar documentos..."
           value={search}
-          onChange={(e) => setSearch(e.target.value)}
+          onChange={(e) => {
+            setSearch(e.target.value);
+            // Nova busca, lista nova: volta ao primeiro bloco de resultados.
+            setLimiteLista(80);
+          }}
           className="w-full pl-10 pr-4 py-2 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-azul-eletrico"
         />
       </div>
@@ -594,7 +625,7 @@ export default function AdminRagPage() {
         </div>
       ) : (
         <div className="space-y-3">
-          {filtered.map((doc) => (
+          {visiveis.map((doc) => (
             <div key={doc.id} className="bg-white rounded-2xl border border-gray-100 p-5 hover:shadow-sm transition-shadow">
               <div className="flex items-start justify-between gap-4">
                 <div
@@ -661,6 +692,15 @@ export default function AdminRagPage() {
               </div>
             </div>
           ))}
+
+          {restantes > 0 && (
+            <button
+              onClick={() => setLimiteLista((atual) => atual + 80)}
+              className="w-full rounded-xl border border-dashed border-gray-300 bg-white py-3 text-sm font-semibold text-gray-600 transition-colors hover:border-azul-eletrico/40 hover:text-azul-eletrico"
+            >
+              Mostrar mais {Math.min(restantes, 80)} de {restantes} documento(s)
+            </button>
+          )}
         </div>
       )}
 

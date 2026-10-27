@@ -183,3 +183,37 @@ export function semCapaEscolhida(post: {
   const temImagem = typeof post.imagemUrl === 'string' && post.imagemUrl.trim().length > 0;
   return !temImagem && !chaveDeIconeValida(post.icone);
 }
+
+const HOSTS_DE_PAGINA_SOCIAL =
+  /(^|\.)(instagram\.com|facebook\.com|tiktok\.com|youtube\.com|youtu\.be|twitter\.com|x\.com)$/i;
+const EXTENSAO_DE_IMAGEM = /\.(png|jpe?g|webp|gif|avif|svg)$/i;
+
+/**
+ * Impede usar o link de uma PUBLICAÇÃO social como capa.
+ *
+ * Caso real: o campo aceitava qualquer URL e alguém colou
+ * `https://www.instagram.com/p/...` como imagem de capa. O navegador recebe
+ * HTML, não imagem, e o card fica com o ícone de imagem quebrada. O link do
+ * post não é uma imagem — quem quiser usar a foto precisa enviar o arquivo ou
+ * colar a URL direta do CDN.
+ */
+export function erroDeUrlDeCapa(imagemUrl: unknown): string | null {
+  const valor = typeof imagemUrl === 'string' ? imagemUrl.trim() : '';
+  if (!valor) return null;
+  if (valor.startsWith('/') && !valor.startsWith('//')) return null;
+
+  let url: URL;
+  try {
+    url = new URL(valor);
+  } catch {
+    return null; // outras validações já rejeitam URL malformada
+  }
+
+  if (url.protocol !== 'http:' && url.protocol !== 'https:') return null;
+
+  if (HOSTS_DE_PAGINA_SOCIAL.test(url.hostname) && !EXTENSAO_DE_IMAGEM.test(url.pathname)) {
+    return 'Esse link é de uma publicação em rede social, não de uma imagem. Envie a imagem ou cole a URL direta do arquivo.';
+  }
+
+  return null;
+}

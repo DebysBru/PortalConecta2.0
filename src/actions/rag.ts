@@ -1,11 +1,9 @@
 'use server';
 
 import { prisma } from '@/lib/prisma';
-import { createHash } from 'crypto';
-import { chunkDocument } from '@/lib/chunking';
-import { deactivateOldDocumentVersions } from '@/lib/busca-vetorial';
-import { curarDocumentoKb } from '@/lib/kb-worker';
-import { indexarDocumentoKb } from '@/lib/indexador';
+import { ingerirDocumentoRag, alterarVisibilidadeRag } from '@/lib/rag-publicacao';
+import { cache } from '@/lib/cache';
+import { removerOriginalRag } from '@/lib/rag-storage';
 import { MENSAGENS, mensagemAmigavel } from '@/lib/mensagens';
 import { getVerifiedServerSession } from '@/lib/session';
 
@@ -52,7 +50,7 @@ export async function getDocumentoKbDetail(id: string, callerEmail?: string) {
 }
 
 export async function createDocumentoKbFromText(
-  data: { titulo: string; conteudo: string; tipo: string },
+  data: { titulo: string; conteudo: string; tipo: string; anteriorId?: string; permitirTextual?: boolean },
   callerEmail?: string
 ): Promise<ActionResult<{ id: string; chunks: number }>> {
   const auth = await requireAdminEmail(callerEmail);
@@ -64,55 +62,8 @@ export async function createDocumentoKbFromText(
     if (!titulo) return { ok: false, error: MENSAGENS.campoObrigatorio('Título') };
     if (!conteudo) return { ok: false, error: MENSAGENS.campoObrigatorio('Conteúdo') };
 
-    const hashArquivo = createHash('sha256').update(conteudo).digest('hex');
-    const existenteAtivo = await prisma.documentoKb.findFirst({ where: { hashArquivo, ativo: true } });
-    if (existenteAtivo) {
-      return {
-        ok: false,
-        error: 'Este conteúdo já está cadastrado e disponível na base de conhecimento. Se quiser atualizá-lo, edite o documento existente em vez de criar outro.',
-      };
-    }
-
-    const versaoAnterior = await prisma.documentoKb.findFirst({
-      where: { titulo },
-      orderBy: { versao: 'desc' },
-      select: { versao: true },
-    });
-    const versao = (versaoAnterior?.versao ?? 0) + 1;
-
-    const doc = await prisma.documentoKb.create({
-      data: {
-        titulo,
-        tipo: data.tipo || 'documento_livre',
-        hashArquivo,
-        versao,
-        status: 'chunking',
-        metadata: { source: 'texto_direto' },
-      },
-    });
-
-    const chunks = chunkDocument(conteudo);
-    await prisma.chunkKb.createMany({
-      data: chunks.map((c, i) => ({
-        documentoId: doc.id,
-        documentoVersao: versao,
-        chunkIndex: i,
-        texto: c.texto,
-        secao: c.secao,
-        metadata: { chunk_total: chunks.length },
-      })),
-    });
-
-    await prisma.documentoKb.update({ where: { id: doc.id }, data: { totalChunks: chunks.length } });
-
-    if (versao > 1) {
-      await deactivateOldDocumentVersions(titulo, doc.id);
-    }
-
-    await curarDocumentoKb(doc.id);
-    await indexarDocumentoKb(doc.id);
-
-    return { ok: true, data: { id: doc.id, chunks: chunks.length } };
+    const result = await ingerirDocumentoRag({ titulo, conteudo, tipo: data.tipo || 'documento_livre', anteriorId: data.anteriorId, permitirTextual: data.permitirTextual === true, metadata: { autor: callerEmail! } });
+    return { ok: true, data: result };
   } catch (e) {
     return { ok: false, error: mensagemAmigavel(e, 'Não conseguimos salvar o documento. Tente novamente em alguns instantes.') };
   }
@@ -123,7 +74,11 @@ export async function deleteDocumentoKb(id: string, callerEmail?: string): Promi
   if (!auth.ok) return auth;
 
   try {
+    const doc = await prisma.documentoKb.findUnique({ where: { id } });
     await prisma.documentoKb.delete({ where: { id } });
+    const key = (doc?.metadata as Record<string, unknown> | undefined)?.originalKey;
+    if (typeof key === 'string') await removerOriginalRag(key);
+    cache.invalidate('chat:');
     return { ok: true };
   } catch (e) {
     return { ok: false, error: mensagemAmigavel(e, 'Não conseguimos excluir este documento. Tente novamente.') };
@@ -138,8 +93,8 @@ export async function toggleDocumentoKb(id: string, callerEmail?: string): Promi
     const doc = await prisma.documentoKb.findUnique({ where: { id } });
     if (!doc) return { ok: false, error: 'Não encontramos este documento. Ele pode ter sido removido por outra pessoa.' };
 
-    const updated = await prisma.documentoKb.update({ where: { id }, data: { ativo: !doc.ativo } });
-    await prisma.chunkKb.updateMany({ where: { documentoId: id }, data: { ativo: updated.ativo } });
+    await alterarVisibilidadeRag(id, !doc.ativo);
+    const updated = { ativo: !doc.ativo };
 
     return { ok: true, data: { ativo: updated.ativo } };
   } catch (e) {
@@ -155,6 +110,7 @@ export async function updateDocumentoKbTitulo(id: string, titulo: string, caller
     const trimmed = titulo.trim();
     if (!trimmed) return { ok: false, error: MENSAGENS.campoObrigatorio('Título') };
     await prisma.documentoKb.update({ where: { id }, data: { titulo: trimmed } });
+    cache.invalidate('chat:');
     return { ok: true };
   } catch (e) {
     return { ok: false, error: mensagemAmigavel(e, 'Não conseguimos renomear este documento. Tente novamente.') };

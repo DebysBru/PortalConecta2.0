@@ -6,14 +6,14 @@
  */
 
 import { prisma } from '@/lib/prisma';
-import { generateBatchEmbeddings, validateEmbedding } from '@/lib/embeddings';
+import { generateBatchEmbeddings, validateEmbedding, EmbeddingNotConfigured, embeddingConfig, embeddingSignature, textoParaEmbedding } from '@/lib/embeddings';
 import { saveChunksWithEmbeddings } from '@/lib/busca-vetorial';
 import { createLogger } from '@/lib/logger';
 import { mensagemAmigavel } from '@/lib/mensagens';
 
 const log = createLogger('indexador');
 
-export async function indexarDocumentoKb(documentoId: string): Promise<void> {
+export async function indexarDocumentoKb(documentoId: string): Promise<'indexed' | 'textual'> {
   const job = await prisma.job.create({
     data: { tipo: 'kb_embed', payload: { documentoId }, status: 'rodando' },
   });
@@ -29,19 +29,11 @@ export async function indexarDocumentoKb(documentoId: string): Promise<void> {
 
     await prisma.documentoKb.update({ where: { id: documentoId }, data: { status: 'embedding' } });
 
-    // Embeddar seção + tabela reformulada (quando existir) em vez do texto cru
-    // dá um sinal semântico melhor do que a tabela bagunçada sozinha.
-    const textos = doc.chunks.map((c) => {
-      const metadata = (c.metadata ?? {}) as Record<string, unknown>;
-      const tabela = typeof metadata.tabela_reformatada === 'string' ? metadata.tabela_reformatada : null;
-      const base = tabela ? `${c.texto}\n\n${tabela}` : c.texto;
-      return c.secao ? `${c.secao}: ${base}` : base;
-    });
-
+    const textos = doc.chunks.map(textoParaEmbedding);
     const embeddings = await generateBatchEmbeddings(textos);
     embeddings.forEach((e) => validateEmbedding(e));
 
-    await saveChunksWithEmbeddings(
+    const saved = await saveChunksWithEmbeddings(
       doc.chunks.map((c, i) => ({
         id: c.id,
         documentoId: c.documentoId,
@@ -58,19 +50,27 @@ export async function indexarDocumentoKb(documentoId: string): Promise<void> {
       }))
     );
 
+    if (saved !== doc.chunks.length) throw new Error('Persistência parcial de embeddings');
     await prisma.documentoKb.update({
       where: { id: documentoId },
       data: {
+        metadata: { ...(doc.metadata as Record<string, string>), embedding_signature: embeddingSignature(), semantic: true },
         status: 'indexed',
         processadoEm: new Date(),
-        modeloEmbedding: process.env.EMBEDDING_MODEL || 'gemini-embedding-2',
+        modeloEmbedding: embeddingConfig().model,
         embeddingDimensions: embeddings[0]?.length ?? 1536,
       },
     });
 
     await prisma.job.update({ where: { id: job.id }, data: { status: 'ok' } });
     log.info('Indexação concluída', { documentoId, jobId: job.id, totalChunks: doc.chunks.length });
+    return 'indexed';
   } catch (e) {
+    if (e instanceof EmbeddingNotConfigured) {
+      await prisma.documentoKb.update({ where: { id: documentoId }, data: { status: 'textual', modeloEmbedding: 'none', erro: null } });
+      await prisma.job.update({ where: { id: job.id }, data: { status: 'ok', payload: { documentoId, modo: 'textual' } } });
+      return 'textual';
+    }
     const tecnico = e instanceof Error ? e.message : String(e);
     log.error('Indexação falhou', { documentoId, jobId: job.id, erro: tecnico });
     // O que é gravado no banco aparece no painel de administração — por isso
@@ -83,5 +83,6 @@ export async function indexarDocumentoKb(documentoId: string): Promise<void> {
     await prisma.documentoKb
       .update({ where: { id: documentoId }, data: { status: 'failed', erro: msg } })
       .catch(() => {});
+    throw new Error(msg, { cause: e });
   }
 }

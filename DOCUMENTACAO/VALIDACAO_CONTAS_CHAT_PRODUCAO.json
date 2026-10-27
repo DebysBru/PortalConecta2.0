@@ -1,0 +1,39 @@
+{
+  "at": "2026-10-23T03:06:45.067Z",
+  "environment": "https://portal.ifcoding.com.br",
+  "build": "IwhAfY-Nho2ywBAqMTRlB",
+  "results": [
+    {
+      "scenario": "Página pública mostra aviso e convite de login",
+      "status": "PASS"
+    },
+    {
+      "scenario": "Destino do login acessível",
+      "status": "PASS"
+    },
+    {
+      "scenario": "API pública recusa visitante",
+      "status": "PASS"
+    },
+    {
+      "scenario": "API pública recusa token inválido",
+      "status": "PASS"
+    },
+    {
+      "scenario": "Duas contas reais no mesmo IP acessam o chat público",
+      "status": "PASS"
+    },
+    {
+      "scenario": "Repetição imediata bloqueada na produção",
+      "status": "PASS"
+    },
+    {
+      "scenario": "Resposta autenticada com provedores reais na produção",
+      "status": "PASS",
+      "detail": {
+        "http": 200,
+        "fontes": 4
+      }
+    }
+  ]
+}

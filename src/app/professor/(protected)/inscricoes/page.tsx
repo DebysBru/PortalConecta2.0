@@ -2,6 +2,7 @@
 
 import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import {
   Users, Search, Download, ChevronRight, Eye,
 } from 'lucide-react';
@@ -17,8 +18,10 @@ type Inscricao = Prisma.InscricaoGetPayload<{}>;
 type Vaga = Prisma.VagaGetPayload<{}> & { selecionados: number };
 
 export default function ProfessorInscricoesPage() {
-  const { user } = useAuth();
+  const { user, userRole } = useAuth();
   const { toast } = useToast();
+  const router = useRouter();
+  const somenteGestor = userRole === 'ESTUDANTE';
   const [projetos, setProjetos] = useState<Projeto[]>([]);
   const [selectedProjeto, setSelectedProjeto] = useState<string>('');
   const [inscricoes, setInscricoes] = useState<Inscricao[]>([]);
@@ -30,9 +33,20 @@ export default function ProfessorInscricoesPage() {
   const [loadingInscricoes, setLoadingInscricoes] = useState(false);
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('todos');
+  // Alterações ficam pendentes até o professor confirmar (evita notificação a
+  // cada movimento no select).
+  const [pendingStatus, setPendingStatus] = useState<Record<string, string>>({});
+  const [confirmandoStatus, setConfirmandoStatus] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!user?.email) return;
+    if (somenteGestor) router.replace('/professor/projetos');
+  }, [somenteGestor, router]);
+
+  useEffect(() => {
+    if (!user?.email || somenteGestor) {
+      if (somenteGestor) setLoading(false);
+      return;
+    }
     listMyProjetos(user.email)
       .then((p) => {
         setProjetos(p);
@@ -40,7 +54,7 @@ export default function ProfessorInscricoesPage() {
       })
       .catch(console.error)
       .finally(() => setLoading(false));
-  }, [user]);
+  }, [user, somenteGestor]);
 
   useEffect(() => {
     if (!selectedProjeto || !user?.email) return;
@@ -64,17 +78,30 @@ export default function ProfessorInscricoesPage() {
 
   const vagaPorId = new Map(vagas.map((v) => [v.id, v]));
 
-  const handleStatusChange = async (inscricaoId: string, newStatus: string) => {
+  const confirmarStatus = async (inscricaoId: string) => {
     if (!user?.email) return;
+    const newStatus = pendingStatus[inscricaoId];
+    if (!newStatus) return;
+
+    setConfirmandoStatus(inscricaoId);
     const result = await updateInscricaoStatus(inscricaoId, newStatus, undefined, user.email);
     if (result.ok) {
       setInscricoes((prev) =>
         prev.map((i) => (i.id === inscricaoId ? { ...i, status: newStatus } : i))
       );
-      toast(`Status alterado para "${getStatusLabel(newStatus)}"`, 'success');
+      setPendingStatus((prev) => {
+        const next = { ...prev };
+        delete next[inscricaoId];
+        return next;
+      });
+      toast(
+        `Alteração confirmada: "${getStatusLabel(newStatus)}". O aluno será notificado.`,
+        'success',
+      );
     } else {
       toast(result.error || 'Não conseguimos alterar o status desta inscrição. Tente novamente.', 'error');
     }
+    setConfirmandoStatus(null);
   };
 
   const handleExport = async () => {
@@ -213,8 +240,8 @@ export default function ProfessorInscricoesPage() {
                     <td className="px-5 py-3 text-gray-500 text-xs">{formatDateShort(i.created_at)}</td>
                     <td className="px-5 py-3">
                       <select
-                        value={i.status}
-                        onChange={(e) => handleStatusChange(i.id, e.target.value)}
+                        value={pendingStatus[i.id] ?? i.status}
+                        onChange={(e) => setPendingStatus((prev) => ({ ...prev, [i.id]: e.target.value }))}
                         className="text-xs border border-gray-200 rounded-lg px-2 py-1 bg-white focus:outline-none focus:ring-1 focus:ring-azul-eletrico/30"
                       >
                         <option value="recebida">Recebida</option>
@@ -224,6 +251,27 @@ export default function ProfessorInscricoesPage() {
                         <option value="nao_selecionado">Não selecionado</option>
                         <option value="desistente">Desistente</option>
                       </select>
+                      {pendingStatus[i.id] && pendingStatus[i.id] !== i.status && (
+                        <div className="mt-1.5 flex items-center gap-1">
+                          <button
+                            onClick={() => confirmarStatus(i.id)}
+                            disabled={confirmandoStatus === i.id}
+                            className="px-2 py-1 rounded-md bg-azul-eletrico text-white text-[11px] font-semibold hover:bg-azul-eletrico/90 disabled:opacity-60 transition-colors"
+                          >
+                            {confirmandoStatus === i.id ? 'Confirmando...' : 'Confirmar alteração'}
+                          </button>
+                          <button
+                            onClick={() => setPendingStatus((prev) => {
+                              const next = { ...prev };
+                              delete next[i.id];
+                              return next;
+                            })}
+                            className="px-2 py-1 rounded-md border border-gray-200 text-[11px] text-gray-600 hover:bg-gray-50 transition-colors"
+                          >
+                            Cancelar
+                          </button>
+                        </div>
+                      )}
                     </td>
                   </tr>
                 ))}

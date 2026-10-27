@@ -2,6 +2,7 @@
 
 import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import {
   FolderOpen, Users, FileText, TrendingUp,
   AlertCircle, ChevronRight, Clock, Eye,
@@ -9,17 +10,26 @@ import {
 import { useAuth } from '@/contexts/AuthContext';
 import { getProfessorStats, listMyProjetos } from '@/actions/professor';
 import { formatDateShort, getStatusLabel, getStatusColor } from '@/lib/utils';
+import { LogoDoProjeto } from '@/components/projetos/LogoDoProjeto';
 
 type Stats = Awaited<ReturnType<typeof getProfessorStats>>;
 type Projeto = Awaited<ReturnType<typeof listMyProjetos>>[number];
 
 export default function ProfessorDashboardPage() {
   const { user, userRole } = useAuth();
+  const router = useRouter();
   const [stats, setStats] = useState<Stats | null>(null);
   const [projetos, setProjetos] = useState<Projeto[]>([]);
   const [loading, setLoading] = useState(true);
 
+  const somenteGestor = userRole === 'ESTUDANTE';
+
   useEffect(() => {
+    if (somenteGestor) router.replace('/professor/projetos');
+  }, [somenteGestor, router]);
+
+  useEffect(() => {
+    if (somenteGestor) { setLoading(false); return; }
     if (!user) return;
     Promise.all([
       getProfessorStats(user.email!),
@@ -28,7 +38,7 @@ export default function ProfessorDashboardPage() {
       .then(([s, p]) => { setStats(s); setProjetos(p); })
       .catch(console.error)
       .finally(() => setLoading(false));
-  }, [user]);
+  }, [user, somenteGestor]);
 
   if (loading) {
     return (
@@ -88,10 +98,10 @@ export default function ProfessorDashboardPage() {
                 className="flex items-center gap-4 px-5 py-4 hover:bg-gray-50 transition-colors"
               >
                 <div
-                  className="w-10 h-10 rounded-xl flex items-center justify-center text-white font-bold text-sm flex-shrink-0"
+                  className="w-10 h-10 rounded-xl flex items-center justify-center text-white font-bold text-sm flex-shrink-0 overflow-hidden"
                   style={{ backgroundColor: p.corPrimaria }}
                 >
-                  {p.nome.charAt(0)}
+                  <LogoDoProjeto nome={p.nome} logoUrl={p.logoUrl} />
                 </div>
                 <div className="flex-1 min-w-0">
                   <p className="font-semibold text-gray-900 text-sm truncate">{p.nome}</p>

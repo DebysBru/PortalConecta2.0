@@ -157,6 +157,9 @@ export function Footer() {
                 { href: '/editais', label: 'Editais' },
                 { href: '/projetos', label: 'Projetos' },
                 { href: '/agenda', label: 'Agenda' },
+                // Transparência da IA: lista tudo o que a IFizinha "sabe", com
+                // link para a fonte de cada documento.
+                { href: '/ifizinha/conteudos', label: 'O que a IFizinha conhece' },
               ].map((link) => (
                 <li key={link.href}>
                   <Link

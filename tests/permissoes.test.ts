@@ -244,4 +244,66 @@ describe('resolveUserRole — papel recalculado ao vivo', () => {
     expect(await perms.resolveUserRole('estudante@ifpr.edu.br')).toBe('ESTUDANTE');
     expect(prismaMock.user.update).not.toHaveBeenCalled();
   });
+
+  it('usuário promovido pelo e-mail mestre é ADMIN mesmo fora do domínio', async () => {
+    prismaMock.user.findUnique.mockResolvedValue({
+      role: 'ESTUDANTE',
+      permissions: [{ id: 'permissao-admin' }],
+    });
+    prismaMock.user.update.mockResolvedValue({});
+
+    expect(await perms.resolveUserRole('pessoa@gmail.com')).toBe('ADMIN');
+    expect(prismaMock.user.update).toHaveBeenCalledWith({
+      where: { email: 'pessoa@gmail.com' },
+      data: { role: 'ADMIN' },
+    });
+  });
+});
+
+describe('Administrador Geral promovido', () => {
+  it('o e-mail mestre passa sem consultar o banco', async () => {
+    expect(await perms.ehAdministradorGeral(MASTER)).toBe(true);
+    expect(prismaMock.user.findUnique).not.toHaveBeenCalled();
+  });
+
+  it('só a permissão admin_geral promove os demais', async () => {
+    prismaMock.user.findUnique.mockResolvedValueOnce({ permissions: [{ id: 'p' }] });
+    expect(await perms.ehAdministradorGeral('outro@ifpr.edu.br')).toBe(true);
+
+    prismaMock.user.findUnique.mockResolvedValueOnce({ permissions: [] });
+    expect(await perms.ehAdministradorGeral('semadmin@ifpr.edu.br')).toBe(false);
+  });
+});
+
+describe('gestor da página do projeto', () => {
+  it('acesso com incluirGestor, mas não no acesso padrão', async () => {
+    logadoComo('aluno@ifpr.edu.br');
+
+    prismaMock.user.findUnique.mockResolvedValueOnce({ role: 'ESTUDANTE' });
+    prismaMock.projeto.findUnique.mockResolvedValue({
+      coordenadorEmail: 'prof@ifpr.edu.br',
+      viceCoordenadorEmail: null,
+      admins: [],
+      coordenadores: [],
+    });
+    expect(await perms.temAcessoAoProjeto('projeto-1', 'aluno@ifpr.edu.br')).toBe(false);
+
+    prismaMock.user.findUnique.mockResolvedValueOnce({ role: 'ESTUDANTE' });
+    prismaMock.user.findUnique.mockResolvedValueOnce({ permissions: [{ id: 'g' }] });
+    expect(
+      await perms.temAcessoAoProjeto('projeto-1', 'aluno@ifpr.edu.br', { incluirGestor: true }),
+    ).toBe(true);
+  });
+
+  it('lista os IDs gerenciados a partir das permissões', async () => {
+    prismaMock.user.findUnique.mockResolvedValue({
+      permissions: [
+        { permission: 'gestor_projeto:p1' },
+        { permission: 'gestor_projeto:p2' },
+        { permission: 'outra_coisa' },
+      ],
+    });
+
+    expect(await perms.projetosComoGestor('aluno@ifpr.edu.br')).toEqual(['p1', 'p2']);
+  });
 });

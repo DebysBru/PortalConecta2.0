@@ -1,0 +1,37 @@
+{
+  "at": "2026-10-23T02:54:06.094Z",
+  "environment": "VPS clone, localhost:3003",
+  "results": [
+    {
+      "scenario": "Concorrência: uma pergunta aceita e uma bloqueada",
+      "status": "PASS"
+    },
+    {
+      "scenario": "Aviso de intervalo e Retry-After",
+      "status": "PASS"
+    },
+    {
+      "scenario": "Tentativa bloqueada não aumenta contagem",
+      "status": "PASS"
+    },
+    {
+      "scenario": "Após cinco segundos o acesso é liberado",
+      "status": "PASS"
+    },
+    {
+      "scenario": "21ª pergunta bloqueada pela janela móvel",
+      "status": "PASS",
+      "detail": {
+        "retry": "1860"
+      }
+    },
+    {
+      "scenario": "Recusa da 21ª não aumenta contagem",
+      "status": "PASS"
+    },
+    {
+      "scenario": "Vaga liberada quando pergunta sai da janela de uma hora",
+      "status": "PASS"
+    }
+  ]
+}

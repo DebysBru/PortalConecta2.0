@@ -118,6 +118,24 @@ describe('bloqueio por cota da vaga', () => {
     }
   });
 
+  it('recusa um status fora da lista conhecida', async () => {
+    const resultado = await updateInscricaoStatus('insc-nova', 'inventado', undefined, COORDENADOR);
+
+    expect(resultado.ok).toBe(false);
+    expect(prismaMock.inscricao.update).not.toHaveBeenCalled();
+  });
+
+  it('não notifica quando o status não mudou (só a observação foi salva)', async () => {
+    prismaMock.inscricao.findUnique.mockResolvedValue(inscricaoBase({ status: 'selecionado' }));
+
+    const resultado = await updateInscricaoStatus('insc-nova', 'selecionado', 'observação interna', COORDENADOR);
+
+    expect(resultado.ok).toBe(true);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(notificarMudancaStatusInscricao).not.toHaveBeenCalled();
+    expect(enviarAtualizacaoStatus).not.toHaveBeenCalled();
+  });
+
   it('não conta a própria inscrição como ocupante (remarcar o mesmo selecionado)', async () => {
     prismaMock.inscricao.findUnique.mockResolvedValue(inscricaoBase({ status: 'selecionado' }));
     // O `id: { not: inscricaoId }` do filtro é do banco; aqui simulamos o

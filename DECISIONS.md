@@ -1659,6 +1659,99 @@ encher o disco (havia 16 pastas de build antigas quando isto foi escrito).
 
 ---
 
+## 34. Equipe de estudantes e financiamento junto ao resumo do projeto
+
+**Pedido:** "junto ao resumo do projeto ter os estudantes bolsista e voluntários (para
+motivar os demais). Financiamento: IFPR, CNPq, Fundação Araucária, Emenda
+Parlamentar, afins."
+
+**Problema:** a página pública do projeto contava o que o projeto faz, mas não QUEM
+está nele. O único campo parecido, `Projeto.alunos`, era um texto livre sem papel
+(bolsista × voluntário) e nunca era exibido em lugar nenhum; de financiamento não
+havia nada no projeto — só `Vaga.fontePagadora`, que descreve a vaga, não o projeto.
+Quem abre a página para decidir se inscrever não vê equipe formada nem de onde vem o
+recurso, então o "motivar os demais" ficava sem material.
+
+**Decisão:** três colunas novas em `Projeto` (`prisma/equipe-financiamento-setup.sql`,
+idempotente, porque `prisma db push` continua proibido — Dec. 11):
+
+- `estudantesBolsistas TEXT[]` e `estudantesVoluntarios TEXT[]` — nomes separados por
+  papel, porque o cartão público distingue um do outro (e reaproveita as cores dos
+  selos de vaga: bolsista azul, voluntário roxo);
+- `financiamento TEXT[]` — rótulos curtos como "IFPR", "CNPq", "Fundação Araucária",
+  "Emenda Parlamentar". Lista livre (o pedido diz "afins"), com essas quatro como
+  atalhos de um clique no formulário.
+
+A página `/projetos/[slug]` mostra o financiamento como selos DENTRO do cartão "Sobre
+o Projeto" (era o pedido: junto ao resumo) e os estudantes num cartão
+"Estudantes do Projeto" logo abaixo, com contagem ("3 estudantes") — o mesmo cartão
+que serve de motivação para quem está em dúvida.
+
+**Quem digita:** a coordenação (professor, no painel do professor; admin, no painel
+do admin), pelo componente único `EquipeEFinanciamentoDoProjeto` — chip editor com
+Enter/vírgula, sem repetição. Os nomes NÃO são derivados das inscrições
+automaticamente: só aparece quem a coordenação cadastrou, que é quem responde pelo
+consentimento dos estudantes em ter o nome divulgado. Ajuda na tela avisa isso. O
+campo legado `alunos` continua no schema (dados antigos/sincronização do SUAP), mas
+saiu do formulário — não era exibido e não distinguia papel.
+
+**Limites:** no servidor, não no formulário (`src/lib/projetos-equipe.ts`): até 30
+nomes por papel (80 caracteres cada) e até 8 fontes de financiamento (60 caracteres).
+O mesmo arquivo tem `equipeDoProjeto`/`financiamentoDoProjeto`, que limpam
+vazio/duplicado e alimentam tanto a página pública quanto o documento sintético da
+IFizinha — então a IA também sabe responder "quem são os bolsistas deste projeto?" e
+"quem financia?" (Dec. 5/§ RAG).
+
+**Impacto:** projeto existente fica com listas vazias e nada muda até a coordenação
+preencher; a página pública não renderiza os cartões quando estão vazios.
+
+---
+
+## 35. Link oficial do edital deixou de ser obrigatório
+
+**Problema:** o botão "Preencher a partir do PDF do edital" extrai os campos com IA, mas
+`linkOficial` só é preenchido quando o PDF traz uma URL no texto. A Chamada Complementar
+nº 01 do NEABI (4 páginas) não tem nenhum `http`, então a IA devolvia `linkOficial: ""`
+e o `createEdital` recusava o salvamento com "Preencha o campo obrigatório: Link
+oficial" — depois de a IA já ter feito todo o trabalho. Quem está no fluxo lê isso como
+"o upload falhou".
+
+**Decisão:** `linkOficial` passou a ser opcional em `createEdital` e em
+`createMeuEdital`; o valor em branco é gravado como `NULL` (a coluna já era anulável —
+nenhuma migração necessária). A URL continua validada quando existe — só `http`/`https`
+ou caminho interno (`validarUrl`) —, então segue sem risco de `javascript:` virar
+`href`. Nos dois formulários o campo virou "Link oficial (opcional)".
+
+**Impacto:** nenhum dado existente muda. As telas públicas já renderizavam o link
+condicionalmente (`{edital.linkOficial && ...}` no detalhe e no `EditaisExplorer`),
+então um edital sem link apenas não mostra o botão.
+
+---
+
+## 36. Orçamento de tokens da IA: o raciocínio consome `max_tokens`
+
+**Problema:** o `deepseek-flash` é um modelo de raciocínio — os `reasoning_tokens` são
+gerados ANTES da resposta e dividem o mesmo `max_tokens`. Medido numa extração real
+(`extract-pdf`, PDF de 4 páginas): 2.196 tokens de raciocínio contra 736 de JSON. Com
+`maxTokens: 2000` a resposta era truncada (`finish_reason: "length"`), que o
+`generateCompletion` convertia em erro genérico → HTTP 503 "A IA encontrou um problema",
+mensagem que sugere tentar de novo — e repetir falhava igual. O mesmo defeito silencioso
+existia em `curador` (2000), `rag-processor` (1000, caía em `processWithoutAI` sem
+avisar ninguém) e `actions/tags` (100, o conteúdo voltava vazio).
+
+**Decisão:** fonte única em `src/lib/llm.ts`: `tokensParaResposta(n)` = n + 4.000
+reservados para raciocínio, limitado ao teto de 8.000 do DeepSeek — o teto maior não
+custa mais caro, porque `max_tokens` é limite, não consumo. `finish_reason === "length"`
+passou a lançar `LlmRespostaTruncadaError` (tipado) em vez de `Error` genérico, e o
+`extract-pdf` responde 422 com `MENSAGENS.iaRespostaTruncada` ("documento longo demais")
+em vez do 503 enganoso.
+
+**Impacto:** a extração do edital do NEABI passou a devolver o JSON completo (7 de 7
+campos da tradução preenchidos). Nenhuma migração; nenhuma mudança de contrato para os
+demais chamadores além do teto maior.
+
+---
+
 ## Resumo de impactos
 
 | Decisão | Impacto | Fase | Notas |
@@ -1693,6 +1786,9 @@ encher o disco (havia 16 pastas de build antigas quando isto foi escrito).
 | **Calendário acadêmico importável + acompanhamento (Dec. 31)** | Modelo CSV/JSON (110 eventos do Calendário 2026), importação idempotente por `ref` no painel, filtros da agenda funcionando de verdade e aluno podendo acompanhar evento/filtro/calendário inteiro | **no ar** (06/10) | `prisma db push` (o projeto não usa migrations); datas ao meio-dia de Brasília; acompanhamento reaproveita a tabela `Favorito` |
 | **Mascote interativa nas páginas internas (Dec. 32)** | IFizinha nos cabeçalhos de Editais, Projetos e Agenda: hover (sobe 3%/6px), respiração de 6s que pausa no hover, balão de dica e sombras de profundidade nos cards | **no ar** (06/10) | Pose escolhida pela direção do gesto (§29) e pelo fundo medido; `prefers-reduced-motion` desliga tudo; exige `pointer-events-auto` (o wrapper é `pointer-events-none`) |
 | **Deploy automático pela GitHub Actions (Dec. 33)** | push na `main` publica sozinho: rsync do repositório, build na VPS, troca blue-green e rollback automático se o site não responder 200 | **no ar** (06/10) | `.env` copiado do build que está no ar, nunca do git; migração SQL continua manual, com guarda no workflow |
+| **Equipe de estudantes e financiamento (Dec. 34)** | Colunas `Projeto.estudantesBolsistas`, `estudantesVoluntarios` e `financiamento`; a página do projeto mostra os estudantes num cartão logo abaixo do resumo e as fontes financiadoras como selos dentro do "Sobre o Projeto"; entram também no documento sintético da IFizinha | pré-lançamento | Aplicar `prisma/equipe-financiamento-setup.sql` (`db push` segue proibido); nomes digitados pela coordenação, sem publicação automática de inscrito |
+| **Link oficial do edital é opcional (Dec. 35)** | `createEdital`/`createMeuEdital` deixam de exigir `linkOficial`; vazio grava `NULL` (coluna já anulável) e o fluxo "Preencher a partir do PDF" não trava mais no salvamento | pré-lançamento | Botão do link some sozinho na página pública quando não há URL; extração do PDF só preenche o campo se o documento tiver URL no texto |
+| **Orçamento de tokens da IA (Dec. 36)** | `tokensParaResposta()` em `src/lib/llm.ts` reserva 4.000 tokens de raciocínio (teto 8.000) e `finish_reason: "length"` vira `LlmRespostaTruncadaError` → 422 com mensagem própria | correção pendente de deploy | O `deepseek-flash` gasta ~2.200 tokens raciocinando: com teto 2.000/1.000/100 o JSON truncava ou voltava vazio em `extract-pdf`, `curador`, `rag-processor` e `tags` |
 
 ---
 

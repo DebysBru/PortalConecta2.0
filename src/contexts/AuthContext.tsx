@@ -43,6 +43,8 @@ type AuthState = {
   supabaseUserId: string | null;
   isMasterAdmin: boolean;
   isAdmin: boolean;
+  /** Aluno bolsista/voluntário com o cargo de gestor de página em algum projeto. */
+  isGestor: boolean;
   loading: boolean;
   signIn: (email: string, password: string) => Promise<void>;
   signInWithGoogle: () => Promise<void>;
@@ -72,6 +74,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<FirebaseUser | null>(null);
   const [userRole, setUserRole] = useState<UserRole | null>(null);
   const [supabaseUserId, setSupabaseUserId] = useState<string | null>(null);
+  const [isMasterAdmin, setIsMasterAdmin] = useState(false);
+  const [isGestor, setIsGestor] = useState(false);
   const [loading, setLoading] = useState(true);
   // `undefined` = ainda não observamos nenhum estado (primeiro disparo do
   // onAuthStateChanged, na carga inicial da página — não precisa de
@@ -125,24 +129,32 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         const email = await extractEmail(firebaseUser);
         if (email) {
           try {
-            const { id, role } = await ensureUser(email, firebaseUser.displayName ?? undefined);
+            const { id, role, isMasterAdmin: master, isGestor: gestor } = await ensureUser(email, firebaseUser.displayName ?? undefined);
             setUserRole(role);
             setSupabaseUserId(id);
+            setIsMasterAdmin(master);
+            setIsGestor(gestor);
           } catch {
             // `ensureUser` (server action) falhou — não há como o cliente
             // saber o papel real sem o servidor, então não assume ADMIN aqui
             // (o servidor de qualquer forma sempre revalida em cada action).
             setUserRole(null);
             setSupabaseUserId(null);
+            setIsMasterAdmin(false);
+            setIsGestor(false);
           }
         } else {
           // Usuário autenticado mas sem e-mail em lugar nenhum (não deveria ocorrer)
           setUserRole(null);
           setSupabaseUserId(null);
+          setIsMasterAdmin(false);
+          setIsGestor(false);
         }
       } else {
         setUserRole(null);
         setSupabaseUserId(null);
+        setIsMasterAdmin(false);
+        setIsGestor(false);
       }
 
       setLoading(false);
@@ -252,9 +264,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       //    Fazemos um refresh do role pois o complete-suap-link pode ter promovido
       //    o usuário para PROFESSOR (o onAuthStateChanged já rodou com ESTUDANTE).
       try {
-        const { id, role } = await ensureUser(result.user.email!, result.user.displayName ?? undefined);
+        const { id, role, isMasterAdmin: master, isGestor: gestor } = await ensureUser(result.user.email!, result.user.displayName ?? undefined);
         setUserRole(role);
         setSupabaseUserId(id);
+        setIsMasterAdmin(master);
+        setIsGestor(gestor);
       } catch { /* ignora — o role será correto no próximo login */ }
 
       return { ok: true };
@@ -274,23 +288,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     await firebaseSignOut(auth);
     setUserRole(null);
     setSupabaseUserId(null);
+    setIsMasterAdmin(false);
+    setIsGestor(false);
   };
 
-  // `role` já vem calculado ao vivo do servidor (ensureUser → resolveUserRole,
-  // ver src/lib/permissions.ts): só o Administrador Geral (ADMIN_EMAILS) pode
-  // ser ADMIN, então "isMasterAdmin" e "role === ADMIN" são a mesma coisa.
-  // Antes, isMasterAdmin comparava `user?.email` com `process.env.ADMIN_EMAILS`
-  // lido aqui num componente client — essa env var não é NEXT_PUBLIC_, então
-  // no navegador ela sempre vinha `undefined` e isMasterAdmin nunca era
-  // `true` pra ninguém (nem pro próprio Administrador Geral), escondendo RAG,
-  // Sync SUAP, Usuários e Limpar Dados mesmo para quem tinha permissão.
+  // `role` vem calculado ao vivo do servidor (ensureUser → resolveUserRole):
+  // ADMIN inclui o e-mail mestre e os administradores gerais promovidos por
+  // ele. `isMasterAdmin` é MAIS restrito: só o e-mail mestre, que é quem pode
+  // promover outros administradores e acessar Usuários/RAG/SUAP/Limpar Dados.
   const isAdmin = userRole === 'ADMIN';
-  const isMasterAdmin = isAdmin;
 
   return (
     <AuthContext.Provider value={{
       user, userRole, supabaseUserId,
-      isMasterAdmin, isAdmin, loading,
+      isMasterAdmin, isAdmin, isGestor, loading,
       signIn, signInWithGoogle, signInWithSuap,
       completeSuapGoogleLink, signOut,
     }}>

@@ -20,6 +20,8 @@ export type FavoritoItem = {
   subtitulo: string | null;
   href: string;
   cor: string | null;
+  /** Logo do projeto (quando o favorito é um projeto); null nos demais. */
+  imagemUrl: string | null;
   /** false quando o item saiu do ar (despublicado) — a UI mostra como indisponível. */
   disponivel: boolean;
   criadoEm: string;
@@ -163,7 +165,7 @@ export async function listarMeusFavoritos(idToken: string): Promise<FavoritoItem
       ? prisma.projeto.findMany({
           where: { id: { in: projetoIds } },
           select: {
-            id: true, nome: true, slug: true, area: true, corPrimaria: true,
+            id: true, nome: true, slug: true, area: true, corPrimaria: true, logoUrl: true,
             review_status: true, deleted_at: true,
           },
         })
@@ -204,6 +206,7 @@ export async function listarMeusFavoritos(idToken: string): Promise<FavoritoItem
         subtitulo: ev.categoria ? `${dia} · ${ev.categoria}` : dia,
         href: '/agenda',
         cor: null,
+        imagemUrl: null,
         disponivel: true,
         criadoEm,
       }];
@@ -220,6 +223,7 @@ export async function listarMeusFavoritos(idToken: string): Promise<FavoritoItem
         subtitulo: p.area,
         href: `/projetos/${p.slug}`,
         cor: p.corPrimaria,
+        imagemUrl: p.logoUrl,
         disponivel: p.review_status === 'PUBLICADO' && !p.deleted_at,
         criadoEm,
       }];
@@ -235,6 +239,7 @@ export async function listarMeusFavoritos(idToken: string): Promise<FavoritoItem
       subtitulo: e.categoria,
       href: `/editais/${e.slug}`,
       cor: null,
+      imagemUrl: null,
       disponivel: e.review_status === 'PUBLICADO' && !e.deleted_at,
       criadoEm,
     }];

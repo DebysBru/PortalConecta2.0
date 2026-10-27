@@ -7,7 +7,7 @@ import {
   Search, TrendingUp, AlertCircle, Save, ExternalLink,
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
-import { listMyProjetos, updateMyProjeto, type MyProjetoFormData } from '@/actions/professor';
+import { listMyProjetos, listProjetosQueGerencio, updateMyProjeto, type MyProjetoFormData } from '@/actions/professor';
 import { getStatusLabel, getStatusColor, formatDateShort } from '@/lib/utils';
 import { FormularioExtraEditor } from '@/components/ui/FormularioExtraEditor';
 import { parsePerguntasExtra, type PerguntaExtra } from '@/lib/formulario-extra';
@@ -18,31 +18,47 @@ import {
 } from '@/lib/projetos-edicao';
 import { useToast } from '@/components/ui/toast';
 import { useMensagemErro } from '@/lib/use-mensagem-erro';
+import { LogoDoProjeto } from '@/components/projetos/LogoDoProjeto';
+import { CamposDeApresentacaoDoProjeto } from '@/components/projetos/CamposDeApresentacaoDoProjeto';
+import { EquipeEFinanciamentoDoProjeto } from '@/components/projetos/EquipeEFinanciamentoDoProjeto';
+import { estiloDaCapa } from '@/lib/projeto-midia';
+import { textoSimples } from '@/lib/texto';
 
 type Projeto = Awaited<ReturnType<typeof listMyProjetos>>[number];
 
 const STATUS_LIST = ['ATIVO', 'EM_EXECUCAO', 'ENCERRADO', 'SUSPENSO', 'INSCRICOES_ABERTAS', 'SEM_VAGAS'];
 
 export default function ProfessorProjetosPage() {
-  const { user } = useAuth();
+  const { user, userRole } = useAuth();
   const { toast } = useToast();
+  const somenteGestor = userRole === 'ESTUDANTE';
   const [projetos, setProjetos] = useState<Projeto[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [panelOpen, setPanelOpen] = useState(false);
   const [editing, setEditing] = useState<Projeto | null>(null);
   const [form, setForm] = useState<MyProjetoFormData>({
-    nome: '', coordenador: '', area: '', descricao: '',
+    nome: '', coordenador: '', area: '', descricao: '', resumoCurto: '',
     status: 'EM_EXECUCAO', corPrimaria: '#2F52D3',
+    logoUrl: '', bannerUrl: '',
     email: '', instagram: '', site: '', formularioExtra: [],
+    estudantesBolsistas: [], estudantesVoluntarios: [], financiamento: [],
   });
   const [error, setError] = useMensagemErro();
   const [isPending, startTransition] = useTransition();
 
   const load = () => {
     if (!user?.email) return;
-    listMyProjetos(user.email)
-      .then(setProjetos)
+    Promise.all([
+      listMyProjetos(user.email),
+      listProjetosQueGerencio(user.email),
+    ])
+      .then(([coordenados, geridos]) => {
+        // Quem é gestor pode ter os dois vínculos; o Map evita duplicar.
+        const mapa = new Map<string, Projeto>();
+        for (const p of [...coordenados, ...geridos]) mapa.set(p.id, p);
+        setProjetos([...mapa.values()]);
+      })
       .catch(console.error)
       .finally(() => setLoading(false));
   };
@@ -61,11 +77,17 @@ export default function ProfessorProjetosPage() {
       coordenador: projeto.coordenador,
       area: projeto.area,
       descricao: projeto.descricao ?? '',
+      resumoCurto: projeto.resumoCurto ?? '',
       status: projeto.status,
       corPrimaria: projeto.corPrimaria,
+      logoUrl: projeto.logoUrl ?? '',
+      bannerUrl: projeto.bannerUrl ?? '',
       email: projeto.email ?? '',
       instagram: projeto.instagram ?? '',
       site: projeto.site ?? '',
+      estudantesBolsistas: projeto.estudantesBolsistas ?? [],
+      estudantesVoluntarios: projeto.estudantesVoluntarios ?? [],
+      financiamento: projeto.financiamento ?? [],
       formularioExtra: parsePerguntasExtra(projeto.formulario_extra),
     });
     setError('');
@@ -111,8 +133,14 @@ export default function ProfessorProjetosPage() {
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-black text-gray-900">Meus Projetos</h1>
-          <p className="text-gray-500 text-sm">{projetos.length} projeto(s) que você coordena</p>
+          <h1 className="text-2xl font-black text-gray-900">
+            {somenteGestor ? 'Projetos que gerencio' : 'Meus Projetos'}
+          </h1>
+          <p className="text-gray-500 text-sm">
+            {somenteGestor
+              ? `${projetos.length} projeto(s) em que você é gestor da página`
+              : `${projetos.length} projeto(s) que você coordena`}
+          </p>
         </div>
       </div>
 
@@ -143,11 +171,11 @@ export default function ProfessorProjetosPage() {
             >
               {/* Color header */}
               <div
-                className="h-20 relative flex items-end p-4"
-                style={{ background: `linear-gradient(135deg, ${projeto.corPrimaria} 0%, ${projeto.corPrimaria}cc 100%)` }}
+                className="h-20 relative flex items-end p-4 overflow-hidden"
+                style={estiloDaCapa(projeto.corPrimaria, projeto.bannerUrl)}
               >
-                <div className="w-12 h-12 bg-white/20 rounded-xl flex items-center justify-center text-white font-black text-xl border border-white/30">
-                  {projeto.nome.charAt(0)}
+                <div className="w-12 h-12 bg-white/20 rounded-xl flex items-center justify-center text-white font-black text-xl border border-white/30 overflow-hidden">
+                  <LogoDoProjeto nome={projeto.nome} logoUrl={projeto.logoUrl} />
                 </div>
                 <div className="ml-auto flex items-center gap-2">
                   <span className="text-white/80 text-xs bg-black/20 rounded-full px-2.5 py-1 font-medium">
@@ -160,7 +188,7 @@ export default function ProfessorProjetosPage() {
                 <h3 className="font-bold text-gray-900 text-base leading-snug mb-1">
                   {projeto.nome}
                 </h3>
-                <p className="text-sm text-gray-500 mb-3 line-clamp-2">{projeto.descricao}</p>
+                <p className="text-sm text-gray-500 mb-3 line-clamp-2">{textoSimples(projeto.descricao)}</p>
 
                 <div className="flex items-center justify-between mb-4">
                   <span
@@ -181,20 +209,26 @@ export default function ProfessorProjetosPage() {
                     "Gerenciar" = inscrições/vagas/posts (área do professor);
                     "Ver no portal" = a página pública, o que o estudante vê. */}
                 <div className="flex gap-2">
-                  <button
-                    onClick={() => openEdit(projeto)}
-                    title="Editar os dados do projeto"
-                    className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl border border-gray-200 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-all"
-                  >
-                    <Pencil className="w-3.5 h-3.5" />
-                    Editar
-                  </button>
+                  {!somenteGestor && (
+                    <button
+                      onClick={() => openEdit(projeto)}
+                      title="Editar os dados do projeto"
+                      className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl border border-gray-200 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-all"
+                    >
+                      <Pencil className="w-3.5 h-3.5" />
+                      Editar
+                    </button>
+                  )}
                   <Link
-                    href={`/professor/projetos/${projeto.id}`}
-                    title="Inscrições, vagas e posts do projeto"
+                    href={
+                      somenteGestor
+                        ? `/professor/projetos/${projeto.id}/pagina`
+                        : `/professor/projetos/${projeto.id}`
+                    }
+                    title={somenteGestor ? 'Editar a página e os posts do projeto' : 'Inscrições, vagas e posts do projeto'}
                     className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl bg-azul-eletrico text-white text-sm font-medium hover:bg-azul-eletrico/90 transition-all"
                   >
-                    Gerenciar
+                    {somenteGestor ? 'Editar página' : 'Gerenciar'}
                     <ChevronRight className="w-3.5 h-3.5" />
                   </Link>
                 </div>
@@ -220,7 +254,7 @@ export default function ProfessorProjetosPage() {
       {panelOpen && (
         <>
           <div className="fixed inset-0 bg-black/40 z-40" onClick={() => setPanelOpen(false)} />
-          <div className="fixed top-0 right-0 h-full w-full max-w-lg bg-white z-50 shadow-2xl flex flex-col overflow-hidden">
+          <div className="fixed top-0 right-0 h-full w-full max-w-2xl bg-white z-50 shadow-2xl flex flex-col overflow-hidden">
             <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
               <h2 className="font-bold text-gray-900">Editar Projeto</h2>
               <button onClick={() => setPanelOpen(false)} className="p-1.5 rounded-lg hover:bg-gray-100 transition-colors">
@@ -282,26 +316,24 @@ export default function ProfessorProjetosPage() {
                   />
                 </Field>
 
-                <Field label="Descrição">
-                  <textarea className="input-field min-h-[100px] resize-none" value={form.descricao} onChange={(e) => setForm((f) => ({ ...f, descricao: e.target.value }))} />
-                </Field>
+                {editing && (
+                  <CamposDeApresentacaoDoProjeto
+                    nome={form.nome || editing.nome}
+                    valores={form}
+                    subpasta={editing.id}
+                    onChange={(campo, valor) =>
+                      setForm((f) => ({ ...f, [campo]: valor }))
+                    }
+                  />
+                )}
 
-                <div className="grid grid-cols-2 gap-4">
-                  <Field label="Cor principal">
-                    <input type="color" className="input-field h-10 p-1 cursor-pointer" value={form.corPrimaria} onChange={(e) => setForm((f) => ({ ...f, corPrimaria: e.target.value }))} />
-                  </Field>
-                  <Field label="Email">
-                    <input type="email" className="input-field" value={form.email} onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))} />
-                  </Field>
-                </div>
-
-                <div className="grid grid-cols-2 gap-4">
-                  <Field label="Instagram">
-                    <input className="input-field" value={form.instagram} onChange={(e) => setForm((f) => ({ ...f, instagram: e.target.value }))} placeholder="@usuario" />
-                  </Field>
-                  <Field label="Site">
-                    <input type="url" className="input-field" value={form.site} onChange={(e) => setForm((f) => ({ ...f, site: e.target.value }))} />
-                  </Field>
+                {/* Equipe de estudantes + financiamento: aparecem na página
+                    pública junto ao resumo (motivam quem pensa em se inscrever). */}
+                <div className="pt-2 space-y-4">
+                  <EquipeEFinanciamentoDoProjeto
+                    valores={form}
+                    onChange={(campo, valor) => setForm((f) => ({ ...f, [campo]: valor }))}
+                  />
                 </div>
 
                 <div className="pt-2">

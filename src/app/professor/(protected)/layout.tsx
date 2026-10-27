@@ -2,6 +2,7 @@ import { redirect } from 'next/navigation';
 import { ProfessorShell } from '@/components/professor/ProfessorShell';
 import { getVerifiedServerSession } from '@/lib/session';
 import { getUserRole } from '@/actions/admin';
+import { usuarioTemAlgumProjetoComoGestor } from '@/lib/permissions';
 
 export const metadata = { title: 'Painel do Professor — Portal Conecta' };
 
@@ -22,7 +23,12 @@ export default async function ProfessorProtectedLayout({ children }: { children:
   // /admin, não este.
   const role = await getUserRole(session.email);
   if (role === 'ADMIN') redirect('/admin');
-  if (role !== 'PROFESSOR') redirect('/meus-dados');
 
-  return <ProfessorShell>{children}</ProfessorShell>;
+  // Aluno bolsista/voluntário nomeado gestor da página entra no MESMO shell,
+  // mas com a navegação reduzida (só os projetos que gerencia). As páginas
+  // sensíveis continuam bloqueadas no servidor e redirecionam no cliente.
+  const modoGestor = role !== 'PROFESSOR' && (await usuarioTemAlgumProjetoComoGestor(session.email));
+  if (role !== 'PROFESSOR' && !modoGestor) redirect('/meus-dados');
+
+  return <ProfessorShell modoGestor={modoGestor}>{children}</ProfessorShell>;
 }

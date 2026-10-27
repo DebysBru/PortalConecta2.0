@@ -1,0 +1,42 @@
+{
+  "at": "2026-10-23T02:40:57.298Z",
+  "environment": "https://portal.ifcoding.com.br",
+  "results": [
+    {
+      "message": "Quais cursos o campus oferece?",
+      "status": 200,
+      "elapsedMs": 5920,
+      "reply": "Encontrei apenas uma fonte com informação sobre cursos, e ela é antiga — a página está marcada como “Atualizado em 13 setembro, 2010” e descreve inclusive a oferta *prevista para 2014*. Então o que existe nas evidências é um histórico, não necessariamente a oferta vigente em 2026.\n\n**Histórico descrito nessa fonte [6]:**\n\n- **2010** (início das atividades): cursos técnicos em **Eletrotécnica** e **Agroecologia** [6].\n- **2011**: cursos Técnicos em **Logística** e Técnico em **Segurança do Trabalho**, na modalidade de Educação a Distância [6].\n- **2012**: curso Técnico em **Informática**, na modalidade Integrado, além de diversos cursos de Formação Inicial e Continuada (FIC) [6].\n- **Previsão para 2014**: Técnico em Informática (Integrado ao Ensino Médio), Técnico em Eletrotécnica (Integrado ao Ensino Médio e também Subsequente) e Técnico em Agroecologia (Concomitante) [6].\n\nNão encontrei nas evidências atuais uma lista atualizada dos cursos ofertados no Campus Ivaiporã — esse detalhe não aparece. Para confirmar a oferta vigente, vale conferir a página oficial do campus ou o edital de seleção mais recente.",
+      "fontes": [
+        {
+          "numero": 6,
+          "titulo": "O Câmpus – Campus Ivaiporã",
+          "url": "https://ifpr.edu.br/ivaipora/menu-institucional/o-campus/",
+          "categoria": "Markdown",
+          "tipo": "documento",
+          "trecho": "Atualizado em 13 setembro, 2010 O Câmpus Ivaiporã iniciou suas atividades no primeiro semestre de 2010, oferecendo os cursos técnicos em Eletrotécnica e Agroecologia. A partir do…",
+          "data": null,
+          "documentoId": "cmvk0o7ml01161jjgpy1q569a"
+        }
+      ],
+      "sources": []
+    },
+    {
+      "message": "Existe o edital 99999/2099?",
+      "status": 200,
+      "elapsedMs": 3038,
+      "reply": "Não encontrei nenhum edital com o número 99999/2099 na busca realizada: o filtro retornou 0 resultados, mostrando 0 de 0 .\n\nIsso não confirma que esse edital não exista em outro local — apenas que ele não aparece nessa consulta. Para conferir, vale checar diretamente a página de editais do Campus Ivaiporã ou o setor responsável. Se você tiver o ano, o tema ou o link do documento, me passe que eu ajudo a localizar.",
+      "fontes": [],
+      "sources": []
+    },
+    {
+      "message": "Qual o prazo do torneio de xadrez de Marte?",
+      "status": 200,
+      "elapsedMs": 10,
+      "reply": "De qual projeto ou documento você está falando? Informe o nome ou número para eu conferir a fonte certa.",
+      "fontes": [],
+      "sources": []
+    }
+  ],
+  "unauthenticatedUpload": 401
+}

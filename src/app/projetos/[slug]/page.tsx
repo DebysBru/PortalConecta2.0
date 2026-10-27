@@ -3,14 +3,17 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import {
   ChevronRight, Users, Mail, Instagram, Globe, ArrowLeft,
-  BookOpen, Calendar, ArrowRight, HelpCircle,
+  BookOpen, Calendar, ArrowRight, HelpCircle, GraduationCap, Landmark,
 } from 'lucide-react';
 import { getStatusLabel, getStatusColor, formatDate } from '@/lib/utils';
+import { equipeDoProjeto, financiamentoDoProjeto } from '@/lib/projetos-equipe';
 import { stripHtml } from '@/lib/rich-text';
 import { SafeHtml } from '@/components/ui/SafeHtml';
 import { BotaoFavorito } from '@/components/ui/BotaoFavorito';
 import { PostCapa } from '@/components/ui/PostCapa';
 import { MascoteInterativa } from '@/components/ifizinha/MascoteInterativa';
+import { LogoDoProjeto } from '@/components/projetos/LogoDoProjeto';
+import { estiloDaCapa } from '@/lib/projeto-midia';
 import { prisma } from '@/lib/prisma';
 import type { Metadata } from 'next';
 
@@ -67,13 +70,28 @@ export default async function ProjetoPage({ params }: { params: Params }) {
 
   if (!projeto) notFound();
 
-  // Buscar projetos relacionados (mesma área)
+  // Equipe de estudantes e financiamento: os dois campos que a coordenação
+  // cadastra e que aparecem junto ao resumo. Ver src/lib/projetos-equipe.ts.
+  const equipe = equipeDoProjeto(projeto);
+  const financiamento = financiamentoDoProjeto(projeto);
+
+  // Projetos relacionados = MESMO COORDENADOR do projeto aberto.
+  //
+  // Antes a régua era "mesma área" — então dois projetos de áreas iguais e
+  // coordenadores diferentes apareciam como relacionados. A relação agora é
+  // pela identidade da coordenação: e-mail quando cadastrado; se o projeto
+  // antigo só tiver o nome, compara o nome (sem diferenciar maiúsculas).
+  // Sem nenhum projeto do mesmo coordenador, a seção inteira não é renderizada.
+  const filtroDoMesmoCoordenador = projeto.coordenadorEmail
+    ? { coordenadorEmail: projeto.coordenadorEmail }
+    : { coordenador: { equals: projeto.coordenador.trim(), mode: 'insensitive' as const } };
+
   const relacionados = await prisma.projeto.findMany({
     where: {
       id: { not: projeto.id },
-      area: projeto.area,
       review_status: 'PUBLICADO',
       deleted_at: null,
+      ...filtroDoMesmoCoordenador,
     },
     take: 3,
     select: {
@@ -82,6 +100,7 @@ export default async function ProjetoPage({ params }: { params: Params }) {
       slug: true,
       area: true,
       corPrimaria: true,
+      logoUrl: true,
       coordenador: true,
       resumoCurto: true,
     },
@@ -95,7 +114,7 @@ export default async function ProjetoPage({ params }: { params: Params }) {
           fundo sólido deixaria retângulo sobre o gradiente. */}
       <div
         className="relative overflow-x-clip pt-20 pb-10"
-        style={{ background: `linear-gradient(135deg, ${projeto.corPrimaria} 0%, ${projeto.corPrimaria}cc 100%)` }}
+        style={estiloDaCapa(projeto.corPrimaria, projeto.bannerUrl)}
       >
         <div className="pointer-events-none absolute bottom-0 right-0 hidden w-[180px] xl:block">
           <div className="-mr-6 -mb-10">
@@ -118,12 +137,7 @@ export default async function ProjetoPage({ params }: { params: Params }) {
 
           <div className="flex items-start gap-5">
             <div className="w-16 h-16 md:w-20 md:h-20 bg-white/20 rounded-2xl flex items-center justify-center text-white font-black text-3xl border border-white/30 flex-shrink-0 overflow-hidden">
-              {projeto.logoUrl ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img src={projeto.logoUrl} alt={`Logo ${projeto.nome}`} className="w-full h-full object-cover" />
-              ) : (
-                projeto.nome.charAt(0)
-              )}
+              <LogoDoProjeto nome={projeto.nome} logoUrl={projeto.logoUrl} />
             </div>
             <div>
               <div className="flex flex-wrap gap-2 mb-3">
@@ -143,6 +157,9 @@ export default async function ProjetoPage({ params }: { params: Params }) {
               <div className="flex items-center gap-2 text-white/80 text-sm">
                 <Users className="w-4 h-4" />
                 <span>Coordenação: <strong className="text-white">{projeto.coordenador}</strong></span>
+              </div>
+              <div className="mt-3">
+                <BotaoFavorito entidade="projeto" entidadeId={projeto.id} variante="escuro" />
               </div>
             </div>
           </div>
@@ -171,7 +188,90 @@ export default async function ProjetoPage({ params }: { params: Params }) {
               ) : (
                 <p className="text-gray-500 italic">Nenhuma descrição informada para este projeto.</p>
               )}
+
+              {/* Financiamento — de onde vem o recurso do projeto. Fica no
+                  mesmo cartão do resumo (a sugestão era justamente "junto ao
+                  resumo"), como selos curtos. */}
+              {financiamento.length > 0 && (
+                <div className="mt-5 pt-4 border-t border-gray-100">
+                  <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2 flex items-center gap-1.5">
+                    <Landmark className="w-3.5 h-3.5" />
+                    Financiamento
+                  </p>
+                  <div className="flex flex-wrap gap-2">
+                    {financiamento.map((fonte) => (
+                      <span
+                        key={fonte}
+                        className="inline-flex px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-800 border border-emerald-100"
+                      >
+                        {fonte}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
+
+            {/* Estudantes do projeto — bolsistas e voluntários que já atuam.
+                Mostrar a equipe formada motiva quem está pensando em se
+                inscrever (só nomes cadastrados pela coordenação; o portal não
+                publica inscrito automaticamente). */}
+            {equipe.total > 0 && (
+              <div className="bg-white rounded-2xl border border-gray-100 p-6">
+                <div className="flex items-center justify-between gap-3 mb-1">
+                  <h2 className="font-bold text-gray-900 text-lg flex items-center gap-2">
+                    <GraduationCap className="w-5 h-5" style={{ color: projeto.corPrimaria }} />
+                    Estudantes do Projeto
+                  </h2>
+                  <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-gray-100 text-gray-600 shrink-0">
+                    {equipe.total} estudante{equipe.total > 1 ? 's' : ''}
+                  </span>
+                </div>
+                <p className="text-sm text-gray-500 mb-4">
+                  Quem já está atuando neste projeto — a equipe está aberta a novos estudantes.
+                </p>
+
+                <div className="space-y-4">
+                  {equipe.bolsistas.length > 0 && (
+                    <div>
+                      <p className="text-xs font-semibold uppercase tracking-wider text-blue-700 mb-2">
+                        Bolsistas
+                      </p>
+                      <ul className="flex flex-wrap gap-2">
+                        {equipe.bolsistas.map((nome) => (
+                          <li
+                            key={nome}
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium bg-blue-50 text-blue-800 border border-blue-100"
+                          >
+                            <span className="w-1.5 h-1.5 rounded-full bg-blue-500" aria-hidden />
+                            {nome}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+
+                  {equipe.voluntarios.length > 0 && (
+                    <div>
+                      <p className="text-xs font-semibold uppercase tracking-wider text-purple-700 mb-2">
+                        Voluntários
+                      </p>
+                      <ul className="flex flex-wrap gap-2">
+                        {equipe.voluntarios.map((nome) => (
+                          <li
+                            key={nome}
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium bg-purple-50 text-purple-800 border border-purple-100"
+                          >
+                            <span className="w-1.5 h-1.5 rounded-full bg-purple-500" aria-hidden />
+                            {nome}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
 
             {/* Vagas abertas — vagas reais (model Vaga), cadastradas pelo professor */}
             {projeto.vagas.length > 0 && (
@@ -328,19 +428,19 @@ export default async function ProjetoPage({ params }: { params: Params }) {
               </div>
             )}
 
-            {/* Projetos relacionados */}
+            {/* Projetos do mesmo coordenador — some quando não há nenhum. */}
             {relacionados.length > 0 && (
               <div>
-                <h2 className="font-bold text-gray-900 text-2xl mb-6">Projetos Relacionados</h2>
+                <h2 className="font-bold text-gray-900 text-2xl mb-6">Outros projetos deste coordenador</h2>
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                   {relacionados.map((r) => (
                     <Link key={r.id} href={`/projetos/${r.slug}`} className="group block">
                       <div className="bg-white rounded-xl border border-gray-100 p-4 hover:border-gray-200 hover:shadow-md transition-all">
                         <div
-                          className="w-10 h-10 rounded-lg flex items-center justify-center text-white font-bold text-sm mb-3"
+                          className="w-10 h-10 rounded-lg flex items-center justify-center text-white font-bold text-sm mb-3 overflow-hidden"
                           style={{ backgroundColor: r.corPrimaria }}
                         >
-                          {r.nome.charAt(0)}
+                          <LogoDoProjeto nome={r.nome} logoUrl={r.logoUrl} />
                         </div>
                         <h3 className="font-semibold text-gray-900 text-sm group-hover:text-azul-eletrico transition-colors line-clamp-2">
                           {r.nome}
@@ -467,11 +567,6 @@ export default async function ProjetoPage({ params }: { params: Params }) {
                   </Link>
                 </>
               )}
-            </div>
-
-            {/* Favoritar (ROADMAP 6.3) — sobre o gradiente, variante escura */}
-            <div className="mt-3">
-              <BotaoFavorito entidade="projeto" entidadeId={projeto.id} variante="escuro" />
             </div>
           </div>
         </div>

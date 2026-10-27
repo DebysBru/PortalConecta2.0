@@ -5,10 +5,16 @@ const globalForPrisma = globalThis as unknown as {
   prisma: PrismaClient | undefined;
 };
 
+// Log de TODA query no terminal deixa o `next dev` lento (a home dispara
+// dezenas de consultas por request e cada linha vai para o stdout). Fica
+// opt-in: `PRISMA_LOG_QUERIES=1 npm run dev` quando for depurar SQL.
+const logDeQueries =
+  process.env.NODE_ENV === 'development' && process.env.PRISMA_LOG_QUERIES === '1';
+
 export const prisma =
   globalForPrisma.prisma ??
   new PrismaClient({
-    log: process.env.NODE_ENV === 'development' ? ['query', 'error', 'warn'] : ['error'],
+    log: logDeQueries ? ['query', 'error', 'warn'] : ['error'],
   });
 
 /**

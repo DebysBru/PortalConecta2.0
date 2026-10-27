@@ -4,6 +4,7 @@ import {
   ICONES_DE_POST,
   capaDoPost,
   chaveDeIconeValida,
+  erroDeUrlDeCapa,
   iconeDaChave,
   semCapaEscolhida,
   type ChaveIconePost,
@@ -119,5 +120,19 @@ describe('resolução da capa', () => {
     expect(semCapaEscolhida({ icone: 'chave-invalida' })).toBe(true);
     expect(semCapaEscolhida({ imagemUrl: '/files/imagens/2026/10/foto.png' })).toBe(false);
     expect(semCapaEscolhida({ icone: 'conquista' })).toBe(false);
+  });
+
+  it('recusa link de publicação social como imagem de capa', () => {
+    expect(erroDeUrlDeCapa('https://www.instagram.com/p/DexhQegjLAu/')).toMatch(/publicação em rede social/i);
+    expect(erroDeUrlDeCapa('https://www.facebook.com/photo/?fbid=123')).toMatch(/publicação em rede social/i);
+    expect(erroDeUrlDeCapa('https://www.tiktok.com/@perfil/video/123')).toMatch(/publicação em rede social/i);
+  });
+
+  it('aceita storage local, imagem direta e URLs sem host social', () => {
+    expect(erroDeUrlDeCapa('/files/imagens/2026/10/foto.webp')).toBeNull();
+    expect(erroDeUrlDeCapa('https://cdn.exemplo.com/foto.webp')).toBeNull();
+    expect(erroDeUrlDeCapa('https://www.instagram.com/foto.jpg')).toBeNull();
+    expect(erroDeUrlDeCapa('')).toBeNull();
+    expect(erroDeUrlDeCapa(null)).toBeNull();
   });
 });

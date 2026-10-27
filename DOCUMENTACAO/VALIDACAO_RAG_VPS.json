@@ -1,0 +1,110 @@
+{
+  "environment": "http://127.0.0.1:3003",
+  "marker": "IFIZINHA-TEST-b4738d6c-f82c-4dea-b22e-7053eccf6456",
+  "results": [
+    {
+      "scenario": "Upload sem token é recusado",
+      "status": "PASS"
+    },
+    {
+      "scenario": "Upload com token inválido é recusado",
+      "status": "PASS"
+    },
+    {
+      "scenario": "Conta não administrativa real é recusada",
+      "status": "PASS"
+    },
+    {
+      "scenario": "Upload administrativo real",
+      "status": "PASS",
+      "detail": {
+        "http": 200,
+        "state": "indexed"
+      }
+    },
+    {
+      "scenario": "Original privado é servido pelo gate público",
+      "status": "PASS"
+    },
+    {
+      "scenario": "Página da fonte contém o conteúdo",
+      "status": "PASS"
+    },
+    {
+      "scenario": "Publicação de V2",
+      "status": "PASS",
+      "detail": {
+        "http": 200,
+        "state": "indexed"
+      }
+    },
+    {
+      "scenario": "Original de V1 não é público após substituição",
+      "status": "PASS"
+    },
+    {
+      "scenario": "Página de V1 oculta após substituição",
+      "status": "PASS"
+    },
+    {
+      "scenario": "Banco confirma V2 ativa",
+      "status": "PASS"
+    },
+    {
+      "scenario": "V2 indexada com Gemini real",
+      "status": "PASS"
+    },
+    {
+      "scenario": "Busca exclusivamente vetorial encontra V2",
+      "status": "PASS"
+    },
+    {
+      "scenario": "Resposta fundamentada em V2, repetição 1",
+      "status": "PASS"
+    },
+    {
+      "scenario": "Continuação mantém a fonte, repetição 1",
+      "status": "PASS"
+    },
+    {
+      "scenario": "Resposta fundamentada em V2, repetição 2",
+      "status": "PASS"
+    },
+    {
+      "scenario": "Continuação mantém a fonte, repetição 2",
+      "status": "PASS"
+    },
+    {
+      "scenario": "Resposta fundamentada em V2, repetição 3",
+      "status": "PASS"
+    },
+    {
+      "scenario": "Continuação mantém a fonte, repetição 3",
+      "status": "PASS"
+    },
+    {
+      "scenario": "Ocultação autenticada",
+      "status": "PASS"
+    },
+    {
+      "scenario": "Fonte oculta não permanece acessível",
+      "status": "PASS"
+    },
+    {
+      "scenario": "Versão já publicada pode ser reativada",
+      "status": "PASS"
+    },
+    {
+      "scenario": "Fonte reativada volta a abrir",
+      "status": "PASS"
+    },
+    {
+      "scenario": "Chat real responde ou informa ausência de configuração corretamente",
+      "status": "PASS",
+      "detail": {
+        "http": 200
+      }
+    }
+  ],
+  "cleanedFixtures": 2
+}

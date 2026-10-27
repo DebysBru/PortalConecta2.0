@@ -11,7 +11,8 @@ import { LIMPEZA_TABLES } from '@/lib/limpeza-tables';
 import { sincronizarProjetoSintetico, removerProjetoSintetico } from '@/lib/projeto-sintetico';
 import { sanitizeHtml } from '@/lib/rich-text';
 import { limparAnexosRemovidos, validarMidiasDoPost } from '@/lib/post-midias-server';
-import { chaveDeIconeValida } from '@/lib/post-capa';
+import { chaveDeIconeValida, erroDeUrlDeCapa } from '@/lib/post-capa';
+import { normalizarEstudantes, normalizarFinanciamento } from '@/lib/projetos-equipe';
 import { getVerifiedServerSession } from '@/lib/session';
 import { parseDataDoFormulario } from '@/lib/datas';
 import type { Prisma } from '@prisma/client';
@@ -19,8 +20,10 @@ import type { PerguntaExtra } from '@/lib/formulario-extra';
 import {
   isAdministradorGeral,
   isCoordenadorOuViceDoProjeto,
+  PERMISSAO_ADMIN_GERAL,
   resolveUserRole,
   usuarioTemAlgumProjeto,
+  usuarioTemAlgumProjetoComoGestor,
 } from '@/lib/permissions';
 import {
   CategoriaEdital, StatusEdital, StatusProjeto, StatusPost,
@@ -75,7 +78,10 @@ export async function getUserRole(email: string): Promise<UserRole | null> {
   return resolveUserRole(email);
 }
 
-export async function ensureUser(email: string, name?: string): Promise<{ id: string; role: UserRole }> {
+export async function ensureUser(
+  email: string,
+  name?: string,
+): Promise<{ id: string; role: UserRole; isMasterAdmin: boolean; isGestor: boolean }> {
   const user = await prisma.user.upsert({
     where: { email },
     update: name ? { name } : {},
@@ -85,7 +91,13 @@ export async function ensureUser(email: string, name?: string): Promise<{ id: st
   // cliente já receba ADMIN/PROFESSOR corretos no primeiro login, em vez do
   // ESTUDANTE default do upsert acima.
   const role = (await resolveUserRole(email)) ?? user.role;
-  return { id: user.id, role };
+  return {
+    id: user.id,
+    role,
+    // Flags de interface: o servidor revalida tudo em cada action.
+    isMasterAdmin: isAdministradorGeral(email),
+    isGestor: await usuarioTemAlgumProjetoComoGestor(email),
+  };
 }
 
 // ── Dashboard stats ───────────────────────────────────────────────────────────
@@ -152,9 +164,12 @@ export async function createEdital(
     if (!data.dataEncerramento) {
       return { ok: false, error: MENSAGENS.campoObrigatorio('Data de encerramento') };
     }
-    if (!data.linkOficial?.trim()) {
-      return { ok: false, error: MENSAGENS.campoObrigatorio('Link oficial') };
-    }
+    // `linkOficial` NÃO é obrigatório (mudado em 2026-10-26): a extração do PDF
+    // só preenche esse campo quando o documento traz uma URL no texto — e muitos
+    // editais internos do campus não trazem nenhuma. Exigir o campo travava o
+    // fluxo "Preencher a partir do PDF" no momento de salvar, depois de a IA já
+    // ter feito todo o trabalho. As páginas públicas já renderizam o link
+    // condicionalmente (`edital.linkOficial && ...`), então ausência é segura.
 
     const author = await ensureUser(authorEmail);
     const slug = slugify(data.titulo);
@@ -166,7 +181,7 @@ export async function createEdital(
         resumo: data.resumo,
         dataEncerramento: parseDataDoFormulario(data.dataEncerramento),
         status: data.status,
-        linkOficial: data.linkOficial,
+        linkOficial: data.linkOficial?.trim() || null,
         arquivoPdfUrl: data.arquivoPdfUrl ?? null,
         destaque: data.destaque ?? false,
         traducaoIFizinha: data.traducaoIFizinha,
@@ -203,6 +218,10 @@ export async function updateEdital(
       where: { id },
       data: {
         ...data,
+        // `linkOficial` é opcional: o formulário manda '' quando fica em branco, e
+        // '' não é o mesmo que "sem link" (a coluna é anulável). Normaliza para
+        // null, sem tocar no campo quando ele nem veio neste update.
+        linkOficial: data.linkOficial !== undefined ? data.linkOficial.trim() || null : undefined,
         dataEncerramento: data.dataEncerramento ? parseDataDoFormulario(data.dataEncerramento) : undefined,
         slug: data.titulo ? slugify(data.titulo) : undefined,
       },
@@ -269,12 +288,19 @@ export type ProjetoFormData = {
   viceCoordenadorEmail?: string;
   area: string;
   descricao?: string;
+  resumoCurto?: string;
   dataInicio?: string;
   servidores?: string;
   alunos?: string;
+  /** Equipe de estudantes exibida na página pública (ver src/lib/projetos-equipe.ts). */
+  estudantesBolsistas?: string[];
+  estudantesVoluntarios?: string[];
+  /** Fontes de financiamento exibidas como selos junto ao resumo. */
+  financiamento?: string[];
   observacao?: string;
   status: StatusProjeto;
   logoUrl?: string;
+  bannerUrl?: string;
   corPrimaria?: string;
   email?: string;
   instagram?: string;
@@ -363,6 +389,15 @@ export async function createProjeto(data: ProjetoFormData, callerEmail: string):
       return { ok: false, error: MENSAGENS.campoObrigatorio('Área') };
     }
 
+    // Equipe e financiamento aparecem na página pública: o teto/limpeza é do
+    // servidor (o formulário pode ser chamado direto, sem passar pela tela).
+    const bolsistas = normalizarEstudantes(data.estudantesBolsistas, 'Estudantes bolsistas');
+    if (!bolsistas.ok) return bolsistas;
+    const voluntarios = normalizarEstudantes(data.estudantesVoluntarios, 'Estudantes voluntários');
+    if (!voluntarios.ok) return voluntarios;
+    const financiamento = normalizarFinanciamento(data.financiamento);
+    if (!financiamento.ok) return financiamento;
+
     const slug = slugify(nome);
     const { adminEmails, ...dbData } = data;
     const projeto = await prisma.projeto.create({
@@ -375,12 +410,17 @@ export async function createProjeto(data: ProjetoFormData, callerEmail: string):
         viceCoordenadorEmail: dbData.viceCoordenadorEmail?.trim().toLowerCase() || null,
         area: dbData.area,
         descricao: dbData.descricao ?? null,
+        resumoCurto: dbData.resumoCurto ?? null,
         dataInicio: dbData.dataInicio ? new Date(dbData.dataInicio) : null,
         servidores: dbData.servidores ?? null,
         alunos: dbData.alunos ?? null,
+        estudantesBolsistas: bolsistas.valor,
+        estudantesVoluntarios: voluntarios.valor,
+        financiamento: financiamento.valor,
         observacao: dbData.observacao ?? null,
         status: dbData.status,
         logoUrl: dbData.logoUrl ?? null,
+        bannerUrl: dbData.bannerUrl ?? null,
         corPrimaria: dbData.corPrimaria ?? '#2F52D3',
         email: dbData.email ?? null,
         instagram: dbData.instagram ?? null,
@@ -400,6 +440,7 @@ export async function createProjeto(data: ProjetoFormData, callerEmail: string):
     // Derivar eventos automaticamente
     await derivarEventosProjeto(projeto.id).catch(console.error);
     cache.invalidate('chat:');
+    cache.invalidate('home:');
     await sincronizarProjetoSintetico(projeto.id).catch(console.error);
 
     return { ok: true, data: { id: projeto.id, slug: projeto.slug } };
@@ -428,12 +469,30 @@ export async function updateProjeto(id: string, data: Partial<ProjetoFormData>, 
     if (data.viceCoordenadorEmail !== undefined) updateData.viceCoordenadorEmail = data.viceCoordenadorEmail?.trim().toLowerCase() || null;
     if (data.area !== undefined) updateData.area = data.area;
     if (data.descricao !== undefined) updateData.descricao = data.descricao;
+    if (data.descricao !== undefined) updateData.descricao = data.descricao;
+    if (data.resumoCurto !== undefined) updateData.resumoCurto = data.resumoCurto;
     if (data.dataInicio !== undefined) updateData.dataInicio = data.dataInicio ? parseDataDoFormulario(data.dataInicio) : null;
     if (data.servidores !== undefined) updateData.servidores = data.servidores;
     if (data.alunos !== undefined) updateData.alunos = data.alunos;
+    if (data.estudantesBolsistas !== undefined) {
+      const bolsistas = normalizarEstudantes(data.estudantesBolsistas, 'Estudantes bolsistas');
+      if (!bolsistas.ok) return bolsistas;
+      updateData.estudantesBolsistas = bolsistas.valor;
+    }
+    if (data.estudantesVoluntarios !== undefined) {
+      const voluntarios = normalizarEstudantes(data.estudantesVoluntarios, 'Estudantes voluntários');
+      if (!voluntarios.ok) return voluntarios;
+      updateData.estudantesVoluntarios = voluntarios.valor;
+    }
+    if (data.financiamento !== undefined) {
+      const financiamento = normalizarFinanciamento(data.financiamento);
+      if (!financiamento.ok) return financiamento;
+      updateData.financiamento = financiamento.valor;
+    }
     if (data.observacao !== undefined) updateData.observacao = data.observacao;
     if (data.status !== undefined) updateData.status = data.status;
     if (data.logoUrl !== undefined) updateData.logoUrl = data.logoUrl;
+    if (data.bannerUrl !== undefined) updateData.bannerUrl = data.bannerUrl;
     if (data.corPrimaria !== undefined) updateData.corPrimaria = data.corPrimaria;
     if (data.email !== undefined) updateData.email = data.email;
     if (data.instagram !== undefined) updateData.instagram = data.instagram;
@@ -453,6 +512,7 @@ export async function updateProjeto(id: string, data: Partial<ProjetoFormData>, 
     // Re-derivar eventos quando dados mudam
     await derivarEventosProjeto(id).catch(console.error);
     cache.invalidate('chat:');
+    cache.invalidate('home:');
     await sincronizarProjetoSintetico(id).catch(console.error);
 
     return { ok: true };
@@ -475,6 +535,7 @@ export async function toggleProjetoPublicacao(id: string, callerEmail: string): 
     const review_status = projeto.review_status === 'PUBLICADO' ? 'RASCUNHO' : 'PUBLICADO';
     await prisma.projeto.update({ where: { id }, data: { review_status } });
     cache.invalidate('chat:');
+    cache.invalidate('home:');
     await sincronizarProjetoSintetico(id).catch(console.error);
 
     return { ok: true, data: { review_status } };
@@ -567,6 +628,9 @@ export async function createPost(data: PostFormData, authorEmail: string): Promi
     const slug = `${slugify(data.titulo)}-${Date.now().toString(36)}`;
     const conteudo = sanitizeHtml(data.conteudo);
 
+    const erroCapa = erroDeUrlDeCapa(data.imagemUrl);
+    if (erroCapa) return { ok: false, error: erroCapa };
+
     // Mesmo orçamento do painel do professor (20 MB por post, somando imagens do
     // texto + anexos). Sem isto, um post criado pelo admin escaparia do limite.
     const midias = await validarMidiasDoPost(conteudo, data.anexos);
@@ -601,34 +665,65 @@ export async function updatePost(id: string, data: Partial<PostFormData>, userEm
     const userRecord = await prisma.user.findUnique({ where: { email: userEmail }, select: { role: true } });
     if (!userRecord) return { ok: false, error: MENSAGENS.usuarioNaoEncontrado };
 
+    // Estado atual: o conteúdo pode não vir nesta chamada (update parcial), e o
+    // orçamento precisa considerar o que JÁ está publicado + o que está entrando.
+    // `projetoId` também é lido aqui para validar a troca de projeto.
+    const atual = await prisma.post.findUnique({
+      where: { id },
+      select: { projetoId: true, conteudo: true, anexos: true },
+    });
+    if (!atual) return { ok: false, error: 'Não encontramos esta publicação. Ela pode ter sido removida por outra pessoa.' };
+
     if (userRecord.role === 'PROFESSOR') {
-      const post = await prisma.post.findUnique({ where: { id }, select: { projetoId: true } });
-      if (!post) return { ok: false, error: 'Não encontramos esta publicação. Ela pode ter sido removida por outra pessoa.' };
-      const isCoordinator = await isCoordenadorOuViceDoProjeto(post.projetoId, userEmail);
+      const isCoordinator = await isCoordenadorOuViceDoProjeto(atual.projetoId, userEmail);
       if (!isCoordinator) return { ok: false, error: MENSAGENS.semPermissaoCoordenador };
     } else if (userRecord.role !== 'ADMIN') {
       return { ok: false, error: MENSAGENS.semPermissao };
     }
 
-    // Estado atual: o conteúdo pode não vir nesta chamada (update parcial), e o
-    // orçamento precisa considerar o que JÁ está publicado + o que está entrando.
-    const atual = await prisma.post.findUnique({
-      where: { id },
-      select: { conteudo: true, anexos: true },
-    });
-    if (!atual) return { ok: false, error: 'Não encontramos esta publicação. Ela pode ter sido removida por outra pessoa.' };
+    // Mover post entre projetos é permitido — o formulário do admin já oferece
+    // o select. A checagem é feita nos DOIS lados: o professor precisa
+    // coordenar o projeto atual (acima) e também o projeto de destino. Sem
+    // isso, um coordenador poderia jogar uma publicação em projeto alheio.
+    const projetoDestino = data.projetoId?.trim();
+    if (data.projetoId !== undefined) {
+      if (!projetoDestino) {
+        return { ok: false, error: 'Escolha o projeto que vai receber esta publicação.' };
+      }
+
+      if (projetoDestino !== atual.projetoId) {
+        const destino = await prisma.projeto.findUnique({
+          where: { id: projetoDestino },
+          select: { id: true },
+        });
+        if (!destino) {
+          return { ok: false, error: 'O projeto de destino não existe mais. Atualize a página e escolha outro.' };
+        }
+
+        if (
+          userRecord.role === 'PROFESSOR' &&
+          !(await isCoordenadorOuViceDoProjeto(projetoDestino, userEmail))
+        ) {
+          return { ok: false, error: 'Você só pode mover a publicação para um projeto que coordena.' };
+        }
+      }
+    }
 
     const conteudoFinal = data.conteudo !== undefined ? sanitizeHtml(data.conteudo) : atual.conteudo;
     const anexosEntrada = data.anexos !== undefined ? data.anexos : atual.anexos;
+
+    if (data.imagemUrl !== undefined) {
+      const erroCapa = erroDeUrlDeCapa(data.imagemUrl);
+      if (erroCapa) return { ok: false, error: erroCapa };
+    }
 
     // Mesmo orçamento do painel do professor (20 MB por post).
     const midias = await validarMidiasDoPost(conteudoFinal, anexosEntrada);
     if (!midias.ok) return { ok: false, error: midias.error };
 
     // Campos gravados EXPLICITAMENTE. Antes era `...data`, que espalhava no
-    // Prisma qualquer chave que o cliente mandasse — inclusive `projetoId` e
-    // `authorId`, o que permitia mover o post para um projeto que a pessoa não
-    // coordena. O que não está nesta lista simplesmente não é aceito.
+    // Prisma qualquer chave que o cliente mandasse — inclusive `authorId`.
+    // `projetoId` agora é aceito, mas passou pela validação de destino acima.
     //
     // O `slug` NÃO entra: ele é a URL pública do post (a que o botão "Ver no
     // portal" abre e a que já foi compartilhada com os estudantes) e é gerado uma
@@ -647,6 +742,7 @@ export async function updatePost(id: string, data: Partial<PostFormData>, userEm
         ...(data.linkExterno !== undefined ? { linkExterno: data.linkExterno ?? null } : {}),
         ...(data.icone !== undefined ? { icone: chaveDeIconeValida(data.icone) ? data.icone : null } : {}),
         ...(data.status !== undefined ? { status: data.status } : {}),
+        ...(projetoDestino ? { projetoId: projetoDestino } : {}),
         anexos: midias.anexos as unknown as Prisma.InputJsonValue,
       },
     });
@@ -766,7 +862,15 @@ export async function deleteEvento(id: string, callerEmail: string): Promise<Act
 export async function listUsuarios() {
   return prisma.user.findMany({ 
     orderBy: { createdAt: 'desc' },
-    include: { projetosAdmin: { select: { id: true, nome: true } } }
+    include: {
+      projetosAdmin: { select: { id: true, nome: true } },
+      // A tela mostra quem foi promovido pelo e-mail mestre (o papel ADMIN
+      // sozinho também vale para o próprio mestre, que não tem permission).
+      permissions: {
+        where: { permission: PERMISSAO_ADMIN_GERAL },
+        select: { id: true },
+      },
+    }
   });
 }
 
@@ -779,6 +883,13 @@ export async function updateUserRole(userId: string, role: UserRole, projetoId: 
     const auth = await requireAdminEmail(callerEmail);
     if (!auth.ok) return auth;
 
+    // Gerenciar usuários é exclusivo do e-mail mestre. Um Administrador Geral
+    // promovido pode usar o restante do painel, mas NÃO pode criar outro admin
+    // (nem mudar papéis) — era exatamente a restrição pedida.
+    if (!isAdministradorGeral(callerEmail)) {
+      return { ok: false, error: MENSAGENS.semPermissaoAdminGeral };
+    }
+
     const caller = await prisma.user.findUnique({ where: { email: callerEmail }, select: { id: true } });
     if (caller && caller.id === userId) {
       return { ok: false, error: 'Você não pode alterar o seu próprio nível de acesso.' };
@@ -788,17 +899,34 @@ export async function updateUserRole(userId: string, role: UserRole, projetoId: 
       return { ok: false, error: 'Escolha a qual projeto este professor ficará vinculado.' };
     }
 
-    // Só existe um Administrador Geral (ADMIN_EMAILS) — ninguém mais pode
-    // virar ADMIN por aqui, mesmo sendo o próprio Administrador Geral quem
-    // chamou a action. Sem essa checagem, o painel de Usuários permitia criar
-    // administradores adicionais, contrariando o modelo de "um só Admin Geral
-    // + professores restritos aos próprios projetos".
+    const target = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { email: true, role: true },
+    });
+    if (!target) return { ok: false, error: 'Usuário não encontrado.' };
+
     if (role === 'ADMIN') {
-      const target = await prisma.user.findUnique({ where: { id: userId }, select: { email: true } });
-      if (!target || !isAdministradorGeral(target.email)) {
-        return { ok: false, error: 'O portal tem um único Administrador Geral, definido na configuração do sistema. Não é possível promover outra pessoa a esse nível.' };
+      // O e-mail mestre já é ADMIN por configuração; qualquer outro passa a ser
+      // Administrador Geral via permissão explícita `admin_geral`.
+      if (!isAdministradorGeral(target.email)) {
+        await prisma.userPermission.upsert({
+          where: { user_id_permission: { user_id: userId, permission: PERMISSAO_ADMIN_GERAL } },
+          update: { granted_by: caller?.id ?? null },
+          create: { user_id: userId, permission: PERMISSAO_ADMIN_GERAL, granted_by: caller?.id ?? null },
+        });
       }
+      await prisma.user.update({ where: { id: userId }, data: { role: 'ADMIN' } });
+      return { ok: true };
     }
+
+    // Rebaixar o e-mail mestre é proibido. Para os demais, sair de ADMIN
+    // remove a permissão que sustentava o papel (o próximo login recalcula).
+    if (isAdministradorGeral(target.email)) {
+      return { ok: false, error: 'O Administrador Geral definido na configuração do sistema não pode ser rebaixado por aqui.' };
+    }
+    await prisma.userPermission.deleteMany({
+      where: { user_id: userId, permission: PERMISSAO_ADMIN_GERAL },
+    });
 
     await prisma.user.update({ where: { id: userId }, data: { role } });
 
@@ -826,9 +954,18 @@ export async function deleteUser(userId: string, callerEmail: string): Promise<A
     const auth = await requireAdminEmail(callerEmail);
     if (!auth.ok) return auth;
 
+    if (!isAdministradorGeral(callerEmail)) {
+      return { ok: false, error: MENSAGENS.semPermissaoAdminGeral };
+    }
+
     const caller = await prisma.user.findUnique({ where: { email: callerEmail }, select: { id: true } });
     if (caller && caller.id === userId) {
       return { ok: false, error: 'Você não pode excluir a sua própria conta enquanto está logado nela.' };
+    }
+
+    const alvo = await prisma.user.findUnique({ where: { id: userId }, select: { email: true } });
+    if (alvo && isAdministradorGeral(alvo.email)) {
+      return { ok: false, error: 'O Administrador Geral definido na configuração do sistema não pode ser excluído.' };
     }
 
     await prisma.user.delete({ where: { id: userId } });
@@ -843,13 +980,12 @@ export async function inviteUser(email: string, role: UserRole, projetoId: strin
     const auth = await requireAdminEmail(callerEmail);
     if (!auth.ok) return auth;
 
-    if (role === 'PROFESSOR' && !projetoId) {
-      return { ok: false, error: 'Escolha a qual projeto este professor ficará vinculado.' };
+    if (!isAdministradorGeral(callerEmail)) {
+      return { ok: false, error: MENSAGENS.semPermissaoAdminGeral };
     }
 
-    // Mesma regra de updateUserRole: só o Administrador Geral (ADMIN_EMAILS) pode ser ADMIN.
-    if (role === 'ADMIN' && !isAdministradorGeral(email)) {
-      return { ok: false, error: 'O portal tem um único Administrador Geral, definido na configuração do sistema. Não é possível convidar outra pessoa com esse nível de acesso.' };
+    if (role === 'PROFESSOR' && !projetoId) {
+      return { ok: false, error: 'Escolha a qual projeto este professor ficará vinculado.' };
     }
 
     const user = await prisma.user.upsert({
@@ -857,6 +993,21 @@ export async function inviteUser(email: string, role: UserRole, projetoId: strin
       update: { role },
       create: { email, name: email, role },
     });
+
+    if (role === 'ADMIN' && !isAdministradorGeral(email)) {
+      // Convite com nível ADMIN cria a permissão que sustenta o papel.
+      await prisma.userPermission.upsert({
+        where: { user_id_permission: { user_id: user.id, permission: PERMISSAO_ADMIN_GERAL } },
+        update: {},
+        create: { user_id: user.id, permission: PERMISSAO_ADMIN_GERAL },
+      });
+    } else if (role !== 'ADMIN') {
+      // Rebaixar pelo convite também precisa remover a permissão; sem isso o
+      // próximo login recalcularia o papel e devolveria ADMIN.
+      await prisma.userPermission.deleteMany({
+        where: { user_id: user.id, permission: PERMISSAO_ADMIN_GERAL },
+      });
+    }
 
     if (role === 'PROFESSOR' && projetoId) {
       await prisma.projeto.update({

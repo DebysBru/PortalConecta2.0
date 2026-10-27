@@ -53,3 +53,8 @@ build-*.log
 
 # agent-local MCP config (contains SUPABASE_ACCESS_TOKEN in plaintext)
 .agents/mcp_config.json
+
+# Graphify: ambiente Python e grafos locais regeneráveis
+/.graphify-venv/
+/graphify-out/
+/.next-rag-check/
