@@ -55,11 +55,13 @@ describe('limites da importação do SUAP', () => {
     // puxa `@/lib/suap-api` (usa `fs/promises`) para o bundle do navegador — o
     // build falhava com "Module not found: Can't resolve 'fs/promises'".
     const cliente = readFileSync(
-      join(process.cwd(), 'src', 'app', 'admin', '(protected)', 'suap', 'importar', 'ImportarSuapClient.tsx'),
+      join(process.cwd(), 'src', 'app', 'admin', '(protected)', 'suap', 'carga', 'CargaSuapClient.tsx'),
       'utf8',
     );
     expect(cliente).toContain("from '@/lib/suap-limites'");
     expect(cliente).not.toMatch(/from '@\/lib\/suap-import'/);
+    // idem para quem puxa Prisma/fs: no cliente só entram imports de TIPO (apagados no build)
+    expect(cliente).not.toMatch(/^import (?!type)[^\n]*from '@\/lib\/(suap-sync|suap-carga-contexto|suap-api|prisma)'/m);
 
     // e o módulo neutro não pode ganhar imports (é o que o mantém seguro nos dois lados)
     const limites = readFileSync(join(process.cwd(), 'src', 'lib', 'suap-limites.ts'), 'utf8');

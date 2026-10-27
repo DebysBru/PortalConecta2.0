@@ -10,6 +10,7 @@ import { prisma } from '@/lib/prisma';
 import { BotaoFavorito } from '@/components/ui/BotaoFavorito';
 import { PageHero } from '@/components/layout/PageHero';
 import { buscarEditalPublicoPorSlug, buscarResumoEditalPublico } from '@/lib/editais-publicos';
+import { garantirStatusEditaisAtualizado } from '@/lib/editais-status';
 import type { Metadata } from 'next';
 
 export const dynamic = 'force-dynamic';
@@ -78,6 +79,7 @@ export async function generateMetadata({ params }: { params: { slug: string } })
 }
 
 export default async function EditalDetalhePage({ params }: { params: { slug: string } }) {
+  await garantirStatusEditaisAtualizado();
   // Só edital PUBLICADO e não deletado chega ao público (ver
   // src/lib/editais-publicos.ts — antes daqui um rascunho era acessível pela URL).
   const edital = await buscarEditalPublicoPorSlug(params.slug, {

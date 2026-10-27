@@ -16,7 +16,7 @@
  *
  * Contexto: a sincronização automática não passa pelo SUAP porque o WAF deles
  * desafia o IP do servidor (ver DOCUMENTACAO/SUAP_IMPORTACAO.md). A captura é
- * feita no navegador logado (`public/modelos/capturar-projetos-suap.js`).
+ * feita no navegador logado (`public/modelos/capturar-suap-semanal.js`).
  */
 
 import { readFileSync } from 'node:fs';

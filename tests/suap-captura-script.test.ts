@@ -1,5 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
+import vm from 'node:vm';
+import { chaveEdital } from '@/lib/suap-editais';
 import { join } from 'node:path';
 
 /**
@@ -15,7 +17,7 @@ import { join } from 'node:path';
  * ficam as invariantes que não podem regredir sozinhas.
  */
 const SCRIPT = readFileSync(
-  join(process.cwd(), 'public', 'modelos', 'capturar-projetos-suap.js'),
+  join(process.cwd(), 'public', 'modelos', 'capturar-suap-semanal.js'),
   'utf8',
 );
 
@@ -40,7 +42,7 @@ describe('script de captura do SUAP', () => {
 
   it('avisa quais siglas existem quando não acha o campus (em vez de arquivo vazio)', () => {
     expect(SCRIPT).toContain('siglasVistas');
-    expect(SCRIPT).toMatch(/Nenhum projeto do campus/);
+    expect(SCRIPT).toMatch(/nenhum do campus/);
   });
 
   it('só lê o SUAP: nenhum envio para outro endereço', () => {
@@ -62,7 +64,45 @@ describe('script de captura do SUAP', () => {
 
   it('devolve o pacote no formato que o painel importa', () => {
     expect(SCRIPT).toContain("origem: 'captura-suap-navegador'");
-    expect(SCRIPT).toMatch(/extensao: resultado\.extensao/);
-    expect(SCRIPT).toMatch(/pesquisa: resultado\.pesquisa/);
+    expect(SCRIPT).toMatch(/extensao: projetosLidos > 0 \? resultado\.extensao/);
+    expect(SCRIPT).toMatch(/pesquisa: projetosLidos > 0 \? resultado\.pesquisa/);
+    expect(SCRIPT).toMatch(/editais: editaisLidos > 0 \? editais/);
+  });
+
+  it('lê as três listas de editais do SUAP e filtra o campus pelo próprio filtro da página', () => {
+    expect(SCRIPT).toContain("'/pesquisa/editais/'");
+    expect(SCRIPT).toContain("'/projetos/editais/'");
+    expect(SCRIPT).toContain("'/projetos_ensino/editais/'");
+    // o número interno do campus vem do <select>, não de um valor fixo
+    expect(SCRIPT).toContain('select[name="uo"] option');
+  });
+
+  it('descarta o que o portal já conhece (e traz tudo quando a lista não veio)', () => {
+    expect(SCRIPT).toContain('window.__portalConectaConhecidos');
+    expect(SCRIPT).toContain('EDITAIS_CONHECIDOS.has(chaveEdital(');
+    expect(SCRIPT).toMatch(/PROJETOS_CONHECIDOS\.has\(fonte \+ ':' \+ projeto\.id\)/);
+  });
+
+  it('não copia o endereço assinado do PDF (expira e carrega chave de acesso)', () => {
+    expect(SCRIPT).toContain('temArquivo');
+    // do link do arquivo só se registra SE existe (booleano), nunca o endereço
+    expect(SCRIPT).toContain("temLink: !!(dd && dd.querySelector('a[href]'))");
+    expect(SCRIPT).not.toMatch(/Signature|AWSAccessKeyId|getAttribute\('href'\)/);
+  });
+
+  it('a chave de identidade do edital é igual no script e no servidor', () => {
+    const bloco = SCRIPT.match(/\/\/ <chave-edital>([\s\S]*?)\/\/ <\/chave-edital>/);
+    expect(bloco).not.toBeNull();
+    const noScript = vm.runInNewContext(`${bloco![1]}; chaveEdital`) as (f: string, t: string, i: string) => string;
+
+    const casos: [string, string, string][] = [
+      ['projetos', 'PROJETOS CIECs - PIBEX-JR - CAMPUS IVAIPORÃ', '26/10/2026 00:00:00 a 04/11/2026 00:00:00'],
+      ['ensino', 'Edital de Projetos de Ensino em fluxo contínuo - campus Ivaiporã', '30/09/2026 17:00:00 a 31/12/2030 00:00:00'],
+      ['pesquisa', '  Edital   nº 03/2025 — Iniciação Científica (PIBIC/PIBITI)  ', '16/09/2025 00:00:00 a 30/06/2026 00:00:00'],
+      ['ensino', 'Título sem datas', ''],
+    ];
+    for (const [fonte, titulo, inscricoes] of casos) {
+      expect(noScript(fonte, titulo, inscricoes)).toBe(chaveEdital(fonte, titulo, inscricoes));
+    }
   });
 });

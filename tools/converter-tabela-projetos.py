@@ -2,7 +2,7 @@
 """Converte uma tabela markdown de projetos do SUAP no JSON que o portal importa.
 
 Por que existe: a captura pelo navegador
-(`public/modelos/capturar-projetos-suap.js`) devolve o JSON pronto, mas às vezes o
+(`public/modelos/capturar-suap-semanal.js`) devolve o JSON pronto, mas às vezes o
 que se tem em mãos é uma **tabela resumida** (ID, título, situação, datas,
 coordenação) vinda de uma consulta ou de um relatório. Este script transforma essa
 tabela no mesmo formato aceito por Painel → SUAP → "Importar do SUAP" e pelo CLI

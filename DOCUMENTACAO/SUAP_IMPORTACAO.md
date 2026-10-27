@@ -1,4 +1,92 @@
-# Importar projetos do SUAP
+# Importar do SUAP
+
+> **Rotina semanal (use esta):** Painel Master → SUAP → **Carga semanal**
+> (`/admin/suap/carga`). Um script, uma colagem, e só o que é novo entra. O resto
+> deste documento explica o porquê e os detalhes.
+
+## 0. Carga semanal: editais + projetos numa colagem
+
+O que o admin faz, uma vez por semana (o passo a passo também está no painel):
+
+1. no painel, **Copiar o código da captura**;
+2. abrir o SUAP logado → `F12` → Console → colar (no Chrome/Edge, na primeira vez,
+   digitar `allow pasting`) → Enter;
+3. quando aparecer `✅ Captura pronta`, voltar ao painel, colar o resultado no passo 2
+   e **Conferir**;
+4. a prévia mostra novos × já existentes; **Importar**.
+
+O script (`public/modelos/capturar-suap-semanal.js`) lê, só com `GET` e na sessão do
+admin:
+
+| Fonte | Como |
+|---|---|
+| `/pesquisa/editais/` | HTML da lista, filtrada por campus (`uo`) |
+| `/projetos/editais/` | idem (editais de projetos de extensão) |
+| `/projetos_ensino/editais/` | idem (editais de projetos de ensino) |
+| projetos de extensão e pesquisa | API do SUAP, como na seção 3 |
+
+**"Só os novos":** a página injeta no código copiado a lista do que o portal já tem
+(`window.__portalConectaConhecidos`, montada em `src/lib/suap-carga-contexto.ts`) e o
+script descarta esses itens. O servidor confere de novo ao gravar
+(`somenteNovos`, padrão), então um arquivo antigo ou "cru" não atualiza nem duplica
+nada. Atualizar o existente é uma caixa a marcar na prévia (e, dentro dela,
+"sobrescrever edições manuais").
+
+**Por que não há corte por data:** os cartões de edital do SUAP **não mostram ID nem
+data de publicação**. Um edital novo pode ter inscrições que já começaram, então
+filtrar por "depois da última carga" o perderia. A data da última carga aparece no
+guia como informação (e avisa se passou de 8 dias), mas quem decide o que entra é a
+identidade.
+
+**Identidade do edital** (`chaveEdital`, igual no script e no servidor — travada em
+`tests/suap-captura-script.test.ts`): `suap-edital:<fonte>:<título-normalizado>:<ano
+da abertura das inscrições>`, gravada em `Edital.origemRef`. Se o SUAP renomear um
+edital, ele chega como novo (o painel avisa em "Se der problema").
+
+**O que fica gravado** (`mapearEditalSuap`): título, descrição, datas reais de
+inscrição/resultado/recurso, status calculado por elas, categoria pela fonte
+(pesquisa → Pesquisa, projetos → Extensão, ensino → Ensino). O link do PDF **não é
+guardado**: o SUAP serve o arquivo por um endereço assinado que expira em minutos e
+exige login; o botão do edital aponta para a lista no SUAP. O texto da IFizinha só
+repete o que o cartão diz e manda abrir o edital oficial.
+
+**Status que acompanha as datas:** a carga só grava editais novos, então o status
+(`ABERTO`, `EM_ANALISE`, `RESULTADO_PUBLICADO`, `ENCERRADO`...) é recalculado depois,
+sozinho, sobre as datas gravadas (`src/lib/editais-status.ts`). Não há agendador na
+VPS: a conta roda quando alguém abre a home, `/editais` ou um edital, no máximo a cada
+10 minutos por processo (poucas dezenas de registros, consulta barata), e invalida o
+cache da lista e do chat se algo mudou. A regra é a mesma da importação
+(`statusPelasDatas`) — inscrições, fim das inscrições e resultado; o período de
+recurso do SUAP não entra (já veio incoerente e o portal não guarda o início dele),
+então `PRAZO_RECURSO` não é atribuído a editais do SUAP. Edital **editado à mão** no
+portal depois da última carga não é tocado: o status dele passa a ser do admin.
+
+**Falhas:** o script nunca gera "arquivo vazio de aparência normal". Se um grupo
+inteiro (as 3 listas, ou os 2 endpoints de projetos) falha, ele fica de fora do JSON e
+o `problemas` explica; se nada pôde ser lido, só há um alerta. Se o layout do SUAP
+mudar, o script lança erro dizendo qual lista (e a parte que funcionou ainda pode ser
+importada).
+
+| Peça | Arquivo |
+|---|---|
+| Script (navegador) | `public/modelos/capturar-suap-semanal.js` |
+| Leitura/identidade/status/mapeamento de editais | `src/lib/suap-editais.ts` |
+| Leitura do pacote (editais + projetos) | `src/lib/suap-carga.ts` |
+| Lista de conhecidos + última carga | `src/lib/suap-carga-contexto.ts` |
+| Gravação (`aplicarEditaisDoSuap`, `somenteNovos`) | `src/lib/suap-sync.ts` |
+| Status automático pelas datas | `src/lib/editais-status.ts` (+ `tests/editais-status.test.ts`) |
+| Actions (prévia + confirmar) | `src/actions/suap-carga.ts` |
+| Tela + guia | `src/app/admin/(protected)/suap/carga/` |
+| Testes | `tests/suap-editais.test.ts`, `tests/suap-carga-gravacao.test.ts`, `tests/suap-captura-script.test.ts` |
+
+A lista de editais do SUAP é HTML, não API: foi verificado em 27/10/2026 contra o
+HTML real de `/projetos/editais/` e `/projetos_ensino/editais/`; a de
+`/pesquisa/editais/` presume o mesmo modelo de cartões e, se divergir, o script avisa
+qual lista falhou.
+
+---
+
+## Histórico: importar projetos do SUAP (seções 1 a 5)
 
 Este documento explica **por que** a sincronização automática do SUAP parou de
 funcionar, o que a API realmente oferece e **como trazer os projetos hoje**.
@@ -60,7 +148,7 @@ feita lá — **sem token nenhum**:
 
 1. Entre no SUAP normalmente;
 2. `F12` → aba **Console**;
-3. cole o conteúdo de [`public/modelos/capturar-projetos-suap.js`](../public/modelos/capturar-projetos-suap.js)
+3. cole o conteúdo de [`public/modelos/capturar-suap-semanal.js`](../public/modelos/capturar-suap-semanal.js)
    (ou use o botão **"Copiar o código da captura"** em Painel → SUAP → Importar) e
    aperte Enter. O script faz `GET` em `/api/extensao/projetos/` e
    `/api/pesquisa/projetos/` **do próprio SUAP**, pagina até o fim e junta tudo;
@@ -168,10 +256,10 @@ depois, como alternativa quando o SUAP estiver instável.
 
 | Peça | Arquivo |
 |---|---|
-| Script de captura (roda no navegador) | `public/modelos/capturar-projetos-suap.js` |
+| Script de captura (roda no navegador) | `public/modelos/capturar-suap-semanal.js` |
 | Parser/validação da captura | `src/lib/suap-import.ts` |
-| Actions do painel (prévia + confirmar) | `src/actions/suap-import.ts` |
-| Tela de importação | `src/app/admin/(protected)/suap/importar/` |
+| Actions do painel (prévia + confirmar) | `src/actions/suap-carga.ts` |
+| Tela de importação (agora redireciona para a Carga semanal) | `src/app/admin/(protected)/suap/importar/` |
 | Gravação (mapeamento do SUAP → portal) | `aplicarProjetosDoSuap` em `src/lib/suap-sync.ts` |
 | CLI | `prisma/importar-projetos-suap.ts` (`npm run db:suap`) |
 | Testes | `tests/suap-import.test.ts` |

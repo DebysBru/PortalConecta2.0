@@ -4,6 +4,7 @@ import { getDaysUntil } from '@/lib/utils';
 import { prisma } from '@/lib/prisma';
 import { EDITAL_PUBLICO_WHERE } from '@/lib/editais-publicos';
 import { withCache } from '@/lib/cache';
+import { garantirStatusEditaisAtualizado } from '@/lib/editais-status';
 import { PageHero } from '@/components/layout/PageHero';
 import { EditaisExplorer, type EditalListado } from '@/components/editais/EditaisExplorer';
 import type { Metadata } from 'next';
@@ -17,6 +18,8 @@ export const metadata: Metadata = {
 };
 
 export default async function EditaisPage() {
+  // Antes da lista: se algum status mudou, o cache dela é invalidado aqui.
+  await garantirStatusEditaisAtualizado();
   const editais = await withCache('editais:published', () => prisma.edital.findMany({
     // Fonte única da regra "edital visível ao público" (src/lib/editais-publicos.ts).
     where: EDITAL_PUBLICO_WHERE,

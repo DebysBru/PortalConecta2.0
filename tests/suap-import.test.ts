@@ -5,7 +5,7 @@ import { normalizaSiglaSuap } from '@/lib/suap-api';
 /**
  * Importação de projetos do SUAP pela captura do navegador.
  *
- * O caso que importa: o arquivo que o script `public/modelos/capturar-projetos-suap.js`
+ * O caso que importa: o arquivo que o script `public/modelos/capturar-suap-semanal.js`
  * gera (chaves `extensao` e `pesquisa`) precisa ser lido inteiro, sem erro, e o
  * resumo tem que mostrar quantos são do campus configurado — porque a API do SUAP
  * **não filtra por campus** e é aqui que o filtro acontece.

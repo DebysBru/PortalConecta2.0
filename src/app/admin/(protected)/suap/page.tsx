@@ -225,6 +225,21 @@ export default function SuapSyncPage() {
         </button>
       </div>
 
+      {/* Caminho que funciona hoje: a carga semanal pelo navegador */}
+      <Link
+        href="/admin/suap/carga"
+        className="flex items-center justify-between gap-4 rounded-2xl border border-azul-eletrico/20 bg-azul-eletrico/5 p-5 transition-colors hover:bg-azul-eletrico/10"
+      >
+        <div>
+          <p className="font-bold text-gray-900">Carga semanal do SUAP (editais e projetos)</p>
+          <p className="mt-0.5 text-sm text-gray-600">
+            Passo a passo para trazer só o que é novo, pelo navegador, sem token. É o caminho que funciona enquanto o
+            servidor está bloqueado pelo WAF do SUAP.
+          </p>
+        </div>
+        <span className="flex-shrink-0 text-sm font-semibold text-azul-eletrico">Abrir o guia →</span>
+      </Link>
+
       {/* Status SUAP */}
       <div className={`rounded-2xl border p-5 ${
         configurado && suap?.conexao?.ok
@@ -305,10 +320,10 @@ export default function SuapSyncPage() {
           </p>
 
           <Link
-            href="/admin/suap/importar"
+            href="/admin/suap/carga"
             className="mb-4 inline-flex items-center gap-2 rounded-xl bg-hero-gradient px-5 py-2.5 text-sm font-semibold text-white transition-all hover:opacity-95"
           >
-            Importar projetos pela captura do navegador
+            Fazer a carga semanal (editais e projetos)
           </Link>
 
           <p className="mb-4 text-xs text-blue-800">
@@ -362,7 +377,7 @@ export default function SuapSyncPage() {
               <li>Na seção <strong>tokenAuth</strong>, clique <strong>&quot;Try it out&quot;</strong></li>
               <li>Preencha:
                 <ul className="ml-6 mt-1 space-y-1 list-disc text-xs">
-                  <li><strong>username:</strong> <code className="bg-blue-100 px-1 rounded">20251IVA10030013</code></li>
+                  <li><strong>username:</strong> <code className="bg-blue-100 px-1 rounded">seu usuário do SUAP</code></li>
                   <li><strong>password:</strong> <code className="bg-blue-100 px-1 rounded">sua senha do SUAP</code></li>
                 </ul>
               </li>
