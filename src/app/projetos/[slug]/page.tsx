@@ -470,6 +470,19 @@ export default async function ProjetoPage({ params }: { params: Params }) {
                   </div>
                 </div>
 
+                {/* Vice-coordenação — só o nome (o e-mail do vice não é público). */}
+                {projeto.viceCoordenadorNome?.trim() && (
+                  <div className="flex items-start gap-3">
+                    <div className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0" style={{ backgroundColor: `${projeto.corPrimaria}20` }}>
+                      <Users className="w-4 h-4" style={{ color: projeto.corPrimaria }} />
+                    </div>
+                    <div>
+                      <p className="text-xs text-gray-400 font-medium">Vice-coordenação</p>
+                      <p className="text-sm text-gray-700 font-semibold">{projeto.viceCoordenadorNome.trim()}</p>
+                    </div>
+                  </div>
+                )}
+
                 <div className="flex items-start gap-3">
                   <div className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0" style={{ backgroundColor: `${projeto.corPrimaria}20` }}>
                     <BookOpen className="w-4 h-4" style={{ color: projeto.corPrimaria }} />
