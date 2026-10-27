@@ -7,7 +7,7 @@ import { LIMITE_CAPTURA_BYTES } from '@/lib/suap-limites';
  * Por que existe: o SUAP está atrás de um AWS WAF que desafia (CAPTCHA) o IP do
  * servidor do portal, então a busca direta (`syncProjetos`) não consegue passar.
  * Do navegador de quem está logado, a API responde normalmente — a captura
- * (`public/modelos/capturar-projetos-suap.js`) chama os dois endpoints de dentro
+ * (`public/modelos/capturar-suap-semanal.js`) chama os dois endpoints de dentro
  * da sessão, sem precisar de token, e devolve um JSON que o painel importa por
  * aqui. O mapeamento de campos e a gravação são os mesmos do sync direto
  * (`aplicarProjetosDoSuap`).

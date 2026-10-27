@@ -12,7 +12,9 @@ import {
   type User as FirebaseUser,
 } from 'firebase/auth';
 import { auth } from '@/lib/firebase';
-import { getUserRole, ensureUser } from '@/actions/admin';
+import { ensureUser } from '@/actions/admin';
+import { definirVisao } from '@/actions/visao';
+import { destinoDaVisao, VISAO_PADRAO, type Visao } from '@/lib/visao';
 import { UserRole } from '@prisma/client';
 import { MENSAGENS, mensagemAmigavel } from '@/lib/mensagens';
 
@@ -45,6 +47,10 @@ type AuthState = {
   isAdmin: boolean;
   /** Aluno bolsista/voluntário com o cargo de gestor de página em algum projeto. */
   isGestor: boolean;
+  /** Visão do "ver como" do admin (Aluno/Professor/Admin). Para os demais, é o próprio papel. */
+  visao: Visao;
+  /** Troca a visão do admin e leva para o painel correspondente. */
+  mudarVisao: (visao: Visao) => Promise<{ ok: true } | { ok: false; error: string }>;
   loading: boolean;
   signIn: (email: string, password: string) => Promise<void>;
   signInWithGoogle: () => Promise<void>;
@@ -76,6 +82,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [supabaseUserId, setSupabaseUserId] = useState<string | null>(null);
   const [isMasterAdmin, setIsMasterAdmin] = useState(false);
   const [isGestor, setIsGestor] = useState(false);
+  const [visao, setVisao] = useState<Visao>(VISAO_PADRAO);
   const [loading, setLoading] = useState(true);
   // `undefined` = ainda não observamos nenhum estado (primeiro disparo do
   // onAuthStateChanged, na carga inicial da página — não precisa de
@@ -129,11 +136,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         const email = await extractEmail(firebaseUser);
         if (email) {
           try {
-            const { id, role, isMasterAdmin: master, isGestor: gestor } = await ensureUser(email, firebaseUser.displayName ?? undefined);
+            const { id, role, isMasterAdmin: master, isGestor: gestor, visao: visaoAtual } = await ensureUser(email, firebaseUser.displayName ?? undefined);
             setUserRole(role);
             setSupabaseUserId(id);
             setIsMasterAdmin(master);
             setIsGestor(gestor);
+            setVisao(visaoAtual);
           } catch {
             // `ensureUser` (server action) falhou — não há como o cliente
             // saber o papel real sem o servidor, então não assume ADMIN aqui
@@ -264,11 +272,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       //    Fazemos um refresh do role pois o complete-suap-link pode ter promovido
       //    o usuário para PROFESSOR (o onAuthStateChanged já rodou com ESTUDANTE).
       try {
-        const { id, role, isMasterAdmin: master, isGestor: gestor } = await ensureUser(result.user.email!, result.user.displayName ?? undefined);
+        const { id, role, isMasterAdmin: master, isGestor: gestor, visao: visaoAtual } = await ensureUser(result.user.email!, result.user.displayName ?? undefined);
         setUserRole(role);
         setSupabaseUserId(id);
         setIsMasterAdmin(master);
         setIsGestor(gestor);
+        setVisao(visaoAtual);
       } catch { /* ignora — o role será correto no próximo login */ }
 
       return { ok: true };
@@ -290,6 +299,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setSupabaseUserId(null);
     setIsMasterAdmin(false);
     setIsGestor(false);
+    setVisao(VISAO_PADRAO);
+  };
+
+  // ── "Ver como" (só admin) ────────────────────────────────────────────────────
+  const mudarVisao = async (nova: Visao) => {
+    const res = await definirVisao(nova);
+    if (!res.ok) return res;
+    setVisao(res.visao);
+    // Descarta o Router Cache (os layouts de /admin e /professor dependem do
+    // cookie da visão) e leva para o painel correspondente.
+    router.push(destinoDaVisao(res.visao));
+    router.refresh();
+    return { ok: true as const };
   };
 
   // `role` vem calculado ao vivo do servidor (ensureUser → resolveUserRole):
@@ -301,7 +323,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   return (
     <AuthContext.Provider value={{
       user, userRole, supabaseUserId,
-      isMasterAdmin, isAdmin, isGestor, loading,
+      isMasterAdmin, isAdmin, isGestor, visao, mudarVisao, loading,
       signIn, signInWithGoogle, signInWithSuap,
       completeSuapGoogleLink, signOut,
     }}>

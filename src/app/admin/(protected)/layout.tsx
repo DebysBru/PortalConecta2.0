@@ -2,6 +2,7 @@ import { redirect } from 'next/navigation';
 import { AdminShell } from '@/components/admin/AdminShell';
 import { getVerifiedServerSession } from '@/lib/session';
 import { getUserRole } from '@/actions/admin';
+import { lerVisao } from '@/lib/visao-server';
 
 export const metadata = { title: 'Admin — Portal Conecta' };
 
@@ -27,6 +28,12 @@ export default async function AdminProtectedLayout({ children }: { children: Rea
   const role = await getUserRole(session.email);
   if (role === 'PROFESSOR') redirect('/professor');
   if (role !== 'ADMIN') redirect('/meus-dados');
+
+  // "Ver como" (src/lib/visao.ts): o admin que escolheu a visão Professor ou
+  // Aluno não cai no painel admin — vai para o que aquele papel enxergaria.
+  const visao = lerVisao(role);
+  if (visao === 'PROFESSOR') redirect('/professor');
+  if (visao === 'ESTUDANTE') redirect('/');
 
   return <AdminShell>{children}</AdminShell>;
 }

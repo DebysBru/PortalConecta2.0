@@ -10,6 +10,7 @@ import {
   ExternalLink,
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
+import { SeletorDeVisao } from '@/components/layout/SeletorDeVisao';
 
 type NavItem = {
   href: string;
@@ -116,6 +117,8 @@ export function ProfessorShell({
       </nav>
 
       <div className="p-4 border-t border-white/15">
+        <SeletorDeVisao tom="escuro" className="mb-3 w-full" />
+
         <Link
           href="/"
           onClick={onNavClick}

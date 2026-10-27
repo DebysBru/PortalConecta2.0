@@ -18,6 +18,7 @@ import { getDashboardStatsAction } from '@/actions/auth';
 import { getAllSiteConfigAction } from '@/actions/site-config';
 import { POST_BUSCA_WHERE } from '@/lib/busca';
 import { db } from '@/lib/prisma';
+import { garantirStatusEditaisAtualizado } from '@/lib/editais-status';
 
 export const dynamic = 'force-dynamic';
 
@@ -34,6 +35,8 @@ export const dynamic = 'force-dynamic';
  * MascoteIFizinha e a §4.2 de DOCUMENTACAO/REDESIGN_IFIZINHA.md.
  */
 export default async function HomePage() {
+  // Status dos editais do SUAP acompanha as datas (ver src/lib/editais-status.ts).
+  await garantirStatusEditaisAtualizado();
   const [stats, siteConfig, editaisDestaque, proximosEventos, noticias] = await Promise.all([
     getDashboardStatsAction(),
     getAllSiteConfigAction(),

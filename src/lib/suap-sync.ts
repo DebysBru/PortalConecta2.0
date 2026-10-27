@@ -18,6 +18,7 @@ import {
   mensagemPreservado,
 } from '@/lib/suap-edicao-manual';
 import { suapIdUnico } from '@/lib/suap-identidade';
+import { FONTES_EDITAL, mapearEditalSuap, type EditalComChave } from '@/lib/suap-editais';
 import {
   fetchProjetosFromSuap,
   fetchEditaisFromSuap,
@@ -96,6 +97,8 @@ export interface SyncResult {
   erros: number;
   detalhes: string[];
   dadosBrutos?: unknown; // raw SUAP response para debug
+  /** Registros que já existiam e foram deixados como estavam (modo "só os novos"). */
+  ignorados?: number;
 }
 
 export async function syncProjetos(options?: { dryRun?: boolean; forcar?: boolean }): Promise<SyncResult> {
@@ -139,16 +142,19 @@ export async function syncProjetos(options?: { dryRun?: boolean; forcar?: boolea
  */
 export async function aplicarProjetosDoSuap(
   projetosSuap: SuapProjeto[],
-  options?: { dryRun?: boolean; forcar?: boolean; origem?: string },
+  options?: { dryRun?: boolean; forcar?: boolean; origem?: string; somenteNovos?: boolean; avisos?: string[] },
 ): Promise<SyncResult> {
   const result: SyncResult = { total: projetosSuap.length, criados: 0, atualizados: 0, preservados: 0, erros: 0, detalhes: [] };
 
-  if (projetosSuap.length > 0) {
+  // Com `origem` a linha sai mesmo com zero projetos: é ela que marca no histórico
+  // que houve uma carga (a data da última carga aparece no guia do painel).
+  if (projetosSuap.length > 0 || options?.origem) {
     result.dadosBrutos = projetosSuap.slice(0, 3);
     result.detalhes.push(
       `✅ ${projetosSuap.length} projetos recebidos${options?.origem ? ` (${options.origem})` : ` do SUAP (campus ${process.env.SUAP_CAMPUS_SIGLA ?? 'IVAIPODG'})`}`,
     );
   }
+  if (options?.avisos?.length) result.detalhes.push(...options.avisos);
 
   if (options?.dryRun) {
     result.detalhes.push('🔍 Simulação — nenhum dado foi gravado no portal');
@@ -173,6 +179,13 @@ export async function aplicarProjetosDoSuap(
       const existente = await prisma.projeto.findUnique({
         where: { suapId: suapIdLocal },
       });
+
+      // Carga semanal ("só os novos"): o que já está no portal não é tocado —
+      // nem atualizado, nem reindexado. Quem quer atualizar pede explicitamente.
+      if (existente && options?.somenteNovos) {
+        result.ignorados = (result.ignorados ?? 0) + 1;
+        continue;
+      }
 
       const slug = existente
         ? existente.slug
@@ -236,7 +249,121 @@ export async function aplicarProjetosDoSuap(
     }
   }
 
+  if (result.ignorados) {
+    result.detalhes.push(`ℹ️ ${result.ignorados} projeto(s) já estavam no portal e foram deixados como estão.`);
+  }
+
   await logSync('projetos', result.erros === 0 ? 'success' : 'partial', result);
+  cache.invalidate('chat:');
+  return result;
+}
+
+// ─── Carga de editais capturados no navegador ─────────────────────────────────
+
+/**
+ * Grava no portal os editais capturados nas listas web do SUAP (ver
+ * `src/lib/suap-editais.ts`). A identidade é `Edital.origemRef` (fonte + título +
+ * ano). Com `somenteNovos` — o padrão da carga semanal — o que já existe não é
+ * tocado; sem ele, vale a mesma proteção de edição manual dos projetos.
+ */
+export async function aplicarEditaisDoSuap(
+  editais: EditalComChave[],
+  options?: { dryRun?: boolean; forcar?: boolean; somenteNovos?: boolean; origem?: string; avisos?: string[]; agora?: Date },
+): Promise<SyncResult> {
+  const result: SyncResult = { total: editais.length, criados: 0, atualizados: 0, preservados: 0, erros: 0, detalhes: [], ignorados: 0 };
+  const agora = options?.agora ?? new Date();
+
+  result.detalhes.push(`✅ ${editais.length} editais recebidos${options?.origem ? ` (${options.origem})` : ''}`);
+  if (options?.avisos?.length) result.detalhes.push(...options.avisos);
+
+  if (options?.dryRun) {
+    result.detalhes.push('🔍 Simulação — nenhum dado foi gravado no portal');
+    return result;
+  }
+
+  let autor: { id: string } | null = null;
+  if (editais.length > 0) {
+    autor = await prisma.user.findFirst({ where: { role: 'ADMIN' }, orderBy: { createdAt: 'asc' }, select: { id: true } });
+    if (!autor) {
+      result.erros++;
+      result.detalhes.push('❌ Nenhum administrador cadastrado no portal. Peça para a equipe técnica criar a conta de administrador antes de importar.');
+      await logSync('editais', 'error', result);
+      return result;
+    }
+  }
+
+  const existentes = new Map(
+    (await prisma.edital.findMany({
+      where: { origemRef: { in: editais.map((e) => e.chave) } },
+      select: { id: true, slug: true, titulo: true, updatedAt: true, suapSyncedAt: true, origemRef: true },
+    })).map((e) => [e.origemRef as string, e]),
+  );
+
+  for (const edital of editais) {
+    try {
+      const existente = existentes.get(edital.chave);
+
+      if (existente && options?.somenteNovos) {
+        result.ignorados = (result.ignorados ?? 0) + 1;
+        continue;
+      }
+
+      const mapeado = mapearEditalSuap(edital, agora);
+      const dados = {
+        suapSyncedAt: new Date(),
+        titulo: mapeado.titulo,
+        numero: mapeado.numero,
+        ano: mapeado.ano,
+        categoria: mapeado.categoria,
+        areaEdital: mapeado.areaEdital,
+        status: mapeado.status,
+        dataInicio: mapeado.dataInicio,
+        dataEncerramento: mapeado.dataEncerramento,
+        dataResultado: mapeado.dataResultado,
+        prazoRecurso: mapeado.prazoRecurso,
+        resumo: mapeado.resumo,
+        resumoSimples: mapeado.resumoSimples,
+        linkOficial: mapeado.linkOficial,
+        fonteOficial: mapeado.fonteOficial,
+        source: 'SUAP' as const,
+        traducaoIFizinha: mapeado.traducaoIFizinha,
+      };
+
+      if (existente) {
+        if (decidirAtualizacaoSync({ editadoManualmente: foiEditadoAposSync(existente), forcar: options?.forcar }) === 'preservar') {
+          result.preservados++;
+          result.detalhes.push(`🛡️ Mantido como está (foi editado aqui no portal depois da última carga): "${existente.titulo}". Marque "sobrescrever edições manuais" se quiser substituir.`);
+          continue;
+        }
+        await prisma.edital.update({ where: { id: existente.id }, data: dados });
+        result.atualizados++;
+        result.detalhes.push(`🔄 Atualizado no portal: "${mapeado.titulo}"`);
+      } else {
+        await prisma.edital.create({
+          data: {
+            ...dados,
+            slug: await uniqueEditalSlug(mapeado.titulo),
+            origemRef: edital.chave,
+            review_status: 'PUBLICADO',
+            authorId: autor!.id,
+          },
+        });
+        result.criados++;
+        result.detalhes.push(`➕ Criado no portal: "${mapeado.titulo}" (${FONTES_EDITAL[edital.fonte].rotulo})`);
+      }
+    } catch (err) {
+      console.error('[SUAP] Falha ao gravar edital capturado', edital.chave, err);
+      result.erros++;
+      result.detalhes.push(`❌ Não conseguimos gravar o edital "${edital.titulo}". Os demais continuam sendo importados.`);
+    }
+  }
+
+  if (result.ignorados) {
+    result.detalhes.push(`ℹ️ ${result.ignorados} edital(is) já estavam no portal e foram deixados como estão.`);
+  }
+
+  const parcial = result.erros > 0 || !!options?.avisos?.length;
+  await logSync('editais', parcial ? 'partial' : 'success', result);
   cache.invalidate('chat:');
   return result;
 }

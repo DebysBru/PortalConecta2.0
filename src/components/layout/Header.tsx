@@ -8,6 +8,7 @@ import { Menu, X, Sparkles, BookOpen, FolderOpen, Calendar, ChevronRight, Layout
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/contexts/AuthContext';
 import { NotificationBell } from '@/components/layout/NotificationBell';
+import { SeletorDeVisao } from '@/components/layout/SeletorDeVisao';
 import { abrirChatIFizinha } from '@/lib/ifizinha-chat';
 
 const navItems = [
@@ -22,13 +23,15 @@ export function Header() {
   const [isScrolled, setIsScrolled] = useState(false);
   const pathname = usePathname();
   const router = useRouter();
-  const { user, userRole, loading, signOut } = useAuth();
+  const { user, userRole, visao, loading, signOut } = useAuth();
 
   // Só Admin e Professor têm um painel pra administrar (editais/projetos
   // pro Admin, os próprios projetos pro Professor) — Estudante não tem
-  // painel nenhum, então o link nem deve aparecer pra ele.
-  const painelHref = userRole === 'ADMIN' ? '/admin' : userRole === 'PROFESSOR' ? '/professor' : null;
-  const painelLabel = userRole === 'ADMIN' ? 'Admin' : 'Painel';
+  // painel nenhum, então o link nem deve aparecer pra ele. Para o Admin vale a
+  // visão escolhida em "Ver como" (Aluno/Professor/Admin).
+  const papelNaTela = userRole === 'ADMIN' ? visao : userRole;
+  const painelHref = papelNaTela === 'ADMIN' ? '/admin' : papelNaTela === 'PROFESSOR' ? '/professor' : null;
+  const painelLabel = papelNaTela === 'ADMIN' ? 'Admin' : 'Painel';
 
   const handleLogout = async () => {
     await signOut();
@@ -113,6 +116,7 @@ export function Header() {
             {!loading && (
               user ? (
                 <div className="flex items-center gap-1">
+                  <SeletorDeVisao className="hidden md:flex" />
                   <NotificationBell tom="claro" />
                   <Link
                     href="/minha-area"
@@ -229,6 +233,7 @@ export function Header() {
               <div className="pt-2 mt-2 border-t border-gray-100 space-y-1">
                 {user ? (
                   <>
+                    <SeletorDeVisao className="mx-4 mb-1 w-fit" />
                     <Link
                       href="/minha-area"
                       className="flex items-center gap-3 p-4 rounded-xl text-gray-700 hover:bg-gray-50 transition-all"
