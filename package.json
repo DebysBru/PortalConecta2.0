@@ -13,6 +13,8 @@
     "db:generate": "prisma generate",
     "db:push": "prisma db push",
     "db:seed": "ts-node --compiler-options '{\"module\":\"CommonJS\"}' prisma/seed.ts",
+    "db:professor-demo": "ts-node --compiler-options '{\"module\":\"CommonJS\"}' prisma/professor-demo.ts",
+    "db:aluno-demo": "ts-node --compiler-options '{\"module\":\"CommonJS\"}' prisma/aluno-demo.ts",
     "db:calendario": "ts-node --compiler-options '{\"module\":\"CommonJS\"}' prisma/importar-calendario.ts",
     "db:suap": "ts-node --project tsconfig.scripts.json -r tsconfig-paths/register prisma/importar-projetos-suap.ts",
     "editais:ifpr": "ts-node --project tsconfig.scripts.json -r tsconfig-paths/register prisma/extrair-editais-ifpr.ts",
